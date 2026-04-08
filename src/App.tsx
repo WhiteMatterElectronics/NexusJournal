@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ConceptExplorer } from './components/ConceptExplorer';
 import { TutorialDetail } from './components/TutorialDetail';
@@ -20,6 +20,8 @@ export default function App() {
   const [selectedTutorial, setSelectedTutorial] = useState<Tutorial | null>(null);
   const [tutorials, setTutorials] = useState<Tutorial[]>([]);
   const [loading, setLoading] = useState(true);
+  const [autoFlashFirmwareId, setAutoFlashFirmwareId] = useState<string | null>(null);
+  const initialLoadDone = useRef(false);
 
   const refreshTutorials = async () => {
     setLoading(true);
@@ -27,6 +29,13 @@ export default function App() {
       const res = await fetch('/api/tutorials');
       const data = await res.json();
       setTutorials(data);
+      if (!initialLoadDone.current) {
+        initialLoadDone.current = true;
+        const intro = data.find((t: Tutorial) => t.id === 'intro-electron-assistant');
+        if (intro) {
+          setSelectedTutorial(intro);
+        }
+      }
     } catch (err) {
       console.error('Failed to fetch tutorials:', err);
     } finally {
@@ -41,6 +50,14 @@ export default function App() {
   const handleViewChange = (view: AppView) => {
     setCurrentView(view);
     setSelectedTutorial(null);
+    if (view !== 'flasher') {
+      setAutoFlashFirmwareId(null);
+    }
+  };
+
+  const handleFlashFirmware = (firmwareId: string) => {
+    setAutoFlashFirmwareId(firmwareId);
+    setCurrentView('flasher');
   };
 
   return (
@@ -124,6 +141,7 @@ export default function App() {
                           <TutorialDetail 
                             tutorial={selectedTutorial} 
                             onBack={() => setSelectedTutorial(null)} 
+                            onFlashFirmware={handleFlashFirmware}
                           />
                         ) : (
                           <ConceptExplorer 
@@ -133,7 +151,7 @@ export default function App() {
                         )
                       )}
 
-                      {currentView === 'flasher' && <FlashModule />}
+                      {currentView === 'flasher' && <FlashModule autoFlashFirmwareId={autoFlashFirmwareId} onFlashComplete={() => setCurrentView('lab')} />}
                       {currentView === 'admin' && (
                         <SystemConfig 
                           tutorials={tutorials} 

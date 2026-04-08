@@ -16,15 +16,25 @@ import {
 import { cn } from "../lib/utils";
 import { BinaryAnalysis } from "./BinaryAnalysis";
 
+import { useSerial } from "../contexts/SerialContext";
+
 interface LogEntry {
   time: number;
   text: string;
 }
 
 export const Lab: React.FC = () => {
-  const [port, setPort] = useState<any>(null);
-  const [connected, setConnected] = useState(false);
-  const [baudRate, setBaudRate] = useState(115200);
+  const {
+    port,
+    connected,
+    baudRate,
+    setBaudRate,
+    connect,
+    disconnect,
+    writeToSerial,
+    subscribe
+  } = useSerial();
+
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [autoScroll, setAutoScroll] = useState(true);
   const [showTimestamp, setShowTimestamp] = useState(false);
@@ -48,13 +58,10 @@ export const Lab: React.FC = () => {
   const [rfidWriteData, setRfidWriteData] = useState("");
 
   const logEndRef = useRef<HTMLDivElement>(null);
-  const readerRef = useRef<any>(null);
-  const portRef = useRef<any>(null);
-  const keepReadingRef = useRef(true);
-  const closedPromiseRef = useRef<Promise<void> | null>(null);
   const isDumpingRef = useRef(false);
   const memoryBufferRef = useRef<number[]>([]);
   const dumpTimeoutRef = useRef<any>(null);
+  const serialBufferRef = useRef("");
 
   const BAUD_RATES = [
     9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600,
@@ -66,47 +73,94 @@ export const Lab: React.FC = () => {
     }
   }, [logs, autoScroll, activeTab]);
 
-  const connect = async () => {
-    if (!("serial" in navigator)) {
-      alert("Web Serial API not supported in this browser.");
-      return;
-    }
-
-    try {
-      let currentPort = portRef.current;
-      if (!currentPort) {
-        currentPort = await (navigator as any).serial.requestPort();
-        portRef.current = currentPort;
-        setPort(currentPort);
+  useEffect(() => {
+    const unsubscribe = subscribe((value) => {
+      serialBufferRef.current += value;
+      const lines = serialBufferRef.current.split("\n");
+      
+      if (lines.length > 1) {
+        const newLines = lines.slice(0, -1).map((l) => l.replace("\r", ""));
+        const now = Date.now();
+        
+        const newLogEntries = newLines.map((text) => {
+          if (text.includes("--- DUMPING DEVICE")) {
+            isDumpingRef.current = true;
+            setIsDumping(true);
+            memoryBufferRef.current = [];
+            setMemoryData(new Uint8Array());
+          } else if (text.includes("--- DUMP COMPLETE ---")) {
+            isDumpingRef.current = false;
+            setIsDumping(false);
+            setMemoryData(new Uint8Array(memoryBufferRef.current));
+            if (dumpTimeoutRef.current) clearTimeout(dumpTimeoutRef.current);
+          } else if (text.includes("ERROR: Device not responding")) {
+            isDumpingRef.current = false;
+            setIsDumping(false);
+            if (dumpTimeoutRef.current) clearTimeout(dumpTimeoutRef.current);
+          } else if (text.includes("SCAN_CARD_NOW")) {
+            setIsRfidScanning(true);
+            setRfidStatus("Please scan your RFID card...");
+          } else if (text.includes("TIMEOUT")) {
+            setIsRfidScanning(false);
+            setRfidStatus("Timeout: No card detected.");
+          } else if (text.startsWith("BLOCK:")) {
+            setIsRfidScanning(false);
+            setRfidStatus("Reading data...");
+            const parts = text.split(":");
+            const blockNum = parseInt(parts[1], 10);
+            if (parts[2] === "DATA" && parts[3]) {
+              const hexStr = parts[3].trim();
+              const bytes = [];
+              for (let i = 0; i < hexStr.length; i += 2) {
+                bytes.push(parseInt(hexStr.substring(i, i + 2), 16));
+              }
+              setRfidData(prev => {
+                const newData = new Uint8Array(prev);
+                newData.set(bytes, blockNum * 16);
+                return newData;
+              });
+              setRfidBlocksRead(prev => {
+                const newSet = new Set(prev);
+                newSet.add(blockNum);
+                return newSet;
+              });
+            }
+          } else if (text.includes("WRITE_SUCCESS")) {
+            setIsRfidScanning(false);
+            setRfidStatus("Write successful!");
+          } else if (text.includes("WRITE_FAILED")) {
+            setIsRfidScanning(false);
+            setRfidStatus("Write failed.");
+          } else if (text.includes("ERR:HEX_LEN_32_REQ")) {
+            setIsRfidScanning(false);
+            setRfidStatus("Error: Data must be exactly 32 hex characters (16 bytes).");
+          } else if (isDumpingRef.current) {
+            const match = text.match(/0x[0-9A-Fa-f]{4}:\s+(.*)/);
+            if (match) {
+              const hexBytes = match[1].trim().split(/\s+/);
+              const bytes = hexBytes
+                .map((h) => parseInt(h, 16))
+                .filter((n) => !isNaN(n));
+              memoryBufferRef.current.push(...bytes);
+              if (memoryBufferRef.current.length % 256 === 0) {
+                setMemoryData(new Uint8Array(memoryBufferRef.current));
+              }
+            }
+          }
+          return { time: now, text };
+        });
+        
+        setLogs((prev) => {
+          const updated = [...prev, ...newLogEntries];
+          return updated.slice(-1000); // Keep last 1000 lines
+        });
+        
+        serialBufferRef.current = lines[lines.length - 1];
       }
-
-      await currentPort.open({ baudRate });
-      setConnected(true);
-      keepReadingRef.current = true;
-
-      readLoop(currentPort);
-    } catch (err: any) {
-      console.error(err);
-      alert(`Connection failed: ${err.message}`);
-      portRef.current = null;
-      setPort(null);
-      setConnected(false);
-    }
-  };
-
-  const writeToSerial = async (text: string) => {
-    const currentPort = portRef.current;
-    if (!currentPort || !currentPort.writable) return;
-    const encoder = new TextEncoder();
-    const writer = currentPort.writable.getWriter();
-    try {
-      await writer.write(encoder.encode(text));
-    } catch (err) {
-      console.error("Write error:", err);
-    } finally {
-      writer.releaseLock();
-    }
-  };
+    });
+    
+    return unsubscribe;
+  }, [subscribe]);
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,8 +171,7 @@ export const Lab: React.FC = () => {
   };
 
   const fetchDump = () => {
-    if (!connected || !portRef.current || !portRef.current.writable) {
-      setConnected(false);
+    if (!connected || !port || !port.writable) {
       return;
     }
     setMemoryData(new Uint8Array());
@@ -139,13 +192,13 @@ export const Lab: React.FC = () => {
 
   const handleEEPROMWrite = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!connected || !portRef.current || !portRef.current.writable || !writeData.trim()) return;
+    if (!connected || !port || !port.writable || !writeData.trim()) return;
     writeToSerial(`WRITE ${i2cAddress} ${writeMemAddr} ${writeData}\n`);
     setWriteData("");
   };
 
   const handleRfidDump = () => {
-    if (!connected || !portRef.current || !portRef.current.writable) return;
+    if (!connected || !port || !port.writable) return;
     setRfidData(new Uint8Array(1024));
     setRfidBlocksRead(new Set());
     setRfidStatus("Initiating dump...");
@@ -154,7 +207,7 @@ export const Lab: React.FC = () => {
   };
 
   const handleRfidRead = () => {
-    if (!connected || !portRef.current || !portRef.current.writable) return;
+    if (!connected || !port || !port.writable) return;
     setRfidStatus(`Initiating read for sector ${rfidSector}...`);
     setIsRfidScanning(true);
     writeToSerial(`READ ${rfidSector}\n`);
@@ -162,7 +215,7 @@ export const Lab: React.FC = () => {
 
   const handleRfidWrite = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!connected || !portRef.current || !portRef.current.writable) return;
+    if (!connected || !port || !port.writable) return;
 
     const blockNum = parseInt(rfidWriteBlock.trim(), 10);
     if (isNaN(blockNum) || blockNum < 0 || blockNum > 63) {
@@ -213,153 +266,6 @@ export const Lab: React.FC = () => {
     setRfidStatus(`Initiating write to block ${blockNum}...`);
     setIsRfidScanning(true);
     writeToSerial(`WRITE ${blockNum} ${finalHexData}\n`);
-  };
-
-  const disconnect = async () => {
-    keepReadingRef.current = false;
-
-    if (readerRef.current) {
-      try {
-        await readerRef.current.cancel();
-      } catch (e) {
-        console.error("Error canceling reader:", e);
-      }
-    }
-
-    if (closedPromiseRef.current) {
-      try {
-        await closedPromiseRef.current;
-      } catch (e) {
-        console.error("Error waiting for stream to close:", e);
-      }
-    }
-
-    if (portRef.current) {
-      try {
-        await portRef.current.close();
-      } catch (e) {
-        console.error("Error closing port:", e);
-      }
-    }
-
-    portRef.current = null;
-    setPort(null);
-    setConnected(false);
-  };
-
-  const readLoop = async (currentPort: any) => {
-    try {
-      while (currentPort.readable && keepReadingRef.current) {
-        const textDecoder = new TextDecoderStream();
-        closedPromiseRef.current = currentPort.readable.pipeTo(
-          textDecoder.writable,
-        );
-        const reader = textDecoder.readable.getReader();
-        readerRef.current = reader;
-
-        try {
-          let buffer = "";
-          while (true) {
-            const { value, done } = await reader.read();
-            if (done) {
-              break;
-            }
-            if (value) {
-              buffer += value;
-              const lines = buffer.split("\n");
-              if (lines.length > 1) {
-                const newLines = lines
-                  .slice(0, -1)
-                  .map((l) => l.replace("\r", ""));
-                const now = Date.now();
-                const newLogEntries = newLines.map((text) => {
-                  if (text.includes("--- DUMPING DEVICE")) {
-                    isDumpingRef.current = true;
-                    setIsDumping(true);
-                    memoryBufferRef.current = [];
-                    setMemoryData(new Uint8Array());
-                  } else if (text.includes("--- DUMP COMPLETE ---")) {
-                    isDumpingRef.current = false;
-                    setIsDumping(false);
-                    setMemoryData(new Uint8Array(memoryBufferRef.current));
-                    if (dumpTimeoutRef.current) clearTimeout(dumpTimeoutRef.current);
-                  } else if (text.includes("ERROR: Device not responding")) {
-                    isDumpingRef.current = false;
-                    setIsDumping(false);
-                    if (dumpTimeoutRef.current) clearTimeout(dumpTimeoutRef.current);
-                  } else if (text.includes("SCAN_CARD_NOW")) {
-                    setIsRfidScanning(true);
-                    setRfidStatus("Please scan your RFID card...");
-                  } else if (text.includes("TIMEOUT")) {
-                    setIsRfidScanning(false);
-                    setRfidStatus("Timeout: No card detected.");
-                  } else if (text.startsWith("BLOCK:")) {
-                    setIsRfidScanning(false);
-                    setRfidStatus("Reading data...");
-                    const parts = text.split(":");
-                    const blockNum = parseInt(parts[1], 10);
-                    if (parts[2] === "DATA" && parts[3]) {
-                      const hexStr = parts[3].trim();
-                      const bytes = [];
-                      for (let i = 0; i < hexStr.length; i += 2) {
-                        bytes.push(parseInt(hexStr.substring(i, i + 2), 16));
-                      }
-                      setRfidData(prev => {
-                        const newData = new Uint8Array(prev);
-                        newData.set(bytes, blockNum * 16);
-                        return newData;
-                      });
-                      setRfidBlocksRead(prev => {
-                        const newSet = new Set(prev);
-                        newSet.add(blockNum);
-                        return newSet;
-                      });
-                    }
-                  } else if (text.includes("WRITE_SUCCESS")) {
-                    setIsRfidScanning(false);
-                    setRfidStatus("Write successful!");
-                  } else if (text.includes("WRITE_FAILED")) {
-                    setIsRfidScanning(false);
-                    setRfidStatus("Write failed.");
-                  } else if (text.includes("ERR:HEX_LEN_32_REQ")) {
-                    setIsRfidScanning(false);
-                    setRfidStatus("Error: Data must be exactly 32 hex characters (16 bytes).");
-                  } else if (isDumpingRef.current) {
-                    const match = text.match(/0x[0-9A-Fa-f]{4}:\s+(.*)/);
-                    if (match) {
-                      const hexBytes = match[1].trim().split(/\s+/);
-                      const bytes = hexBytes
-                        .map((h) => parseInt(h, 16))
-                        .filter((n) => !isNaN(n));
-                      memoryBufferRef.current.push(...bytes);
-                      if (memoryBufferRef.current.length % 256 === 0) {
-                        setMemoryData(new Uint8Array(memoryBufferRef.current));
-                      }
-                    }
-                  }
-                  return { time: now, text };
-                });
-                setLogs((prev) => {
-                  const updated = [...prev, ...newLogEntries];
-                  return updated.slice(-1000); // Keep last 1000 lines
-                });
-                buffer = lines[lines.length - 1];
-              }
-            }
-          }
-        } catch (error) {
-          console.error("Read error:", error);
-          break; // Device likely disconnected
-        } finally {
-          reader.releaseLock();
-          readerRef.current = null;
-        }
-      }
-    } finally {
-      if (keepReadingRef.current) {
-        disconnect();
-      }
-    }
   };
 
   const clearLogs = () => setLogs([]);

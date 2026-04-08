@@ -55,6 +55,12 @@ async function startServer() {
       db.exec("ALTER TABLE tutorials ADD COLUMN attachments TEXT;");
       console.log("Migration: Added 'attachments' column to 'tutorials' table.");
     }
+    
+    const hasFirmwareId = tableInfo.some(column => column.name === 'firmwareId');
+    if (!hasFirmwareId) {
+      db.exec("ALTER TABLE tutorials ADD COLUMN firmwareId TEXT;");
+      console.log("Migration: Added 'firmwareId' column to 'tutorials' table.");
+    }
   } catch (err) {
     console.error("Migration failed:", err);
   }
@@ -78,6 +84,14 @@ async function startServer() {
   if (tutorialCount.count === 0) {
     const seedTutorials = [
       {
+        id: 'intro-electron-assistant',
+        title: 'Welcome to ElectronAssistant',
+        category: 'theory',
+        difficulty: 'beginner',
+        description: 'A comprehensive introduction to the ElectronAssistant ESP32-C3 hardware and web platform.',
+        content: '# Welcome to ElectronAssistant\n\nElectronAssistant is a comprehensive hardware and software platform designed to streamline your embedded development workflow. At its core, it consists of a **tiny custom PCB powered by the ESP32-C3** microcontroller, seamlessly integrated with this powerful web-based platform.\n\n## The Hardware: ESP32-C3 Custom PCB\n\nThe ElectronAssistant board is designed for rapid prototyping and learning. It features:\n- **ESP32-C3 RISC-V MCU**: Wi-Fi & Bluetooth LE 5.0 capabilities.\n- **USB Type-C**: For power, programming, and serial communication.\n- **Compact Form Factor**: Fits perfectly on a breadboard.\n- **Built-in RGB LED**: For status indication and visual debugging.\n\n## Connecting to the Platform\n\nConnecting your ElectronAssistant to the web platform is incredibly simple, thanks to the **Web Serial API**.\n\n1. **Plug it in**: Connect the ElectronAssistant board to your computer using a USB-C cable.\n2. **Access the Lab or Flash Module**: Navigate to the `LAB` or `FLASH_MODULE` tab in the web interface.\n3. **Select Port**: Click the `SELECT_PORT` button. A browser prompt will appear.\n4. **Choose the Device**: Select the USB Serial device corresponding to your ESP32-C3 (often labeled as "USB JTAG/serial debug unit" or similar) and click "Connect".\n\nOnce connected, the platform maintains the serial connection across different views, allowing you to flash firmware and immediately monitor the output without reconnecting!\n\n## Platform Features\n\nThis web platform is your all-in-one command center:\n\n### 📚 Knowledge Base (Tutorials)\nYou are here! The Knowledge Base contains interactive tutorials, documentation, and guides. Tutorials can even be linked directly to firmware files. If a tutorial has associated firmware, you\'ll see a `FLASH_FIRMWARE` button at the top right.\n\n### ⚡ Flash Module\nThe Flash Module allows you to upload pre-compiled `.bin` firmware files directly to your ElectronAssistant board from the browser. No need to install complex toolchains or IDEs. Just select the firmware, click flash, and watch the progress.\n\n### 🔬 The Lab (Serial Console)\nThe Lab is your primary debugging interface. It provides a real-time serial monitor to view logs, sensor data, and debug messages coming from your board. It also allows you to send commands back to the device.\n\n### ⚙️ System Config\nThe System Config area is for administrators to manage the platform. Here you can upload new firmware binaries, write new tutorials using the block-based editor, and link tutorials to specific firmware versions.\n\n---\n\n> **Tip**: Try navigating to the `FLASH_MODULE` now to upload your first firmware, or head over to the `LAB` to see what your board is currently outputting!'
+      },
+      {
         id: 'i2c-mem',
         title: 'I2C Memories',
         category: 'protocol',
@@ -97,6 +111,21 @@ async function startServer() {
 
     const insertTutorial = db.prepare("INSERT INTO tutorials (id, title, category, difficulty, description, content) VALUES (?, ?, ?, ?, ?, ?)");
     seedTutorials.forEach(t => insertTutorial.run(t.id, t.title, t.category, t.difficulty, t.description, t.content));
+  } else {
+    // Ensure the intro tutorial exists even if DB was already seeded
+    const introExists = db.prepare("SELECT count(*) as count FROM tutorials WHERE id = 'intro-electron-assistant'").get() as { count: number };
+    if (introExists.count === 0) {
+      const introTutorial = {
+        id: 'intro-electron-assistant',
+        title: 'Welcome to ElectronAssistant',
+        category: 'theory',
+        difficulty: 'beginner',
+        description: 'A comprehensive introduction to the ElectronAssistant ESP32-C3 hardware and web platform.',
+        content: '# Welcome to ElectronAssistant\n\nElectronAssistant is a comprehensive hardware and software platform designed to streamline your embedded development workflow. At its core, it consists of a **tiny custom PCB powered by the ESP32-C3** microcontroller, seamlessly integrated with this powerful web-based platform.\n\n## The Hardware: ESP32-C3 Custom PCB\n\nThe ElectronAssistant board is designed for rapid prototyping and learning. It features:\n- **ESP32-C3 RISC-V MCU**: Wi-Fi & Bluetooth LE 5.0 capabilities.\n- **USB Type-C**: For power, programming, and serial communication.\n- **Compact Form Factor**: Fits perfectly on a breadboard.\n- **Built-in RGB LED**: For status indication and visual debugging.\n\n## Connecting to the Platform\n\nConnecting your ElectronAssistant to the web platform is incredibly simple, thanks to the **Web Serial API**.\n\n1. **Plug it in**: Connect the ElectronAssistant board to your computer using a USB-C cable.\n2. **Access the Lab or Flash Module**: Navigate to the `LAB` or `FLASH_MODULE` tab in the web interface.\n3. **Select Port**: Click the `SELECT_PORT` button. A browser prompt will appear.\n4. **Choose the Device**: Select the USB Serial device corresponding to your ESP32-C3 (often labeled as "USB JTAG/serial debug unit" or similar) and click "Connect".\n\nOnce connected, the platform maintains the serial connection across different views, allowing you to flash firmware and immediately monitor the output without reconnecting!\n\n## Platform Features\n\nThis web platform is your all-in-one command center:\n\n### 📚 Knowledge Base (Tutorials)\nYou are here! The Knowledge Base contains interactive tutorials, documentation, and guides. Tutorials can even be linked directly to firmware files. If a tutorial has associated firmware, you\'ll see a `FLASH_FIRMWARE` button at the top right.\n\n### ⚡ Flash Module\nThe Flash Module allows you to upload pre-compiled `.bin` firmware files directly to your ElectronAssistant board from the browser. No need to install complex toolchains or IDEs. Just select the firmware, click flash, and watch the progress.\n\n### 🔬 The Lab (Serial Console)\nThe Lab is your primary debugging interface. It provides a real-time serial monitor to view logs, sensor data, and debug messages coming from your board. It also allows you to send commands back to the device.\n\n### ⚙️ System Config\nThe System Config area is for administrators to manage the platform. Here you can upload new firmware binaries, write new tutorials using the block-based editor, and link tutorials to specific firmware versions.\n\n---\n\n> **Tip**: Try navigating to the `FLASH_MODULE` now to upload your first firmware, or head over to the `LAB` to see what your board is currently outputting!'
+      };
+      const insertTutorial = db.prepare("INSERT INTO tutorials (id, title, category, difficulty, description, content) VALUES (?, ?, ?, ?, ?, ?)");
+      insertTutorial.run(introTutorial.id, introTutorial.title, introTutorial.category, introTutorial.difficulty, introTutorial.description, introTutorial.content);
+    }
   }
 
   app.use(cors());
@@ -111,19 +140,20 @@ async function startServer() {
 
   app.post("/api/tutorials", (req, res) => {
     try {
-      const { id, title, category, difficulty, description, content, attachments } = req.body;
+      const { id, title, category, difficulty, description, content, attachments, firmwareId } = req.body;
       const insert = db.prepare(`
-        INSERT INTO tutorials (id, title, category, difficulty, description, content, attachments) 
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO tutorials (id, title, category, difficulty, description, content, attachments, firmwareId) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           title=excluded.title,
           category=excluded.category,
           difficulty=excluded.difficulty,
           description=excluded.description,
           content=excluded.content,
-          attachments=excluded.attachments
+          attachments=excluded.attachments,
+          firmwareId=excluded.firmwareId
       `);
-      insert.run(id, title, category, difficulty, description, content, attachments ? JSON.stringify(attachments) : null);
+      insert.run(id, title, category, difficulty, description, content, attachments ? JSON.stringify(attachments) : null, firmwareId || null);
       res.json({ success: true });
     } catch (error) {
       console.error("Error saving tutorial:", error);

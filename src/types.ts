@@ -14,6 +14,7 @@ export interface Tutorial {
   category: 'protocol' | 'component' | 'theory';
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   attachments?: string; // JSON string of { url: string, name: string, type: string }[]
+  firmwareId?: string;
 }
 
 export interface Firmware {

@@ -4,16 +4,17 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
 import { Tutorial, TutorialBlock } from '../types';
-import { ArrowLeft, Clock, Share2, Terminal, FileText, Download, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Clock, Share2, Terminal, FileText, Download, ExternalLink, Zap } from 'lucide-react';
 import { cn } from '../lib/utils';
 import 'highlight.js/styles/github-dark.css';
 
 interface TutorialDetailProps {
   tutorial: Tutorial;
   onBack: () => void;
+  onFlashFirmware?: (firmwareId: string) => void;
 }
 
-export const TutorialDetail: React.FC<TutorialDetailProps> = ({ tutorial, onBack }) => {
+export const TutorialDetail: React.FC<TutorialDetailProps> = ({ tutorial, onBack, onFlashFirmware }) => {
   const attachments = tutorial.attachments ? JSON.parse(tutorial.attachments) : [];
 
   let blocks: TutorialBlock[] = [];
@@ -126,14 +127,25 @@ export const TutorialDetail: React.FC<TutorialDetailProps> = ({ tutorial, onBack
       </button>
 
       <header className="mb-12 border-b border-hw-blue/20 pb-10">
-        <div className="flex items-center gap-4 mb-6">
-          <span className="text-[10px] font-bold text-hw-blue uppercase tracking-widest px-3 py-1 bg-hw-blue/10 border border-hw-blue/30">
-            {tutorial.category}
-          </span>
-          <div className="flex items-center gap-2 text-hw-blue/40 text-[10px] font-bold uppercase tracking-widest">
-            <Clock className="w-3 h-3" />
-            <span>10 MIN_READ</span>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <span className="text-[10px] font-bold text-hw-blue uppercase tracking-widest px-3 py-1 bg-hw-blue/10 border border-hw-blue/30">
+              {tutorial.category}
+            </span>
+            <div className="flex items-center gap-2 text-hw-blue/40 text-[10px] font-bold uppercase tracking-widest">
+              <Clock className="w-3 h-3" />
+              <span>10 MIN_READ</span>
+            </div>
           </div>
+          {tutorial.firmwareId && onFlashFirmware && (
+            <button 
+              onClick={() => onFlashFirmware(tutorial.firmwareId!)}
+              className="hw-button py-2 px-6 flex items-center gap-2 bg-hw-blue text-hw-black hover:bg-hw-blue/90"
+            >
+              <Zap className="w-4 h-4" />
+              <span className="text-[10px] font-bold uppercase tracking-widest">FLASH_FIRMWARE</span>
+            </button>
+          )}
         </div>
         <h1 className="text-5xl font-black tracking-tighter mb-6 uppercase hw-glow">{tutorial.title}</h1>
         <p className="text-lg text-hw-blue/60 leading-relaxed max-w-2xl">

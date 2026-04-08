@@ -4,15 +4,23 @@ import { AlertCircle, CheckCircle2, Cpu, Download, Loader2, Terminal, Zap } from
 import { cn } from '../lib/utils';
 import { Firmware } from '../types';
 
-export const FlashModule: React.FC = () => {
+import { useSerial } from '../contexts/SerialContext';
+
+interface FlashModuleProps {
+  autoFlashFirmwareId?: string | null;
+  onFlashComplete?: () => void;
+}
+
+export const FlashModule: React.FC<FlashModuleProps> = ({ autoFlashFirmwareId, onFlashComplete }) => {
+  const { port, connected, connect, disconnect } = useSerial();
   const [status, setStatus] = useState<'idle' | 'connecting' | 'flashing' | 'success' | 'error'>('idle');
   const [progress, setProgress] = useState(0);
   const [log, setLog] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [baudRate, setBaudRate] = useState(115200);
-  const [selectedPort, setSelectedPort] = useState<any>(null);
   const [firmwares, setFirmwares] = useState<Firmware[]>([]);
   const [selectedFirmwareId, setSelectedFirmwareId] = useState<string | null>(null);
+  const autoFlashAttempted = useRef(false);
   
   const logEndRef = useRef<HTMLDivElement>(null);
 
@@ -24,12 +32,25 @@ export const FlashModule: React.FC = () => {
         const res = await fetch('/api/firmware');
         const data = await res.json();
         setFirmwares(data);
+        if (autoFlashFirmwareId) {
+          setSelectedFirmwareId(autoFlashFirmwareId);
+        }
       } catch (err) {
         console.error('Failed to fetch firmwares:', err);
       }
     };
     fetchFirmwares();
-  }, []);
+  }, [autoFlashFirmwareId]);
+
+  useEffect(() => {
+    if (autoFlashFirmwareId && selectedFirmwareId === autoFlashFirmwareId && !autoFlashAttempted.current) {
+      autoFlashAttempted.current = true;
+      // Small delay to let the UI update before starting
+      setTimeout(() => {
+        handleFlash();
+      }, 500);
+    }
+  }, [selectedFirmwareId, autoFlashFirmwareId]);
 
   const addLog = (msg: string) => {
     setLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
@@ -57,14 +78,21 @@ export const FlashModule: React.FC = () => {
       setError(null);
       setLog([]);
       
-      let port = selectedPort;
-      if (!port) {
+      let currentPort = port;
+      if (!currentPort) {
         addLog('Requesting serial port...');
-        port = await (navigator as any).serial.requestPort();
-        setSelectedPort(port);
+        try {
+          currentPort = await connect();
+        } catch (e) {
+          throw new Error("Failed to connect to port.");
+        }
+      }
+      
+      if (!currentPort) {
+         throw new Error("Port not selected. Please click SELECT PORT first.");
       }
 
-      const transport = new Transport(port);
+      const transport = new Transport(currentPort);
       
       addLog(`Connecting to ESP32-C3 at ${baudRate} baud...`);
       const esploader = new ESPLoader({
@@ -76,9 +104,19 @@ export const FlashModule: React.FC = () => {
           write: (data: string) => addLog(data),
         }
       });
-      await esploader.main();
       
-      addLog('Connected! Chip type detected.');
+      try {
+        await esploader.main();
+        addLog('Connected! Chip type detected.');
+      } catch (e: any) {
+        const errMsg = e.message || String(e);
+        if (errMsg.toLowerCase().includes('open') || errMsg.toLowerCase().includes('locked') || errMsg.toLowerCase().includes('in use')) {
+          addLog('Port is already open (likely by Lab). Proceeding with deployment...');
+        } else {
+          throw e;
+        }
+      }
+      
       setStatus('flashing');
       
       addLog(`Downloading firmware: ${firmware.name} ${firmware.version}...`);
@@ -102,6 +140,13 @@ export const FlashModule: React.FC = () => {
       addLog('Hard resetting via RTS pin...');
       
       setStatus('success');
+      
+      if (onFlashComplete) {
+        addLog('Switching to Lab view in 2 seconds...');
+        setTimeout(() => {
+          onFlashComplete();
+        }, 2000);
+      }
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'An unknown error occurred during flashing.');
@@ -112,8 +157,7 @@ export const FlashModule: React.FC = () => {
 
   const requestPort = async () => {
     try {
-      const port = await (navigator as any).serial.requestPort();
-      setSelectedPort(port);
+      await connect();
       addLog('Port selected successfully.');
     } catch (err: any) {
       addLog(`Port selection failed: ${err.message}`);
@@ -157,9 +201,9 @@ export const FlashModule: React.FC = () => {
                     className="w-full hw-button py-2 text-[10px] flex items-center justify-center gap-2"
                   >
                     <Terminal className="w-3 h-3" />
-                    {selectedPort ? 'CHANGE_PORT' : 'SELECT_PORT'}
+                    {connected ? 'CONNECTED' : 'SELECT_PORT'}
                   </button>
-                  {selectedPort && (
+                  {connected && (
                     <div className="mt-2 text-[8px] text-hw-blue/40 uppercase tracking-widest text-center">
                       Port_Assigned: [OK]
                     </div>

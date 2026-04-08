@@ -100,7 +100,8 @@ export const SystemConfig: React.FC<SystemConfigProps> = ({ tutorials, refreshTu
     category: 'protocol',
     difficulty: 'beginner',
     description: '',
-    content: ''
+    content: '',
+    firmwareId: ''
   });
 
   const getDefaultDataForType = (type: BlockType) => {
@@ -158,7 +159,7 @@ export const SystemConfig: React.FC<SystemConfigProps> = ({ tutorials, refreshTu
       const res = await fetch('/api/tutorials', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...newTutorial, id, content: contentToSave, attachments })
+        body: JSON.stringify({ ...newTutorial, id, content: contentToSave, attachments, firmwareId: newTutorial.firmwareId || null })
       });
       
       if (!res.ok) {
@@ -169,7 +170,7 @@ export const SystemConfig: React.FC<SystemConfigProps> = ({ tutorials, refreshTu
       }
 
       setShowAddForm(false);
-      setNewTutorial({ title: '', category: 'protocol', difficulty: 'beginner', description: '', content: '' });
+      setNewTutorial({ title: '', category: 'protocol', difficulty: 'beginner', description: '', content: '', firmwareId: '' });
       setBlocks([]);
       setAttachments([]);
       await refreshTutorials();
@@ -591,6 +592,19 @@ export const SystemConfig: React.FC<SystemConfigProps> = ({ tutorials, refreshTu
                     </div>
                   </div>
                   <div>
+                    <label className="block text-[9px] font-bold text-hw-blue/40 uppercase mb-1">Associated Firmware (Optional)</label>
+                    <select 
+                      value={newTutorial.firmwareId || ''}
+                      onChange={e => setNewTutorial({...newTutorial, firmwareId: e.target.value})}
+                      className="w-full bg-hw-blue/5 border border-hw-blue/20 p-2 text-[10px] focus:border-hw-blue outline-none text-hw-blue appearance-none"
+                    >
+                      <option value="">-- No Firmware Associated --</option>
+                      {firmwares.map(fw => (
+                        <option key={fw.id} value={fw.id}>{fw.name} ({fw.version})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
                     <label className="block text-[9px] font-bold text-hw-blue/40 uppercase mb-1">Description</label>
                     <input 
                       type="text" 
@@ -701,7 +715,7 @@ export const SystemConfig: React.FC<SystemConfigProps> = ({ tutorials, refreshTu
                   <span>ACTIVE_TUTORIALS</span>
                   <button 
                     onClick={() => {
-                      setNewTutorial({ title: '', category: 'protocol', difficulty: 'beginner', description: '', content: '' });
+                      setNewTutorial({ title: '', category: 'protocol', difficulty: 'beginner', description: '', content: '', firmwareId: '' });
                       setBlocks([]);
                       setAttachments([]);
                       setShowAddForm(true);
