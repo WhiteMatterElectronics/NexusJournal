@@ -1,0 +1,5 @@
+{
+  "name": "ElectronAssistant",
+  "description": "A hardware hackathon companion for flashing ESP32-C3 and learning hardware concepts.",
+  "requestFramePermissions": ["serial"]
+}

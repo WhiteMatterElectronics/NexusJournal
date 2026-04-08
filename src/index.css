@@ -1,0 +1,98 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --color-hw-black: #050505;
+  --color-hw-blue: #3b82f6; /* Bright Blue for accents */
+  --color-hw-blue-dim: #1e3a8a; /* Dark Blue */
+  --color-hw-accent: #3b82f6;
+  --color-hw-accent-dim: #1e3a8a;
+  --color-hw-border: #1a1a2e; /* Dark Blue-ish border */
+  --color-hw-trace: #0f172a;
+}
+
+@layer base {
+  body {
+    @apply bg-hw-black text-hw-blue font-mono antialiased overflow-hidden;
+    background-image: 
+      radial-gradient(circle at 2px 2px, var(--color-hw-border) 1px, transparent 0);
+    background-size: 24px 24px;
+  }
+}
+
+@layer utilities {
+  .hw-panel {
+    @apply bg-hw-black border-2 border-hw-blue/30 relative;
+    box-shadow: inset 0 0 20px rgba(59, 130, 246, 0.05);
+  }
+
+  .hw-panel-header {
+    @apply bg-hw-blue/10 border-b-2 border-hw-blue/30 px-4 py-1 text-[10px] font-bold uppercase tracking-widest flex justify-between items-center;
+  }
+
+  .hw-button {
+    @apply border-2 border-hw-blue/50 px-4 py-2 text-xs font-bold uppercase tracking-tighter transition-all relative overflow-hidden;
+  }
+
+  .hw-button:hover {
+    @apply bg-hw-blue text-hw-black;
+    box-shadow: 0 0 15px var(--color-hw-blue);
+  }
+
+  .hw-button:active {
+    @apply scale-95;
+  }
+
+  .hw-text-dim {
+    @apply text-hw-blue/40;
+  }
+
+  .hw-glow {
+    text-shadow: 0 0 8px var(--color-hw-blue);
+  }
+
+  .hw-bracket::before {
+    content: "[";
+    @apply mr-2 opacity-50;
+  }
+
+  .hw-bracket::after {
+    content: "]";
+    @apply ml-2 opacity-50;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-hw-black;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-hw-blue/20 hover:bg-hw-blue/50;
+}
+
+/* Markdown Overrides */
+.prose pre {
+  @apply overflow-x-auto;
+}
+
+.prose img {
+  @apply max-w-full h-auto mx-auto;
+}
+
+.prose table {
+  @apply w-full text-left text-xs border-collapse mb-6;
+}
+
+.prose th {
+  @apply border-b border-hw-blue/20 p-2 text-hw-blue/40 uppercase font-bold;
+}
+
+.prose td {
+  @apply border-b border-hw-blue/10 p-2 text-hw-blue/80;
+}
