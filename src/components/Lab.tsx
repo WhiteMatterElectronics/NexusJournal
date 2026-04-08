@@ -135,16 +135,27 @@ export const Lab: React.FC = () => {
             setIsRfidScanning(false);
             setRfidStatus("Error: Data must be exactly 32 hex characters (16 bytes).");
           } else if (isDumpingRef.current) {
-            const match = text.match(/0x[0-9A-Fa-f]{4}:\s+(.*)/);
+            const match = text.match(/(0x[0-9A-Fa-f]{4}):\s*(.*)/);
             if (match) {
-              const hexBytes = match[1].trim().split(/\s+/);
+              const addr = parseInt(match[1], 16);
+              const hexBytes = match[2].trim().split(/\s+/);
               const bytes = hexBytes
+                .filter(h => h.length > 0)
                 .map((h) => parseInt(h, 16))
                 .filter((n) => !isNaN(n));
-              memoryBufferRef.current.push(...bytes);
-              if (memoryBufferRef.current.length % 256 === 0) {
-                setMemoryData(new Uint8Array(memoryBufferRef.current));
+              
+              // Ensure buffer is large enough to reach this address
+              while (memoryBufferRef.current.length < addr + bytes.length) {
+                memoryBufferRef.current.push(0xFF);
               }
+              
+              // Place bytes at their exact absolute address
+              for (let i = 0; i < bytes.length; i++) {
+                memoryBufferRef.current[addr + i] = bytes[i];
+              }
+              
+              // Update state on every line to ensure no data is lost
+              setMemoryData(new Uint8Array(memoryBufferRef.current));
             }
           }
           return { time: now, text };
