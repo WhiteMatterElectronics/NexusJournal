@@ -95,52 +95,57 @@ export default function App() {
             </div>
           </div>
           
-          <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={currentView + (selectedTutorial?.id || '')}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 10 }}
-                transition={{ duration: 0.15 }}
-                className="h-full"
-              >
-                {loading ? (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="flex flex-col items-center gap-4">
-                      <Cpu className="w-12 h-12 animate-spin text-hw-blue/20" />
-                      <span className="text-[10px] uppercase tracking-widest text-hw-blue/40">Loading_Database...</span>
+          <div className="flex-1 overflow-y-auto p-6 custom-scrollbar relative">
+            <div className={cn("h-full", currentView === 'lab' ? "block" : "hidden")}>
+              <Lab />
+            </div>
+            
+            {currentView !== 'lab' && (
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentView + (selectedTutorial?.id || '')}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 10 }}
+                  transition={{ duration: 0.15 }}
+                  className="h-full"
+                >
+                  {loading ? (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="flex flex-col items-center gap-4">
+                        <Cpu className="w-12 h-12 animate-spin text-hw-blue/20" />
+                        <span className="text-[10px] uppercase tracking-widest text-hw-blue/40">Loading_Database...</span>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <>
-                    {currentView === 'tutorials' && (
-                      selectedTutorial ? (
-                        <TutorialDetail 
-                          tutorial={selectedTutorial} 
-                          onBack={() => setSelectedTutorial(null)} 
-                        />
-                      ) : (
-                        <ConceptExplorer 
-                          tutorials={tutorials} 
-                          onSelect={setSelectedTutorial} 
-                        />
-                      )
-                    )}
+                  ) : (
+                    <>
+                      {currentView === 'tutorials' && (
+                        selectedTutorial ? (
+                          <TutorialDetail 
+                            tutorial={selectedTutorial} 
+                            onBack={() => setSelectedTutorial(null)} 
+                          />
+                        ) : (
+                          <ConceptExplorer 
+                            tutorials={tutorials} 
+                            onSelect={setSelectedTutorial} 
+                          />
+                        )
+                      )}
 
-                    {currentView === 'flasher' && <FlashModule />}
-                    {currentView === 'lab' && <Lab />}
-                    {currentView === 'admin' && (
-                      <SystemConfig 
-                        tutorials={tutorials} 
-                        refreshTutorials={refreshTutorials} 
-                        loading={loading} 
-                      />
-                    )}
-                  </>
-                )}
-              </motion.div>
-            </AnimatePresence>
+                      {currentView === 'flasher' && <FlashModule />}
+                      {currentView === 'admin' && (
+                        <SystemConfig 
+                          tutorials={tutorials} 
+                          refreshTutorials={refreshTutorials} 
+                          loading={loading} 
+                        />
+                      )}
+                    </>
+                  )}
+                </motion.div>
+              </AnimatePresence>
+            )}
           </div>
         </main>
       </div>

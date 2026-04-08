@@ -10,6 +10,8 @@ import {
   Database,
   Send,
   FileCode,
+  Edit3,
+  Radio,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { BinaryAnalysis } from "./BinaryAnalysis";
@@ -27,20 +29,32 @@ export const Lab: React.FC = () => {
   const [autoScroll, setAutoScroll] = useState(true);
   const [showTimestamp, setShowTimestamp] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<"console" | "eeprom" | "binary">(
+  const [activeTab, setActiveTab] = useState<"console" | "eeprom" | "rfid" | "binary">(
     "console",
   );
   const [consoleInput, setConsoleInput] = useState("");
   const [i2cAddress, setI2cAddress] = useState("0x50");
   const [memoryData, setMemoryData] = useState<Uint8Array>(new Uint8Array());
   const [isDumping, setIsDumping] = useState(false);
+  const [writeMemAddr, setWriteMemAddr] = useState("0x0000");
+  const [writeData, setWriteData] = useState("");
+
+  const [rfidData, setRfidData] = useState<Uint8Array>(new Uint8Array(1024));
+  const [rfidBlocksRead, setRfidBlocksRead] = useState<Set<number>>(new Set());
+  const [isRfidScanning, setIsRfidScanning] = useState(false);
+  const [rfidStatus, setRfidStatus] = useState("");
+  const [rfidSector, setRfidSector] = useState("0");
+  const [rfidWriteBlock, setRfidWriteBlock] = useState("0");
+  const [rfidWriteData, setRfidWriteData] = useState("");
 
   const logEndRef = useRef<HTMLDivElement>(null);
   const readerRef = useRef<any>(null);
+  const portRef = useRef<any>(null);
   const keepReadingRef = useRef(true);
   const closedPromiseRef = useRef<Promise<void> | null>(null);
   const isDumpingRef = useRef(false);
   const memoryBufferRef = useRef<number[]>([]);
+  const dumpTimeoutRef = useRef<any>(null);
 
   const BAUD_RATES = [
     9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600,
@@ -59,9 +73,10 @@ export const Lab: React.FC = () => {
     }
 
     try {
-      let currentPort = port;
+      let currentPort = portRef.current;
       if (!currentPort) {
         currentPort = await (navigator as any).serial.requestPort();
+        portRef.current = currentPort;
         setPort(currentPort);
       }
 
@@ -73,15 +88,17 @@ export const Lab: React.FC = () => {
     } catch (err: any) {
       console.error(err);
       alert(`Connection failed: ${err.message}`);
+      portRef.current = null;
       setPort(null);
       setConnected(false);
     }
   };
 
   const writeToSerial = async (text: string) => {
-    if (!port || !port.writable) return;
+    const currentPort = portRef.current;
+    if (!currentPort || !currentPort.writable) return;
     const encoder = new TextEncoder();
-    const writer = port.writable.getWriter();
+    const writer = currentPort.writable.getWriter();
     try {
       await writer.write(encoder.encode(text));
     } catch (err) {
@@ -100,12 +117,102 @@ export const Lab: React.FC = () => {
   };
 
   const fetchDump = () => {
-    if (!connected) return;
+    if (!connected || !portRef.current || !portRef.current.writable) {
+      setConnected(false);
+      return;
+    }
     setMemoryData(new Uint8Array());
     setIsDumping(true);
     isDumpingRef.current = true;
     memoryBufferRef.current = [];
     writeToSerial(`DUMP ${i2cAddress}\n`);
+
+    if (dumpTimeoutRef.current) clearTimeout(dumpTimeoutRef.current);
+    dumpTimeoutRef.current = setTimeout(() => {
+      if (isDumpingRef.current) {
+        setIsDumping(false);
+        isDumpingRef.current = false;
+        setLogs((prev) => [...prev, { time: Date.now(), text: "SYSTEM ERROR: Dump operation timed out." }].slice(-1000));
+      }
+    }, 15000);
+  };
+
+  const handleEEPROMWrite = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!connected || !portRef.current || !portRef.current.writable || !writeData.trim()) return;
+    writeToSerial(`WRITE ${i2cAddress} ${writeMemAddr} ${writeData}\n`);
+    setWriteData("");
+  };
+
+  const handleRfidDump = () => {
+    if (!connected || !portRef.current || !portRef.current.writable) return;
+    setRfidData(new Uint8Array(1024));
+    setRfidBlocksRead(new Set());
+    setRfidStatus("Initiating dump...");
+    setIsRfidScanning(true);
+    writeToSerial("DUMP\n");
+  };
+
+  const handleRfidRead = () => {
+    if (!connected || !portRef.current || !portRef.current.writable) return;
+    setRfidStatus(`Initiating read for sector ${rfidSector}...`);
+    setIsRfidScanning(true);
+    writeToSerial(`READ ${rfidSector}\n`);
+  };
+
+  const handleRfidWrite = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!connected || !portRef.current || !portRef.current.writable) return;
+
+    const blockNum = parseInt(rfidWriteBlock.trim(), 10);
+    if (isNaN(blockNum) || blockNum < 0 || blockNum > 63) {
+      setRfidStatus("Error: Invalid block number (0-63).");
+      return;
+    }
+
+    if (blockNum === 0) {
+      setRfidStatus("Error: Block 0 is read-only (Manufacturer Data).");
+      return;
+    }
+
+    if ((blockNum + 1) % 4 === 0) {
+      const confirmWrite = window.confirm(
+        `WARNING: Block ${blockNum} is a Sector Trailer!\n\nWriting invalid data here can permanently lock the sector. Are you sure you want to proceed?`
+      );
+      if (!confirmWrite) {
+        setRfidStatus("Write cancelled by user.");
+        return;
+      }
+    }
+
+    let finalHexData = rfidWriteData.trim();
+
+    // Check if it's an ASCII string enclosed in quotes
+    if (finalHexData.startsWith('"') && finalHexData.endsWith('"')) {
+      const text = finalHexData.slice(1, -1);
+      let hex = "";
+      for (let i = 0; i < text.length && i < 16; i++) {
+        hex += text.charCodeAt(i).toString(16).padStart(2, "0").toUpperCase();
+      }
+      // Pad with zeros to reach 32 characters (16 bytes)
+      while (hex.length < 32) {
+        hex += "00";
+      }
+      finalHexData = hex;
+    } else {
+      // Clean up hex input (remove spaces, '0x')
+      finalHexData = finalHexData.replace(/0x/gi, "").replace(/\s+/g, "").toUpperCase();
+      // Pad with zeros if less than 32 chars
+      while (finalHexData.length < 32) {
+        finalHexData += "00";
+      }
+      // Truncate to 32 chars if longer
+      finalHexData = finalHexData.substring(0, 32);
+    }
+
+    setRfidStatus(`Initiating write to block ${blockNum}...`);
+    setIsRfidScanning(true);
+    writeToSerial(`WRITE ${blockNum} ${finalHexData}\n`);
   };
 
   const disconnect = async () => {
@@ -127,14 +234,15 @@ export const Lab: React.FC = () => {
       }
     }
 
-    if (port) {
+    if (portRef.current) {
       try {
-        await port.close();
+        await portRef.current.close();
       } catch (e) {
         console.error("Error closing port:", e);
       }
     }
 
+    portRef.current = null;
     setPort(null);
     setConnected(false);
   };
@@ -174,6 +282,48 @@ export const Lab: React.FC = () => {
                     isDumpingRef.current = false;
                     setIsDumping(false);
                     setMemoryData(new Uint8Array(memoryBufferRef.current));
+                    if (dumpTimeoutRef.current) clearTimeout(dumpTimeoutRef.current);
+                  } else if (text.includes("ERROR: Device not responding")) {
+                    isDumpingRef.current = false;
+                    setIsDumping(false);
+                    if (dumpTimeoutRef.current) clearTimeout(dumpTimeoutRef.current);
+                  } else if (text.includes("SCAN_CARD_NOW")) {
+                    setIsRfidScanning(true);
+                    setRfidStatus("Please scan your RFID card...");
+                  } else if (text.includes("TIMEOUT")) {
+                    setIsRfidScanning(false);
+                    setRfidStatus("Timeout: No card detected.");
+                  } else if (text.startsWith("BLOCK:")) {
+                    setIsRfidScanning(false);
+                    setRfidStatus("Reading data...");
+                    const parts = text.split(":");
+                    const blockNum = parseInt(parts[1], 10);
+                    if (parts[2] === "DATA" && parts[3]) {
+                      const hexStr = parts[3].trim();
+                      const bytes = [];
+                      for (let i = 0; i < hexStr.length; i += 2) {
+                        bytes.push(parseInt(hexStr.substring(i, i + 2), 16));
+                      }
+                      setRfidData(prev => {
+                        const newData = new Uint8Array(prev);
+                        newData.set(bytes, blockNum * 16);
+                        return newData;
+                      });
+                      setRfidBlocksRead(prev => {
+                        const newSet = new Set(prev);
+                        newSet.add(blockNum);
+                        return newSet;
+                      });
+                    }
+                  } else if (text.includes("WRITE_SUCCESS")) {
+                    setIsRfidScanning(false);
+                    setRfidStatus("Write successful!");
+                  } else if (text.includes("WRITE_FAILED")) {
+                    setIsRfidScanning(false);
+                    setRfidStatus("Write failed.");
+                  } else if (text.includes("ERR:HEX_LEN_32_REQ")) {
+                    setIsRfidScanning(false);
+                    setRfidStatus("Error: Data must be exactly 32 hex characters (16 bytes).");
                   } else if (isDumpingRef.current) {
                     const match = text.match(/0x[0-9A-Fa-f]{4}:\s+(.*)/);
                     if (match) {
@@ -287,6 +437,74 @@ export const Lab: React.FC = () => {
     return rows;
   };
 
+  const renderRfidViewer = () => {
+    if (rfidBlocksRead.size === 0 && !isRfidScanning) {
+      return (
+        <div className="text-hw-blue/40 italic">
+          No RFID data. Connect and click DUMP ALL or READ SECTOR.
+        </div>
+      );
+    }
+
+    const rows = [];
+    for (let i = 0; i < 64; i++) {
+      if (!rfidBlocksRead.has(i)) continue;
+
+      const chunk = rfidData.slice(i * 16, i * 16 + 16);
+      const hexParts = Array.from(chunk).map((b) =>
+        b.toString(16).padStart(2, "0").toUpperCase(),
+      );
+      const hexStr = hexParts.join(" ");
+
+      const asciiStr = Array.from(chunk)
+        .map((b) => (b >= 32 && b <= 126 ? String.fromCharCode(b) : "."))
+        .join("");
+      
+      const sector = Math.floor(i / 4);
+      const isSectorTrailer = i % 4 === 3;
+
+      rows.push(
+        <div
+          key={i}
+          className={cn(
+            "flex gap-8 hover:bg-hw-blue/10 px-2 py-0.5 w-max items-center",
+            isSectorTrailer ? "text-hw-blue/60" : ""
+          )}
+        >
+          <span className="text-hw-blue/50 w-24 shrink-0">
+            SEC {sector.toString().padStart(2, '0')} BLK {i.toString().padStart(2, '0')}
+          </span>
+          <span className="text-hw-blue tracking-widest whitespace-pre">
+            {hexStr}
+          </span>
+
+          <div className="flex items-center gap-0.5 border-x border-hw-blue/20 px-4">
+            {Array.from(chunk).map((b, idx) => (
+              <div
+                key={idx}
+                className="w-2.5 h-3.5 rounded-[1px]"
+                style={{ backgroundColor: getEntropyColor(b) }}
+                title={`0x${b.toString(16).padStart(2, "0").toUpperCase()}`}
+              />
+            ))}
+          </div>
+
+          <span className="text-hw-blue/90 tracking-widest">{asciiStr}</span>
+        </div>,
+      );
+    }
+
+    if (isRfidScanning) {
+      rows.push(
+        <div key="loading" className="flex gap-4 px-2 py-0.5 animate-pulse">
+          <span className="text-hw-blue/50">{rfidStatus || "Waiting for card..."}</span>
+        </div>,
+      );
+    }
+
+    return rows;
+  };
+
   return (
     <div className="space-y-8 h-full flex flex-col">
       <div className="flex items-center gap-4 border-b border-hw-blue/20 pb-4 shrink-0">
@@ -378,6 +596,17 @@ export const Lab: React.FC = () => {
             )}
           >
             EEPROM Dumper
+          </button>
+          <button
+            onClick={() => setActiveTab("rfid")}
+            className={cn(
+              "pb-2 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-colors",
+              activeTab === "rfid"
+                ? "border-hw-blue text-hw-blue"
+                : "border-transparent text-hw-blue/40 hover:text-hw-blue/80",
+            )}
+          >
+            RFID Tool
           </button>
           <button
             onClick={() => setActiveTab("binary")}
@@ -501,6 +730,113 @@ export const Lab: React.FC = () => {
             </div>
             <div className="flex-1 bg-black/60 p-4 overflow-y-auto font-mono text-[11px] leading-relaxed text-hw-blue/80 custom-scrollbar">
               {renderHexViewer()}
+            </div>
+            <div className="p-3 border-t border-hw-blue/20 bg-black/40">
+              <form onSubmit={handleEEPROMWrite} className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <label className="text-[9px] font-bold text-hw-blue/40 uppercase">Address</label>
+                  <input
+                    type="text"
+                    value={writeMemAddr}
+                    onChange={(e) => setWriteMemAddr(e.target.value)}
+                    placeholder="0x0000"
+                    className="bg-transparent border border-hw-blue/20 px-2 py-1 text-[10px] font-mono text-hw-blue outline-none focus:border-hw-blue w-20"
+                    disabled={!connected}
+                  />
+                </div>
+                <div className="flex items-center gap-2 flex-1">
+                  <label className="text-[9px] font-bold text-hw-blue/40 uppercase">Data</label>
+                  <input
+                    type="text"
+                    value={writeData}
+                    onChange={(e) => setWriteData(e.target.value)}
+                    placeholder='"Hello" or 0xDE 0xAD'
+                    className="flex-1 bg-transparent border border-hw-blue/20 px-2 py-1 text-[10px] font-mono text-hw-blue outline-none focus:border-hw-blue"
+                    disabled={!connected}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={!connected || !writeData.trim()}
+                  className="hw-button px-4 py-1 text-[10px] flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Edit3 className="w-3 h-3" />
+                  WRITE
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "rfid" && (
+          <div className="hw-panel p-0 flex-1 overflow-hidden flex flex-col">
+            <div className="hw-panel-header shrink-0 flex justify-between items-center">
+              <span>RFID_MEMORY_MAP</span>
+              <div className="flex items-center gap-4">
+                <span className="text-[10px] text-hw-blue/60">{rfidStatus}</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={rfidSector}
+                    onChange={(e) => setRfidSector(e.target.value)}
+                    placeholder="Sec (0-15)"
+                    className="bg-black/40 border border-hw-blue/20 px-2 py-1 text-[10px] font-mono text-hw-blue outline-none focus:border-hw-blue w-20 text-center"
+                  />
+                  <button
+                    onClick={handleRfidRead}
+                    disabled={!connected || isRfidScanning}
+                    className="hw-button px-3 py-1 text-[9px] flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <Radio className="w-3 h-3" />
+                    READ SECTOR
+                  </button>
+                </div>
+                <button
+                  onClick={handleRfidDump}
+                  disabled={!connected || isRfidScanning}
+                  className="hw-button px-3 py-1 text-[9px] flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Database className="w-3 h-3" />
+                  DUMP ALL
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 bg-black/60 p-4 overflow-y-auto font-mono text-[11px] leading-relaxed text-hw-blue/80 custom-scrollbar">
+              {renderRfidViewer()}
+            </div>
+            <div className="p-3 border-t border-hw-blue/20 bg-black/40">
+              <form onSubmit={handleRfidWrite} className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <label className="text-[9px] font-bold text-hw-blue/40 uppercase">Block</label>
+                  <input
+                    type="text"
+                    value={rfidWriteBlock}
+                    onChange={(e) => setRfidWriteBlock(e.target.value)}
+                    placeholder="0-63"
+                    className="bg-transparent border border-hw-blue/20 px-2 py-1 text-[10px] font-mono text-hw-blue outline-none focus:border-hw-blue w-16"
+                    disabled={!connected}
+                  />
+                </div>
+                <div className="flex items-center gap-2 flex-1">
+                  <label className="text-[9px] font-bold text-hw-blue/40 uppercase">Data</label>
+                  <input
+                    type="text"
+                    value={rfidWriteData}
+                    onChange={(e) => setRfidWriteData(e.target.value)}
+                    placeholder='Hex or "Text"'
+                    className="flex-1 bg-transparent border border-hw-blue/20 px-2 py-1 text-[10px] font-mono text-hw-blue outline-none focus:border-hw-blue"
+                    disabled={!connected}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={!connected || !rfidWriteData.trim() || isRfidScanning}
+                  className="hw-button px-4 py-1 text-[10px] flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Edit3 className="w-3 h-3" />
+                  WRITE BLOCK
+                </button>
+              </form>
             </div>
           </div>
         )}
