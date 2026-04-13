@@ -27,4 +27,4 @@ export interface Firmware {
   uploadedAt: string;
 }
 
-export type AppView = 'tutorials' | 'flasher' | 'admin' | 'lab';
+export type AppView = 'tutorials' | 'flasher' | 'admin' | 'console' | 'eeprom' | 'rfid' | 'binary' | 'cyphonator' | 'settings' | 'notes';

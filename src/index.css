@@ -1,45 +1,61 @@
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap');
 @import "tailwindcss";
 
+:root {
+  --theme-main: #00f2ff;
+  --theme-terminal: #00f2ff;
+  --theme-panel-bg: #050505;
+  --theme-backdrop-filter: none;
+  --theme-border-opacity: 0.3;
+  --theme-bg-image: radial-gradient(circle at 2px 2px, rgba(255,255,255,0.05) 1px, transparent 0);
+  --theme-bg-size: 24px 24px;
+}
+
 @theme {
   --font-sans: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   
-  --color-hw-black: #050505;
-  --color-hw-blue: #3b82f6; /* Bright Blue for accents */
-  --color-hw-blue-dim: #1e3a8a; /* Dark Blue */
-  --color-hw-accent: #3b82f6;
-  --color-hw-accent-dim: #1e3a8a;
-  --color-hw-border: #1a1a2e; /* Dark Blue-ish border */
+  --color-hw-black: var(--theme-panel-bg);
+  --color-hw-blue: var(--theme-main);
+  --color-hw-blue-dim: color-mix(in srgb, var(--theme-main) 50%, black);
+  --color-hw-accent: var(--theme-main);
+  --color-hw-accent-dim: color-mix(in srgb, var(--theme-main) 50%, black);
+  --color-hw-border: color-mix(in srgb, var(--theme-main) 10%, black);
   --color-hw-trace: #0f172a;
 }
 
 @layer base {
   body {
     @apply bg-hw-black text-hw-blue font-mono antialiased overflow-hidden;
-    background-image: 
-      radial-gradient(circle at 2px 2px, var(--color-hw-border) 1px, transparent 0);
-    background-size: 24px 24px;
+    background-image: var(--theme-bg-image);
+    background-size: var(--theme-bg-size);
+    background-position: center;
   }
 }
 
 @layer utilities {
   .hw-panel {
-    @apply bg-hw-black border-2 border-hw-blue/30 relative;
-    box-shadow: inset 0 0 20px rgba(59, 130, 246, 0.05);
+    @apply bg-hw-black relative;
+    border: 2px solid color-mix(in srgb, var(--theme-main) calc(var(--theme-border-opacity) * 100%), transparent);
+    backdrop-filter: var(--theme-backdrop-filter);
+    box-shadow: inset 0 0 20px color-mix(in srgb, var(--theme-main) 5%, transparent);
   }
 
   .hw-panel-header {
-    @apply bg-hw-blue/10 border-b-2 border-hw-blue/30 px-4 py-1 text-[10px] font-bold uppercase tracking-widest flex justify-between items-center;
+    @apply flex justify-between items-center px-4 py-1 text-[10px] font-bold uppercase tracking-widest;
+    background-color: color-mix(in srgb, var(--theme-main) 10%, transparent);
+    border-bottom: 2px solid color-mix(in srgb, var(--theme-main) calc(var(--theme-border-opacity) * 100%), transparent);
   }
 
   .hw-button {
-    @apply border-2 border-hw-blue/50 px-4 py-2 text-xs font-bold uppercase tracking-tighter transition-all relative overflow-hidden;
+    @apply px-4 py-2 text-xs font-bold uppercase tracking-tighter transition-all relative overflow-hidden;
+    border: 2px solid color-mix(in srgb, var(--theme-main) 50%, transparent);
   }
 
   .hw-button:hover {
-    @apply bg-hw-blue text-hw-black;
-    box-shadow: 0 0 15px var(--color-hw-blue);
+    @apply text-hw-black;
+    background-color: var(--theme-main);
+    box-shadow: 0 0 15px var(--theme-main);
   }
 
   .hw-button:active {
@@ -51,7 +67,7 @@
   }
 
   .hw-glow {
-    text-shadow: 0 0 8px var(--color-hw-blue);
+    text-shadow: 0 0 8px var(--theme-main);
   }
 
   .hw-bracket::before {

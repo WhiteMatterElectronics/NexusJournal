@@ -30,7 +30,7 @@ interface BinaryInfo {
   rawData: Uint8Array;
 }
 
-export const BinaryAnalysis: React.FC = () => {
+export const BinaryAnalysis: React.FC<{ data?: Uint8Array | null }> = ({ data }) => {
   const [binaryInfo, setBinaryInfo] = useState<BinaryInfo | null>(null);
   const [activeView, setActiveView] = useState<
     "sections" | "strings" | "hex" | "symbols" | "disassembly"
@@ -38,6 +38,44 @@ export const BinaryAnalysis: React.FC = () => {
   const [disassembly, setDisassembly] = useState<string | null>(null);
   const [isDisassembling, setIsDisassembling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (data && data.length > 0) {
+      // Extract strings (basic ASCII extraction)
+      const strings: string[] = [];
+      let currentString = "";
+      for (let i = 0; i < data.length; i++) {
+        const b = data[i];
+        if (b >= 32 && b <= 126) {
+          currentString += String.fromCharCode(b);
+        } else {
+          if (currentString.length >= 4) strings.push(currentString);
+          currentString = "";
+        }
+      }
+      if (currentString.length >= 4) strings.push(currentString);
+
+      setBinaryInfo({
+        type: "hex",
+        size: data.length,
+        sections: [
+          {
+            name: ".data",
+            type: "PROGBITS",
+            address: 0,
+            size: data.length,
+            offset: 0,
+            data: data,
+          },
+        ],
+        strings,
+        symbols: [],
+        rawData: data,
+      });
+    } else {
+      setBinaryInfo(null);
+    }
+  }, [data]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

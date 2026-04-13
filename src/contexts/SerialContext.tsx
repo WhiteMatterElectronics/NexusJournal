@@ -1,4 +1,9 @@
-import React, { createContext, useContext, useState, useRef, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useRef, ReactNode, useCallback, useEffect } from 'react';
+
+export interface LogEntry {
+  time: number;
+  text: string;
+}
 
 interface SerialContextType {
   port: any;
@@ -9,6 +14,10 @@ interface SerialContextType {
   disconnect: () => Promise<void>;
   writeToSerial: (data: string) => Promise<void>;
   subscribe: (callback: (data: string) => void) => () => void;
+  
+  // Lifted State
+  logs: LogEntry[];
+  clearLogs: () => void;
 }
 
 const SerialContext = createContext<SerialContextType | null>(null);
@@ -29,12 +38,87 @@ export const SerialProvider = ({ children }: { children: ReactNode }) => {
   const closedPromiseRef = useRef<Promise<void> | null>(null);
   const listenersRef = useRef<Set<(data: string) => void>>(new Set());
 
+  // Lifted State
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const serialBufferRef = useRef("");
+
+  const clearLogs = useCallback(() => setLogs([]), []);
+
   const subscribe = useCallback((callback: (data: string) => void) => {
     listenersRef.current.add(callback);
     return () => {
       listenersRef.current.delete(callback);
     };
   }, []);
+
+  const disconnect = useCallback(async () => {
+    keepReadingRef.current = false;
+
+    if (readerRef.current) {
+      try {
+        await readerRef.current.cancel();
+      } catch (e) {
+        console.error("Error canceling reader:", e);
+      }
+    }
+
+    if (closedPromiseRef.current) {
+      try {
+        await closedPromiseRef.current;
+      } catch (e) {
+        console.error("Error waiting for stream to close:", e);
+      }
+    }
+
+    if (port) {
+      try {
+        await port.close();
+      } catch (e) {
+        console.error("Error closing port:", e);
+      }
+    }
+
+    setPort(null);
+    setConnected(false);
+  }, [port]);
+
+  useEffect(() => {
+    const handleShutdown = () => {
+      if (connected) {
+        disconnect();
+      }
+    };
+    window.addEventListener('electron-os-shutdown', handleShutdown);
+    return () => window.removeEventListener('electron-os-shutdown', handleShutdown);
+  }, [connected, disconnect]);
+
+  // Central parsing logic
+  useEffect(() => {
+    const handleSerialData = (value: string) => {
+      serialBufferRef.current += value;
+      const lines = serialBufferRef.current.split("\n");
+      
+      if (lines.length > 1) {
+        const newLines = lines.slice(0, -1).map((l) => l.replace("\r", ""));
+        const now = Date.now();
+        
+        const newLogEntries = newLines.map((text) => {
+          window.dispatchEvent(new CustomEvent('hw_serial_line', { detail: text }));
+          return { time: now, text };
+        });
+        
+        setLogs((prev) => {
+          const updated = [...prev, ...newLogEntries];
+          return updated.slice(-1000);
+        });
+        
+        serialBufferRef.current = lines[lines.length - 1];
+      }
+    };
+
+    const unsubscribe = subscribe(handleSerialData);
+    return unsubscribe;
+  }, [subscribe]);
 
   const readLoop = async (currentPort: any) => {
     try {
@@ -94,37 +178,6 @@ export const SerialProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const disconnect = async () => {
-    keepReadingRef.current = false;
-
-    if (readerRef.current) {
-      try {
-        await readerRef.current.cancel();
-      } catch (e) {
-        console.error("Error canceling reader:", e);
-      }
-    }
-
-    if (closedPromiseRef.current) {
-      try {
-        await closedPromiseRef.current;
-      } catch (e) {
-        console.error("Error waiting for stream to close:", e);
-      }
-    }
-
-    if (port) {
-      try {
-        await port.close();
-      } catch (e) {
-        console.error("Error closing port:", e);
-      }
-    }
-
-    setPort(null);
-    setConnected(false);
-  };
-
   const writeToSerial = async (data: string) => {
     if (!port || !port.writable) return;
     const encoder = new TextEncoder();
@@ -140,7 +193,8 @@ export const SerialProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <SerialContext.Provider value={{
-      port, connected, baudRate, setBaudRate, connect, disconnect, writeToSerial, subscribe
+      port, connected, baudRate, setBaudRate, connect, disconnect, writeToSerial, subscribe,
+      logs, clearLogs
     }}>
       {children}
     </SerialContext.Provider>

@@ -201,12 +201,6 @@ export const TutorialDetail: React.FC<TutorialDetailProps> = ({ tutorial, onBack
         <div className="text-[10px] font-bold text-hw-blue/40 uppercase tracking-widest">
           Difficulty: <span className="text-hw-blue hw-glow">{tutorial.difficulty}</span>
         </div>
-        <div className="flex gap-4">
-          <button className="hw-button py-1 px-4 text-[10px]">
-            <Share2 className="w-3.5 h-3.5 inline mr-2" />
-            SHARE_DOC
-          </button>
-        </div>
       </footer>
     </div>
   );
