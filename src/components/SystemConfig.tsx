@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { FileUp, Plus, Settings, Trash2, Upload, Terminal, Activity, Save, X, Eye, Edit3, Bold, Italic, Code, List, Image as ImageIcon, Link as LinkIcon, Paperclip, Loader2, FileText, ArrowUp, ArrowDown, AlignLeft, Heading, Minus, Video, LayoutGrid, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { FileUp, Plus, Settings, Trash2, Upload, Terminal, Activity, Save, X, Eye, Edit3, Bold, Italic, Code, List, Image as ImageIcon, Link as LinkIcon, Paperclip, Loader2, FileText, ArrowUp, ArrowDown, AlignLeft, Heading, Minus, Video, LayoutGrid, AlertCircle, Link, Table, CheckSquare, Strikethrough, Copy, Clipboard, ListOrdered, Quote } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Tutorial, TutorialBlock, BlockType, Firmware } from '../types';
 
@@ -9,12 +9,57 @@ interface SystemConfigProps {
   loading: boolean;
 }
 
+// Reusable Rich Text Editor component for blocks
+const BlockEditor = React.memo(({ 
+  initialContent, 
+  onChange,
+  onFocus
+}: { 
+  initialContent: string, 
+  onChange: (content: string) => void,
+  onFocus?: () => void
+}) => {
+  const editorRef = useRef<HTMLDivElement>(null);
+  const lastContent = useRef(initialContent);
+
+  useEffect(() => {
+    if (editorRef.current && initialContent !== editorRef.current.innerHTML) {
+      // Only update if the change is external (not from our own input)
+      if (initialContent !== lastContent.current) {
+        editorRef.current.innerHTML = initialContent;
+        lastContent.current = initialContent;
+      }
+    }
+  }, [initialContent]);
+
+  const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
+    const content = e.currentTarget.innerHTML;
+    lastContent.current = content;
+    onChange(content);
+  };
+
+  return (
+    <div 
+      ref={editorRef}
+      contentEditable
+      suppressContentEditableWarning
+      onInput={handleInput}
+      onFocus={onFocus}
+      className="w-full bg-black/20 border border-hw-blue/10 p-3 outline-none text-[11px] text-hw-blue/90 min-h-[100px] prose prose-invert prose-sm max-w-none focus:border-hw-blue/40 transition-colors"
+      dangerouslySetInnerHTML={{ __html: initialContent }}
+      style={{ caretColor: '#00f2ff' }}
+    />
+  );
+});
+
 export const SystemConfig: React.FC<SystemConfigProps> = ({ tutorials, refreshTutorials, loading }) => {
   const [activeTab, setActiveTab] = useState<'firmware' | 'tutorials'>('firmware');
   const [showAddForm, setShowAddForm] = useState(false);
   const [attachments, setAttachments] = useState<{ url: string, name: string, type: string }[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const blockImageInputRef = useRef<HTMLInputElement>(null);
+  const [activeBlockUpload, setActiveBlockUpload] = useState<{ id: string, index?: number } | null>(null);
   
   const [blocks, setBlocks] = useState<TutorialBlock[]>([]);
   const [showBlockMenu, setShowBlockMenu] = useState(false);
@@ -108,13 +153,14 @@ export const SystemConfig: React.FC<SystemConfigProps> = ({ tutorials, refreshTu
     switch (type) {
       case 'markdown': return { text: '' };
       case 'code': return { language: 'cpp', code: '' };
-      case 'image': return { url: '', caption: '' };
+      case 'image': return { url: '', caption: '', width: 100 };
       case 'file_download': return { url: '', name: '' };
       case 'sub_heading': return { text: '' };
       case 'divider': return {};
       case 'video_embed': return { url: '' };
       case 'image_gallery': return { urls: [''] };
       case 'note': return { type: 'info', text: '' };
+      case 'attached_note': return { noteId: '' };
       default: return {};
     }
   };
@@ -127,6 +173,27 @@ export const SystemConfig: React.FC<SystemConfigProps> = ({ tutorials, refreshTu
     };
     setBlocks([...blocks, newBlock]);
     setShowBlockMenu(false);
+  };
+
+  const duplicateBlock = (index: number) => {
+    const block = blocks[index];
+    const newBlock: TutorialBlock = {
+      ...block,
+      id: Math.random().toString(36).substr(2, 9),
+      data: JSON.parse(JSON.stringify(block.data))
+    };
+    const newBlocks = [...blocks];
+    newBlocks.splice(index + 1, 0, newBlock);
+    setBlocks(newBlocks);
+  };
+
+  const copyBlockContent = (block: TutorialBlock) => {
+    let content = '';
+    if (block.type === 'markdown') content = block.data.text;
+    else if (block.type === 'code') content = block.data.code;
+    else content = JSON.stringify(block.data, null, 2);
+    
+    navigator.clipboard.writeText(content);
   };
 
   const moveBlock = (index: number, direction: 'up' | 'down') => {
@@ -143,6 +210,16 @@ export const SystemConfig: React.FC<SystemConfigProps> = ({ tutorials, refreshTu
 
   const updateBlock = (id: string, data: any) => {
     setBlocks(blocks.map(b => b.id === id ? { ...b, data } : b));
+  };
+
+  const execCommand = (command: string, value?: string) => {
+    document.execCommand(command, false, value);
+    // Force a re-render/sync for the active element if it's one of our editors
+    const active = document.activeElement;
+    if (active && active.hasAttribute('contenteditable')) {
+      const event = new Event('input', { bubbles: true });
+      active.dispatchEvent(event);
+    }
   };
 
   const deleteBlock = (id: string) => {
@@ -192,9 +269,10 @@ export const SystemConfig: React.FC<SystemConfigProps> = ({ tutorials, refreshTu
     } catch {
       setBlocks([{ id: 'legacy', type: 'markdown', data: { text: tutorial.content } }]);
     }
-    if (tutorial.attachments) {
-      setAttachments(JSON.parse(tutorial.attachments));
-    } else {
+    try {
+      const parsed = tutorial.attachments ? JSON.parse(tutorial.attachments) : [];
+      setAttachments(Array.isArray(parsed) ? parsed : []);
+    } catch {
       setAttachments([]);
     }
     setShowAddForm(true);
@@ -231,12 +309,51 @@ export const SystemConfig: React.FC<SystemConfigProps> = ({ tutorials, refreshTu
     }
   };
 
+  const handleBlockImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeBlockUpload) return;
+
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      
+      if (data.url) {
+        const block = blocks.find(b => b.id === activeBlockUpload.id);
+        if (block) {
+          if (block.type === 'image') {
+            updateBlock(block.id, { ...block.data, url: data.url });
+          } else if (block.type === 'image_gallery' && typeof activeBlockUpload.index === 'number') {
+            const newUrls = [...block.data.urls];
+            newUrls[activeBlockUpload.index] = data.url;
+            updateBlock(block.id, { ...block.data, urls: newUrls });
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Block image upload failed:', err);
+    } finally {
+      setUploading(false);
+      setActiveBlockUpload(null);
+      if (blockImageInputRef.current) blockImageInputRef.current.value = '';
+    }
+  };
+
   const renderBlockEditor = (block: TutorialBlock, index: number) => {
     return (
       <div key={block.id} className="border border-hw-blue/20 bg-hw-blue/5 rounded-sm overflow-hidden mb-4 group">
         <div className="flex items-center justify-between px-3 py-2 bg-hw-blue/10 border-b border-hw-blue/20">
           <span className="text-[10px] font-bold uppercase tracking-widest text-hw-blue">{block.type.replace('_', ' ')}</span>
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button onClick={() => copyBlockContent(block)} className="p-1 text-hw-blue/40 hover:text-hw-blue" title="Copy Content"><Clipboard className="w-3 h-3" /></button>
+            <button onClick={() => duplicateBlock(index)} className="p-1 text-hw-blue/40 hover:text-hw-blue" title="Duplicate Block"><Copy className="w-3 h-3" /></button>
+            <div className="w-px h-3 bg-hw-blue/20 mx-1" />
             <button onClick={() => moveBlock(index, 'up')} disabled={index === 0} className="p-1 text-hw-blue/40 hover:text-hw-blue disabled:opacity-30"><ArrowUp className="w-3 h-3" /></button>
             <button onClick={() => moveBlock(index, 'down')} disabled={index === blocks.length - 1} className="p-1 text-hw-blue/40 hover:text-hw-blue disabled:opacity-30"><ArrowDown className="w-3 h-3" /></button>
             <div className="w-px h-3 bg-hw-blue/20 mx-1" />
@@ -245,12 +362,31 @@ export const SystemConfig: React.FC<SystemConfigProps> = ({ tutorials, refreshTu
         </div>
         <div className="p-3">
           {block.type === 'markdown' && (
-            <textarea
-              value={block.data.text}
-              onChange={(e) => updateBlock(block.id, { ...block.data, text: e.target.value })}
-              className="w-full bg-transparent border-none outline-none text-[10px] text-hw-blue font-mono resize-y min-h-[100px]"
-              placeholder="Markdown content..."
-            />
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-1 border-b border-hw-blue/10 pb-2 mb-2">
+                <button onMouseDown={e => e.preventDefault()} onClick={() => execCommand('formatBlock', 'H1')} className="p-1.5 hover:bg-hw-blue/10 rounded text-hw-blue/60 hover:text-hw-blue transition-colors" title="H1"><span className="text-[10px] font-bold">H1</span></button>
+                <button onMouseDown={e => e.preventDefault()} onClick={() => execCommand('formatBlock', 'H2')} className="p-1.5 hover:bg-hw-blue/10 rounded text-hw-blue/60 hover:text-hw-blue transition-colors" title="H2"><span className="text-[10px] font-bold">H2</span></button>
+                <button onMouseDown={e => e.preventDefault()} onClick={() => execCommand('formatBlock', 'H3')} className="p-1.5 hover:bg-hw-blue/10 rounded text-hw-blue/60 hover:text-hw-blue transition-colors" title="H3"><span className="text-[10px] font-bold">H3</span></button>
+                <div className="w-px h-3 bg-hw-blue/10 mx-1" />
+                <button onMouseDown={e => e.preventDefault()} onClick={() => execCommand('bold')} className="p-1.5 hover:bg-hw-blue/10 rounded text-hw-blue/60 hover:text-hw-blue transition-colors" title="Bold"><Bold className="w-3 h-3" /></button>
+                <button onMouseDown={e => e.preventDefault()} onClick={() => execCommand('italic')} className="p-1.5 hover:bg-hw-blue/10 rounded text-hw-blue/60 hover:text-hw-blue transition-colors" title="Italic"><Italic className="w-3 h-3" /></button>
+                <button onMouseDown={e => e.preventDefault()} onClick={() => execCommand('strikeThrough')} className="p-1.5 hover:bg-hw-blue/10 rounded text-hw-blue/60 hover:text-hw-blue transition-colors" title="Strikethrough"><Strikethrough className="w-3 h-3" /></button>
+                <div className="w-px h-3 bg-hw-blue/10 mx-1" />
+                <button onMouseDown={e => e.preventDefault()} onClick={() => {
+                  const url = prompt('Enter URL:');
+                  if (url) execCommand('createLink', url);
+                }} className="p-1.5 hover:bg-hw-blue/10 rounded text-hw-blue/60 hover:text-hw-blue transition-colors" title="Link"><Link className="w-3 h-3" /></button>
+                <button onMouseDown={e => e.preventDefault()} onClick={() => execCommand('insertUnorderedList')} className="p-1.5 hover:bg-hw-blue/10 rounded text-hw-blue/60 hover:text-hw-blue transition-colors" title="Bullet List"><List className="w-3 h-3" /></button>
+                <button onMouseDown={e => e.preventDefault()} onClick={() => execCommand('insertOrderedList')} className="p-1.5 hover:bg-hw-blue/10 rounded text-hw-blue/60 hover:text-hw-blue transition-colors" title="Ordered List"><ListOrdered className="w-3 h-3" /></button>
+                <button onMouseDown={e => e.preventDefault()} onClick={() => execCommand('formatBlock', 'BLOCKQUOTE')} className="p-1.5 hover:bg-hw-blue/10 rounded text-hw-blue/60 hover:text-hw-blue transition-colors" title="Quote"><Quote className="w-3 h-3" /></button>
+                <div className="w-px h-3 bg-hw-blue/10 mx-1" />
+                <button onMouseDown={e => e.preventDefault()} onClick={() => execCommand('insertHorizontalRule')} className="p-1.5 hover:bg-hw-blue/10 rounded text-hw-blue/60 hover:text-hw-blue transition-colors" title="Horizontal Rule"><Minus className="w-3 h-3" /></button>
+              </div>
+              <BlockEditor 
+                initialContent={block.data.text}
+                onChange={(content) => updateBlock(block.id, { ...block.data, text: content })}
+              />
+            </div>
           )}
           {block.type === 'code' && (
             <div className="space-y-2">
@@ -273,14 +409,47 @@ export const SystemConfig: React.FC<SystemConfigProps> = ({ tutorials, refreshTu
             </div>
           )}
           {block.type === 'image' && (
-            <div className="space-y-2">
-              <input
-                type="text"
-                value={block.data.url}
-                onChange={(e) => updateBlock(block.id, { ...block.data, url: e.target.value })}
-                className="w-full bg-transparent border-b border-hw-blue/20 outline-none text-[10px] text-hw-blue py-1"
-                placeholder="Image URL..."
-              />
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={block.data.url}
+                  onChange={(e) => updateBlock(block.id, { ...block.data, url: e.target.value })}
+                  className="flex-1 bg-transparent border-b border-hw-blue/20 outline-none text-[10px] text-hw-blue py-1"
+                  placeholder="Image URL..."
+                />
+                <button 
+                  onClick={() => {
+                    setActiveBlockUpload({ id: block.id });
+                    blockImageInputRef.current?.click();
+                  }}
+                  disabled={uploading}
+                  className="p-1 text-hw-blue/40 hover:text-hw-blue disabled:opacity-30"
+                  title="Upload Local Image"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <label className="text-[8px] text-hw-blue/40 uppercase block mb-1">Scale / Width (%)</label>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="range" 
+                      min="10" 
+                      max="100" 
+                      step="5"
+                      value={block.data.width || 100}
+                      onChange={(e) => updateBlock(block.id, { ...block.data, width: parseInt(e.target.value) })}
+                      className="flex-1 accent-hw-blue h-1 bg-hw-blue/10 rounded-lg appearance-none cursor-pointer"
+                    />
+                    <span className="text-[10px] text-hw-blue font-mono w-8">{block.data.width || 100}%</span>
+                  </div>
+                </div>
+                <div className="text-[8px] text-hw-blue/40 uppercase">
+                  {block.data.width < 100 ? 'Side-by-side enabled' : 'Full width'}
+                </div>
+              </div>
               <input
                 type="text"
                 value={block.data.caption}
@@ -343,6 +512,17 @@ export const SystemConfig: React.FC<SystemConfigProps> = ({ tutorials, refreshTu
                   />
                   <button 
                     onClick={() => {
+                      setActiveBlockUpload({ id: block.id, index: i });
+                      blockImageInputRef.current?.click();
+                    }}
+                    disabled={uploading}
+                    className="p-1 text-hw-blue/40 hover:text-hw-blue disabled:opacity-30"
+                    title="Upload Local Image"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                  </button>
+                  <button 
+                    onClick={() => {
                       const newUrls = block.data.urls.filter((_: any, idx: number) => idx !== i);
                       updateBlock(block.id, { ...block.data, urls: newUrls });
                     }}
@@ -377,6 +557,33 @@ export const SystemConfig: React.FC<SystemConfigProps> = ({ tutorials, refreshTu
                 className="w-full bg-transparent border-none outline-none text-[10px] text-hw-blue resize-y min-h-[50px]"
                 placeholder="Note content..."
               />
+            </div>
+          )}
+          {block.type === 'attached_note' && (
+            <div className="space-y-3">
+              <div className="text-[10px] text-hw-blue/40 uppercase mb-1">Select Note to Attach</div>
+              <select
+                value={block.data.noteId || ''}
+                onChange={(e) => updateBlock(block.id, { ...block.data, noteId: e.target.value })}
+                className="w-full bg-hw-blue/10 border border-hw-blue/20 text-[10px] text-hw-blue px-2 py-2 outline-none"
+              >
+                <option value="">-- Choose a note --</option>
+                {(() => {
+                  const saved = localStorage.getItem('hw_os_notes');
+                  if (saved) {
+                    try {
+                      const notes = JSON.parse(saved);
+                      return notes.map((n: any) => (
+                        <option key={n.id} value={n.id}>{n.title}</option>
+                      ));
+                    } catch (e) { return null; }
+                  }
+                  return null;
+                })()}
+              </select>
+              <div className="text-[8px] text-hw-blue/30 uppercase italic">
+                Note: Changes in the Notes app will reflect here automatically.
+              </div>
             </div>
           )}
           {block.type === 'divider' && (
@@ -628,7 +835,7 @@ export const SystemConfig: React.FC<SystemConfigProps> = ({ tutorials, refreshTu
                         {showBlockMenu && (
                           <div className="absolute right-0 top-full mt-2 w-48 bg-hw-black border border-hw-blue/30 shadow-[0_0_15px_rgba(0,242,255,0.1)] z-10 py-2">
                             {[
-                              { type: 'markdown', icon: AlignLeft, label: 'TEXT (MARKDOWN)' },
+                              { type: 'markdown', icon: AlignLeft, label: 'RICH TEXT' },
                               { type: 'code', icon: Code, label: 'CODE SNIPPET' },
                               { type: 'image', icon: ImageIcon, label: 'IMAGE' },
                               { type: 'file_download', icon: FileUp, label: 'FILE DOWNLOAD' },
@@ -637,6 +844,7 @@ export const SystemConfig: React.FC<SystemConfigProps> = ({ tutorials, refreshTu
                               { type: 'video_embed', icon: Video, label: 'VIDEO EMBED' },
                               { type: 'image_gallery', icon: LayoutGrid, label: 'IMAGE GALLERY' },
                               { type: 'note', icon: AlertCircle, label: 'NOTE / TIP' },
+                              { type: 'attached_note', icon: Copy, label: 'ATTACHED NOTE' },
                             ].map(item => (
                               <button
                                 key={item.type}
@@ -795,6 +1003,13 @@ export const SystemConfig: React.FC<SystemConfigProps> = ({ tutorials, refreshTu
           </div>
         </div>
       )}
+      <input 
+        type="file" 
+        ref={blockImageInputRef} 
+        onChange={handleBlockImageUpload} 
+        accept="image/*" 
+        className="hidden" 
+      />
     </div>
   );
 };

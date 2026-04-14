@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Plus, Search, Trash2, Bold, Italic, List, Code, 
   Image as ImageIcon, FileText, AlignLeft, AlignCenter, Terminal,
-  Strikethrough, Download, X
+  Strikethrough, Download, X, Loader2, Layout
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { useSettings } from '../../contexts/SettingsContext';
 import { useSerial } from '../../contexts/SerialContext';
 import html2pdf from 'html2pdf.js';
 
@@ -46,9 +47,12 @@ export const NotesApp: React.FC = () => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   
   const { subscribe } = useSerial();
+  const { updateTheme, theme } = useSettings();
 
   // Load notes on mount and listen for cross-instance updates
   useEffect(() => {
@@ -144,6 +148,42 @@ export const NotesApp: React.FC = () => {
       window.dispatchEvent(new Event('hw_os_notes_updated'));
       return updated;
     });
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (data.url) {
+        exec('insertImage', data.url);
+      }
+    } catch (err) {
+      console.error('Image upload failed:', err);
+      alert('Failed to upload image');
+    } finally {
+      setIsUploading(false);
+      if (imageInputRef.current) imageInputRef.current.value = '';
+    }
+  };
+
+  const triggerImageInsert = () => {
+    const choice = confirm('Upload local image? (Cancel to enter URL)');
+    if (choice) {
+      imageInputRef.current?.click();
+    } else {
+      const url = prompt('Enter Image URL:');
+      if (url) exec('insertImage', url);
+    }
   };
 
   // Sync editor content if it was updated from another instance
@@ -314,6 +354,27 @@ export const NotesApp: React.FC = () => {
     }
   };
 
+  const collapseToWidget = () => {
+    if (!activeNote) return;
+    
+    const instanceId = `widget-${Date.now()}`;
+    updateTheme({
+      widgets: [...(theme.widgets || []), {
+        instanceId,
+        widgetId: 'notes',
+        x: 0,
+        y: 0,
+        w: 2,
+        h: 2,
+        isFloating: false,
+        config: { noteId: activeNote.id }
+      }]
+    });
+    
+    // Optional: Close the app or show a message
+    alert(`Note "${activeNote.title}" pinned to desktop!`);
+  };
+
   const exportToPDF = () => {
     if (!activeNote || !editorRef.current) return;
     
@@ -373,10 +434,10 @@ export const NotesApp: React.FC = () => {
   };
 
   return (
-    <div className="flex h-full bg-hw-black text-hw-blue overflow-hidden select-none">
+    <div className="flex h-full overflow-hidden select-none" style={{ backgroundColor: 'var(--theme-panel-bg)', color: 'var(--theme-text)' }}>
       {/* Sidebar */}
-      <div className="w-64 border-r border-hw-blue/20 flex flex-col bg-hw-blue/5">
-        <div className="p-4 border-b border-hw-blue/20">
+      <div className="w-64 border-r border-hw-blue/20 flex flex-col bg-hw-blue/5" style={{ borderColor: 'var(--theme-border-color)' }}>
+        <div className="p-4 border-b border-hw-blue/20" style={{ borderColor: 'var(--theme-border-color)' }}>
           <button 
             onClick={createNote}
             className="w-full bg-hw-blue text-hw-black py-2 rounded flex items-center justify-center gap-2 font-bold text-xs hover:bg-white transition-colors shadow-[0_0_10px_rgba(0,242,255,0.2)]"
@@ -392,6 +453,7 @@ export const NotesApp: React.FC = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-black/40 border border-hw-blue/20 rounded py-1.5 pl-8 pr-2 text-[10px] outline-none focus:border-hw-blue transition-colors"
+              style={{ color: 'var(--theme-text)', borderColor: 'var(--theme-border-color)' }}
             />
           </div>
         </div>
@@ -408,6 +470,7 @@ export const NotesApp: React.FC = () => {
                   "p-3 border-b border-hw-blue/10 cursor-pointer transition-all group",
                   activeNoteId === note.id ? 'bg-hw-blue/20 border-l-2 border-l-hw-blue' : 'hover:bg-hw-blue/10 border-l-2 border-l-transparent'
                 )}
+                style={{ borderColor: 'var(--theme-border-color)' }}
               >
                 <div className="flex justify-between items-start">
                   <div className="flex items-center gap-2 mb-1">
@@ -439,18 +502,19 @@ export const NotesApp: React.FC = () => {
         {activeNote ? (
           <>
             {/* Main Toolbar */}
-            <div className="bg-hw-blue/10 border-b border-hw-blue/20 p-2 flex flex-wrap gap-2 items-center shadow-md z-10">
-              <div className="flex items-center gap-1 border-r border-hw-blue/20 pr-2">
+            <div className="bg-hw-blue/10 border-b border-hw-blue/20 p-2 flex flex-wrap gap-2 items-center shadow-md z-10" style={{ borderColor: 'var(--theme-border-color)' }}>
+              <div className="flex items-center gap-1 border-r border-hw-blue/20 pr-2" style={{ borderColor: 'var(--theme-border-color)' }}>
                 <button onMouseDown={e => e.preventDefault()} onClick={() => exec('bold')} title="Bold" className="p-1.5 hover:bg-hw-blue/20 rounded transition-colors"><Bold size={14}/></button>
                 <button onMouseDown={e => e.preventDefault()} onClick={() => exec('italic')} title="Italic" className="p-1.5 hover:bg-hw-blue/20 rounded transition-colors"><Italic size={14}/></button>
                 <button onMouseDown={e => e.preventDefault()} onClick={() => exec('strikeThrough')} title="Strikethrough" className="p-1.5 hover:bg-hw-blue/20 rounded transition-colors"><Strikethrough size={14}/></button>
               </div>
 
-              <div className="flex items-center gap-2 border-r border-hw-blue/20 pr-2">
+              <div className="flex items-center gap-2 border-r border-hw-blue/20 pr-2" style={{ borderColor: 'var(--theme-border-color)' }}>
                 <select 
                   onChange={(e) => exec('fontSize', e.target.value)}
                   defaultValue="3"
                   className="bg-black/60 text-hw-blue text-[10px] border border-hw-blue/20 rounded px-2 py-1 outline-none cursor-pointer hover:border-hw-blue/50 transition-colors"
+                  style={{ color: 'var(--theme-text)', borderColor: 'var(--theme-border-color)' }}
                 >
                   <option value="1">Small</option>
                   <option value="3">Normal</option>
@@ -461,6 +525,7 @@ export const NotesApp: React.FC = () => {
                   onChange={(e) => exec('foreColor', e.target.value)}
                   defaultValue="#00f2ff"
                   className="bg-black/60 text-hw-blue text-[10px] border border-hw-blue/20 rounded px-2 py-1 outline-none cursor-pointer hover:border-hw-blue/50 transition-colors"
+                  style={{ color: 'var(--theme-text)', borderColor: 'var(--theme-border-color)' }}
                 >
                   <option value="#00f2ff">Cyan</option>
                   <option value="#ffffff">White</option>
@@ -470,20 +535,32 @@ export const NotesApp: React.FC = () => {
                 </select>
               </div>
 
-              <div className="flex items-center gap-1 border-r border-hw-blue/20 pr-2">
+              <div className="flex items-center gap-1 border-r border-hw-blue/20 pr-2" style={{ borderColor: 'var(--theme-border-color)' }}>
                 <button onMouseDown={e => e.preventDefault()} onClick={() => exec('justifyLeft')} title="Align Left" className="p-1.5 hover:bg-hw-blue/20 rounded transition-colors"><AlignLeft size={14}/></button>
                 <button onMouseDown={e => e.preventDefault()} onClick={() => exec('justifyCenter')} title="Align Center" className="p-1.5 hover:bg-hw-blue/20 rounded transition-colors"><AlignCenter size={14}/></button>
                 <button onMouseDown={e => e.preventDefault()} onClick={() => exec('insertUnorderedList')} title="Bullet List" className="p-1.5 hover:bg-hw-blue/20 rounded transition-colors"><List size={14}/></button>
               </div>
 
-              <div className="flex items-center gap-1 border-r border-hw-blue/20 pr-2">
+              <div className="flex items-center gap-1 border-r border-hw-blue/20 pr-2" style={{ borderColor: 'var(--theme-border-color)' }}>
                 <button onMouseDown={e => e.preventDefault()} onClick={insertCodeBlock} title="Insert Code Block" className="p-1.5 hover:bg-hw-blue/20 rounded transition-colors">
                   <Code size={14}/>
                 </button>
-                <button onMouseDown={e => e.preventDefault()} onClick={() => {
-                  const url = prompt('Enter Image URL:');
-                  if(url) exec('insertImage', url);
-                }} title="Insert Image" className="p-1.5 hover:bg-hw-blue/20 rounded transition-colors"><ImageIcon size={14}/></button>
+                <button 
+                  onMouseDown={e => e.preventDefault()} 
+                  onClick={triggerImageInsert} 
+                  disabled={isUploading}
+                  title="Insert Image" 
+                  className={cn("p-1.5 hover:bg-hw-blue/20 rounded transition-colors", isUploading && "animate-pulse opacity-50")}
+                >
+                  {isUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon size={14}/>}
+                </button>
+                <input 
+                  type="file" 
+                  ref={imageInputRef} 
+                  onChange={handleImageUpload} 
+                  accept="image/*" 
+                  className="hidden" 
+                />
               </div>
 
               <div className="flex items-center gap-2 ml-auto">
@@ -496,6 +573,14 @@ export const NotesApp: React.FC = () => {
                 </button>
                 <button 
                   onMouseDown={e => e.preventDefault()}
+                  onClick={collapseToWidget}
+                  className="bg-hw-blue/10 border border-hw-blue/40 text-[10px] font-bold px-3 py-1.5 rounded flex items-center gap-2 hover:bg-hw-blue hover:text-hw-black transition-all shadow-[0_0_10px_rgba(0,242,255,0.1)]"
+                  title="Pin current note to desktop as a widget"
+                >
+                  <Layout size={14}/> PIN TO DESKTOP
+                </button>
+                <button 
+                  onMouseDown={e => e.preventDefault()}
                   onClick={exportToPDF}
                   className="bg-hw-blue text-hw-black text-[10px] font-bold px-3 py-1.5 rounded flex items-center gap-2 hover:bg-white transition-all shadow-[0_0_10px_rgba(0,242,255,0.2)]"
                 >
@@ -505,12 +590,13 @@ export const NotesApp: React.FC = () => {
             </div>
 
             {/* Title Bar */}
-            <div className="px-8 pt-8 pb-4 border-b border-hw-blue/10 bg-gradient-to-b from-hw-blue/5 to-transparent">
+            <div className="px-8 pt-8 pb-4 border-b border-hw-blue/10 bg-gradient-to-b from-hw-blue/5 to-transparent" style={{ borderColor: 'var(--theme-border-color)' }}>
               <input 
                 value={activeNote.title}
                 onChange={(e) => updateTitle(e.target.value)}
                 className="w-full bg-transparent text-2xl font-bold outline-none uppercase tracking-widest text-hw-blue placeholder-hw-blue/30"
                 placeholder="NOTE TITLE"
+                style={{ color: 'var(--theme-text)' }}
               />
             </div>
 
@@ -544,6 +630,7 @@ export const NotesApp: React.FC = () => {
           font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
           font-size: 14px;
           line-height: 1.7;
+          color: var(--theme-text);
         }
         .editor-content:empty:before {
           content: 'Start typing...';
@@ -552,13 +639,14 @@ export const NotesApp: React.FC = () => {
         }
         .editor-content pre {
           background: rgba(0,0,0,0.6) !important;
-          border: 1px solid rgba(0, 242, 255, 0.2) !important;
+          border: 1px solid var(--theme-border-color) !important;
           padding: 1rem;
           border-radius: 0.5rem;
           margin: 1rem 0;
+          color: #fff;
         }
         .editor-content blockquote {
-          border-left: 3px solid #00f2ff;
+          border-left: 3px solid var(--theme-main);
           padding-left: 1rem;
           margin-left: 0;
           font-style: italic;
@@ -566,10 +654,11 @@ export const NotesApp: React.FC = () => {
           background: rgba(0, 242, 255, 0.05);
           padding: 0.5rem 1rem;
           border-radius: 0 0.25rem 0.25rem 0;
+          color: var(--theme-text);
         }
         .editor-content img {
           max-width: 100%;
-          border: 1px solid rgba(0, 242, 255, 0.2);
+          border: 1px solid var(--theme-border-color);
           border-radius: 0.5rem;
           margin: 1rem 0;
           box-shadow: 0 4px 20px rgba(0,0,0,0.5);
@@ -587,9 +676,9 @@ export const NotesApp: React.FC = () => {
         .editor-content li {
           margin-bottom: 0.25rem;
         }
-        .prose-hw h1 { font-size: 2em; color: #00f2ff; font-weight: 800; margin: 1em 0 0.5em; text-transform: uppercase; letter-spacing: -0.02em; }
-        .prose-hw h2 { font-size: 1.5em; color: #00f2ff; font-weight: 700; margin: 1em 0 0.5em; }
-        .prose-hw h3 { font-size: 1.17em; color: #00f2ff; font-weight: 600; margin: 1em 0 0.5em; }
+        .prose-hw h1 { font-size: 2em; color: var(--theme-main); font-weight: 800; margin: 1em 0 0.5em; text-transform: uppercase; letter-spacing: -0.02em; }
+        .prose-hw h2 { font-size: 1.5em; color: var(--theme-main); font-weight: 700; margin: 1em 0 0.5em; }
+        .prose-hw h3 { font-size: 1.17em; color: var(--theme-main); font-weight: 600; margin: 1em 0 0.5em; }
       `}</style>
     </div>
   );

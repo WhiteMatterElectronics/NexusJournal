@@ -1,4 +1,4 @@
-export type BlockType = 'markdown' | 'code' | 'image' | 'file_download' | 'sub_heading' | 'divider' | 'video_embed' | 'image_gallery' | 'note';
+export type BlockType = 'markdown' | 'code' | 'image' | 'file_download' | 'sub_heading' | 'divider' | 'video_embed' | 'image_gallery' | 'note' | 'attached_note';
 
 export interface TutorialBlock {
   id: string;
@@ -27,4 +27,4 @@ export interface Firmware {
   uploadedAt: string;
 }
 
-export type AppView = 'tutorials' | 'flasher' | 'admin' | 'console' | 'eeprom' | 'rfid' | 'binary' | 'cyphonator' | 'settings' | 'notes';
+export type AppView = 'tutorials' | 'flasher' | 'admin' | 'console' | 'eeprom' | 'rfid' | 'binary' | 'cyphonator' | 'settings' | 'notes' | 'sys_monitor' | 'weather' | 'clock' | 'bluetooth';

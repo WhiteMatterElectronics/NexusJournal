@@ -1,11 +1,18 @@
 import React, { useState } from 'react';
-import { User, Sliders, Monitor, Wifi, Bluetooth, Save, AlertCircle } from 'lucide-react';
+import { User, Sliders, Monitor, Wifi, Bluetooth, Save, AlertCircle, Layout, Plus, Trash2, Layers } from 'lucide-react';
 import { useSettings } from '../../contexts/SettingsContext';
 import { cn } from '../../lib/utils';
+import { WIDGET_REGISTRY } from '../../widgets/registry';
+import { ActiveWidget } from '../../types/widgets';
+import { APPS } from '../../constants';
 
-export const SettingsApp: React.FC = () => {
+interface SettingsAppProps {
+  initialTab?: 'profile' | 'preferences' | 'widgets' | 'serial' | 'network' | 'bluetooth';
+}
+
+export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile' }) => {
   const { profile, updateProfile, theme, updateTheme } = useSettings();
-  const [activeTab, setActiveTab] = useState<'profile' | 'preferences' | 'serial' | 'network' | 'bluetooth'>('profile');
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   // Profile State
   const [name, setName] = useState(profile.name);
@@ -14,22 +21,14 @@ export const SettingsApp: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [profileMsg, setProfileMsg] = useState('');
 
-  // Theme State
-  const [mainColor, setMainColor] = useState(theme.mainColor);
-  const [terminalColor, setTerminalColor] = useState(theme.terminalColor);
-  const [globalTheme, setGlobalTheme] = useState(theme.globalTheme);
-  const [bgType, setBgType] = useState(theme.backgroundType);
-  const [customBgUrl, setCustomBgUrl] = useState(theme.customBackgroundUrl || '');
-  const [desktopIcons, setDesktopIcons] = useState(theme.desktopIcons || {
-    'console': true,
-    'eeprom': true,
-    'rfid': true,
-    'binary': true,
-    'cyphonator': true,
-    'flasher': true,
-    'admin': true,
-    'settings': true
-  });
+  // Theme State (Local copy for editing)
+  const [localTheme, setLocalTheme] = useState(theme);
+  const [themeMsg, setThemeMsg] = useState('');
+
+  // Sync localTheme when theme changes (e.g. from context menu)
+  React.useEffect(() => {
+    setLocalTheme(theme);
+  }, [theme]);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,29 +75,25 @@ export const SettingsApp: React.FC = () => {
 
   const handleSaveTheme = (e: React.FormEvent) => {
     e.preventDefault();
-    updateTheme({
-      mainColor,
-      terminalColor,
-      globalTheme,
-      backgroundType: bgType,
-      customBackgroundUrl: customBgUrl,
-      desktopIcons
-    });
+    updateTheme(localTheme);
+    setThemeMsg('Theme settings applied.');
+    setTimeout(() => setThemeMsg(''), 3000);
   };
 
   const tabs = [
     { id: 'profile', icon: User, label: 'User Profile' },
     { id: 'preferences', icon: Sliders, label: 'Preferences' },
+    { id: 'widgets', icon: Layout, label: 'Widgets' },
     { id: 'serial', icon: Monitor, label: 'Serial' },
     { id: 'network', icon: Wifi, label: 'Network' },
     { id: 'bluetooth', icon: Bluetooth, label: 'Bluetooth' },
   ] as const;
 
   return (
-    <div className="flex h-full bg-black/60">
+    <div className="flex h-full" style={{ backgroundColor: 'var(--theme-panel-bg)' }}>
       {/* Sidebar */}
-      <div className="w-48 border-r border-hw-blue/20 bg-hw-blue/5 flex flex-col shrink-0">
-        <div className="p-4 border-b border-hw-blue/20">
+      <div className="w-48 border-r border-hw-blue/20 bg-hw-blue/5 flex flex-col shrink-0" style={{ borderColor: 'var(--theme-border-color)' }}>
+        <div className="p-4 border-b border-hw-blue/20" style={{ borderColor: 'var(--theme-border-color)' }}>
           <span className="text-[10px] font-bold uppercase tracking-widest text-hw-blue">Settings</span>
         </div>
         <div className="flex-1 overflow-y-auto py-2">
@@ -121,7 +116,7 @@ export const SettingsApp: React.FC = () => {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto p-6 custom-scrollbar" style={{ color: 'var(--theme-text)' }}>
         {activeTab === 'profile' && (
           <div className="max-w-md">
             <h2 className="text-lg font-bold text-hw-blue uppercase tracking-widest mb-6 flex items-center gap-2">
@@ -129,40 +124,44 @@ export const SettingsApp: React.FC = () => {
             </h2>
             <form onSubmit={handleSaveProfile} className="space-y-4">
               <div>
-                <label className="block text-[10px] font-bold text-hw-blue/60 uppercase tracking-widest mb-1">Display Name</label>
+                <label className="block text-[10px] font-bold uppercase tracking-widest mb-1 opacity-60">Display Name</label>
                 <input
                   type="text"
                   value={name}
                   onChange={e => setName(e.target.value)}
-                  className="w-full bg-hw-blue/5 border border-hw-blue/20 p-2 text-xs text-hw-blue outline-none focus:border-hw-blue"
+                  className="w-full bg-hw-blue/5 border border-hw-blue/20 p-2 text-xs outline-none focus:border-hw-blue"
+                  style={{ color: 'var(--theme-text)', borderColor: 'var(--theme-border-color)' }}
                 />
               </div>
-              <div className="pt-4 border-t border-hw-blue/10">
+              <div className="pt-4 border-t border-hw-blue/10" style={{ borderColor: 'var(--theme-border-color)' }}>
                 {profile.passwordHash && (
                   <>
-                    <label className="block text-[10px] font-bold text-hw-blue/60 uppercase tracking-widest mb-1">Current Password</label>
+                    <label className="block text-[10px] font-bold uppercase tracking-widest mb-1 opacity-60">Current Password</label>
                     <input
                       type="password"
                       value={oldPassword}
                       onChange={e => setOldPassword(e.target.value)}
-                      className="w-full bg-hw-blue/5 border border-hw-blue/20 p-2 text-xs text-hw-blue outline-none focus:border-hw-blue mb-4"
+                      className="w-full bg-hw-blue/5 border border-hw-blue/20 p-2 text-xs outline-none focus:border-hw-blue mb-4"
+                      style={{ color: 'var(--theme-text)', borderColor: 'var(--theme-border-color)' }}
                       required
                     />
                   </>
                 )}
-                <label className="block text-[10px] font-bold text-hw-blue/60 uppercase tracking-widest mb-1">New Password (Optional)</label>
+                <label className="block text-[10px] font-bold uppercase tracking-widest mb-1 opacity-60">New Password (Optional)</label>
                 <input
                   type="password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  className="w-full bg-hw-blue/5 border border-hw-blue/20 p-2 text-xs text-hw-blue outline-none focus:border-hw-blue mb-4"
+                  className="w-full bg-hw-blue/5 border border-hw-blue/20 p-2 text-xs outline-none focus:border-hw-blue mb-4"
+                  style={{ color: 'var(--theme-text)', borderColor: 'var(--theme-border-color)' }}
                 />
-                <label className="block text-[10px] font-bold text-hw-blue/60 uppercase tracking-widest mb-1">Confirm New Password</label>
+                <label className="block text-[10px] font-bold uppercase tracking-widest mb-1 opacity-60">Confirm New Password</label>
                 <input
                   type="password"
                   value={confirmPassword}
                   onChange={e => setConfirmPassword(e.target.value)}
-                  className="w-full bg-hw-blue/5 border border-hw-blue/20 p-2 text-xs text-hw-blue outline-none focus:border-hw-blue"
+                  className="w-full bg-hw-blue/5 border border-hw-blue/20 p-2 text-xs outline-none focus:border-hw-blue"
+                  style={{ color: 'var(--theme-text)', borderColor: 'var(--theme-border-color)' }}
                 />
               </div>
               
@@ -188,30 +187,30 @@ export const SettingsApp: React.FC = () => {
               
               {/* Colors */}
               <div className="space-y-4">
-                <h3 className="text-[12px] font-bold text-hw-blue/80 uppercase tracking-widest border-b border-hw-blue/20 pb-2">Colors</h3>
+                <h3 className="text-[12px] font-bold uppercase tracking-widest border-b border-hw-blue/20 pb-2" style={{ borderColor: 'var(--theme-border-color)' }}>Colors</h3>
                 <div className="grid grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-[10px] font-bold text-hw-blue/60 uppercase tracking-widest mb-2">Main Shell Color</label>
+                    <label className="block text-[10px] font-bold uppercase tracking-widest mb-2 opacity-60">Main Shell Color</label>
                     <div className="flex items-center gap-3">
                       <input
                         type="color"
-                        value={mainColor}
-                        onChange={e => setMainColor(e.target.value)}
+                        value={localTheme.mainColor}
+                        onChange={e => setLocalTheme(prev => ({ ...prev, mainColor: e.target.value }))}
                         className="w-10 h-10 bg-transparent border-none cursor-pointer"
                       />
-                      <span className="text-xs font-mono text-hw-blue">{mainColor}</span>
+                      <span className="text-xs font-mono">{localTheme.mainColor}</span>
                     </div>
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-hw-blue/60 uppercase tracking-widest mb-2">Serial Terminal Color</label>
+                    <label className="block text-[10px] font-bold uppercase tracking-widest mb-2 opacity-60">Serial Terminal Color</label>
                     <div className="flex items-center gap-3">
                       <input
                         type="color"
-                        value={terminalColor}
-                        onChange={e => setTerminalColor(e.target.value)}
+                        value={localTheme.terminalColor}
+                        onChange={e => setLocalTheme(prev => ({ ...prev, terminalColor: e.target.value }))}
                         className="w-10 h-10 bg-transparent border-none cursor-pointer"
                       />
-                      <span className="text-xs font-mono text-hw-blue">{terminalColor}</span>
+                      <span className="text-xs font-mono">{localTheme.terminalColor}</span>
                     </div>
                   </div>
                 </div>
@@ -219,82 +218,168 @@ export const SettingsApp: React.FC = () => {
 
               {/* Theme Style */}
               <div className="space-y-4">
-                <h3 className="text-[12px] font-bold text-hw-blue/80 uppercase tracking-widest border-b border-hw-blue/20 pb-2">Global Theme</h3>
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-2 cursor-pointer group">
-                    <input
-                      type="radio"
-                      name="globalTheme"
-                      value="retro"
-                      checked={globalTheme === 'retro'}
-                      onChange={() => setGlobalTheme('retro')}
-                      className="accent-hw-blue"
-                    />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-hw-blue/60 group-hover:text-hw-blue">Retro Terminal</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer group">
-                    <input
-                      type="radio"
-                      name="globalTheme"
-                      value="glassy"
-                      checked={globalTheme === 'glassy'}
-                      onChange={() => setGlobalTheme('glassy')}
-                      className="accent-hw-blue"
-                    />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-hw-blue/60 group-hover:text-hw-blue">Modern Glassy</span>
-                  </label>
+                <h3 className="text-[12px] font-bold uppercase tracking-widest border-b border-hw-blue/20 pb-2" style={{ borderColor: 'var(--theme-border-color)' }}>Global Theme</h3>
+                <div className="flex flex-col gap-4">
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <input
+                        type="radio"
+                        name="globalTheme"
+                        value="retro"
+                        checked={localTheme.globalTheme === 'retro'}
+                        onChange={() => setLocalTheme(prev => ({ ...prev, globalTheme: 'retro' }))}
+                        className="accent-hw-blue"
+                      />
+                      <span className="text-[10px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100">Retro Terminal</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <input
+                        type="radio"
+                        name="globalTheme"
+                        value="glassy"
+                        checked={localTheme.globalTheme === 'glassy'}
+                        onChange={() => setLocalTheme(prev => ({ ...prev, globalTheme: 'glassy' }))}
+                        className="accent-hw-blue"
+                      />
+                      <span className="text-[10px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100">Modern Glassy</span>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center gap-4 pt-2">
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={localTheme.isDarkMode}
+                        onChange={(e) => setLocalTheme(prev => ({ ...prev, isDarkMode: e.target.checked }))}
+                        className="accent-hw-blue"
+                      />
+                      <span className="text-[10px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100">Dark Mode</span>
+                    </label>
+                  </div>
+
+                  {localTheme.globalTheme === 'glassy' && (
+                    <div className="mt-2 space-y-4 p-4 bg-hw-blue/5 border border-hw-blue/10 rounded-lg" style={{ borderColor: 'var(--theme-border-color)' }}>
+                      <h4 className="text-[10px] font-bold uppercase tracking-widest text-hw-blue mb-2">Glassy Sub-settings</h4>
+                      <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+                        {/* Opacity */}
+                        <div>
+                          <label className="flex justify-between text-[9px] uppercase tracking-widest opacity-60 mb-1">
+                            <span>Transparency</span>
+                            <span>{Math.round(localTheme.glassyConfig.opacity * 100)}%</span>
+                          </label>
+                          <input 
+                            type="range" min="0.05" max="0.95" step="0.05"
+                            value={localTheme.glassyConfig.opacity}
+                            onChange={e => setLocalTheme(prev => ({ ...prev, glassyConfig: { ...prev.glassyConfig, opacity: parseFloat(e.target.value) } }))}
+                            className="w-full h-1 bg-hw-blue/20 rounded-lg appearance-none cursor-pointer accent-hw-blue"
+                          />
+                        </div>
+                        {/* Blur */}
+                        <div>
+                          <label className="flex justify-between text-[9px] uppercase tracking-widest opacity-60 mb-1">
+                            <span>Blur Strength</span>
+                            <span>{localTheme.glassyConfig.blur}px</span>
+                          </label>
+                          <input 
+                            type="range" min="0" max="40" step="1"
+                            value={localTheme.glassyConfig.blur}
+                            onChange={e => setLocalTheme(prev => ({ ...prev, glassyConfig: { ...prev.glassyConfig, blur: parseInt(e.target.value) } }))}
+                            className="w-full h-1 bg-hw-blue/20 rounded-lg appearance-none cursor-pointer accent-hw-blue"
+                          />
+                        </div>
+                        {/* Border Opacity */}
+                        <div>
+                          <label className="flex justify-between text-[9px] uppercase tracking-widest opacity-60 mb-1">
+                            <span>Border Intensity</span>
+                            <span>{Math.round(localTheme.glassyConfig.borderOpacity * 100)}%</span>
+                          </label>
+                          <input 
+                            type="range" min="0" max="1" step="0.05"
+                            value={localTheme.glassyConfig.borderOpacity}
+                            onChange={e => setLocalTheme(prev => ({ ...prev, glassyConfig: { ...prev.glassyConfig, borderOpacity: parseFloat(e.target.value) } }))}
+                            className="w-full h-1 bg-hw-blue/20 rounded-lg appearance-none cursor-pointer accent-hw-blue"
+                          />
+                        </div>
+                        {/* Saturation */}
+                        <div>
+                          <label className="flex justify-between text-[9px] uppercase tracking-widest opacity-60 mb-1">
+                            <span>Saturation</span>
+                            <span>{localTheme.glassyConfig.saturation}%</span>
+                          </label>
+                          <input 
+                            type="range" min="0" max="200" step="10"
+                            value={localTheme.glassyConfig.saturation}
+                            onChange={e => setLocalTheme(prev => ({ ...prev, glassyConfig: { ...prev.glassyConfig, saturation: parseInt(e.target.value) } }))}
+                            className="w-full h-1 bg-hw-blue/20 rounded-lg appearance-none cursor-pointer accent-hw-blue"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Background */}
               <div className="space-y-4">
-                <h3 className="text-[12px] font-bold text-hw-blue/80 uppercase tracking-widest border-b border-hw-blue/20 pb-2">Background</h3>
+                <h3 className="text-[12px] font-bold uppercase tracking-widest border-b border-hw-blue/20 pb-2" style={{ borderColor: 'var(--theme-border-color)' }}>Background</h3>
                 <div className="space-y-3">
                   <label className="flex items-center gap-2 cursor-pointer group">
                     <input
                       type="radio"
                       name="bgType"
-                      value="base1"
-                      checked={bgType === 'base1'}
-                      onChange={() => setBgType('base1')}
+                      value="none"
+                      checked={localTheme.backgroundType as any === 'none'}
+                      onChange={() => setLocalTheme(prev => ({ ...prev, backgroundType: 'none' as any }))}
                       className="accent-hw-blue"
                     />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-hw-blue/60 group-hover:text-hw-blue">Base 1 (Dotted Grid)</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100">None (Solid Color)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    <input
+                      type="radio"
+                      name="bgType"
+                      value="base1"
+                      checked={localTheme.backgroundType === 'base1'}
+                      onChange={() => setLocalTheme(prev => ({ ...prev, backgroundType: 'base1' }))}
+                      className="accent-hw-blue"
+                    />
+                    <span className="text-[10px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100">Base 1 (Dotted Grid)</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer group">
                     <input
                       type="radio"
                       name="bgType"
                       value="base2"
-                      checked={bgType === 'base2'}
-                      onChange={() => setBgType('base2')}
+                      checked={localTheme.backgroundType === 'base2'}
+                      onChange={() => setLocalTheme(prev => ({ ...prev, backgroundType: 'base2' }))}
                       className="accent-hw-blue"
                     />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-hw-blue/60 group-hover:text-hw-blue">Base 2 (Line Grid)</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100">Base 2 (Line Grid)</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer group">
                     <input
                       type="radio"
                       name="bgType"
                       value="custom"
-                      checked={bgType === 'custom'}
-                      onChange={() => setBgType('custom')}
+                      checked={localTheme.backgroundType === 'custom'}
+                      onChange={() => setLocalTheme(prev => ({ ...prev, backgroundType: 'custom' }))}
                       className="accent-hw-blue"
                     />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-hw-blue/60 group-hover:text-hw-blue">Custom Image</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100">Custom Image</span>
                   </label>
                   
-                  {bgType === 'custom' && (
+                  {localTheme.backgroundType === 'custom' && (
                     <div className="flex flex-col gap-2 mt-2">
                       <input
                         type="text"
-                        value={customBgUrl}
-                        onChange={e => setCustomBgUrl(e.target.value)}
+                        value={localTheme.customBackgroundUrl || ''}
+                        onChange={e => setLocalTheme(prev => ({ ...prev, customBackgroundUrl: e.target.value }))}
                         placeholder="https://example.com/image.jpg"
-                        className="w-full bg-hw-blue/5 border border-hw-blue/20 p-2 text-xs text-hw-blue outline-none focus:border-hw-blue"
+                        className="w-full bg-hw-blue/5 border border-hw-blue/20 p-2 text-xs outline-none focus:border-hw-blue"
+                        style={{ color: 'var(--theme-text)', borderColor: 'var(--theme-border-color)' }}
                       />
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-hw-blue/40 uppercase">OR</span>
+                        <span className="text-[10px] opacity-40 uppercase">OR</span>
                         <input
                           type="file"
                           accept="image/*"
@@ -304,13 +389,14 @@ export const SettingsApp: React.FC = () => {
                               const reader = new FileReader();
                               reader.onload = (event) => {
                                 if (event.target?.result) {
-                                  setCustomBgUrl(event.target.result as string);
+                                  setLocalTheme(prev => ({ ...prev, customBackgroundUrl: event.target.result as string }));
                                 }
                               };
                               reader.readAsDataURL(file);
                             }
                           }}
-                          className="text-[10px] text-hw-blue file:mr-4 file:py-1 file:px-3 file:border-0 file:text-[10px] file:font-bold file:uppercase file:bg-hw-blue/10 file:text-hw-blue hover:file:bg-hw-blue/20 cursor-pointer"
+                          className="text-[10px] file:mr-4 file:py-1 file:px-3 file:border-0 file:text-[10px] file:font-bold file:uppercase file:bg-hw-blue/10 file:text-hw-blue hover:file:bg-hw-blue/20 cursor-pointer"
+                          style={{ color: 'var(--theme-text)' }}
                         />
                       </div>
                     </div>
@@ -320,29 +406,205 @@ export const SettingsApp: React.FC = () => {
 
               {/* Desktop Icons */}
               <div className="space-y-4">
-                <h3 className="text-[12px] font-bold text-hw-blue/80 uppercase tracking-widest border-b border-hw-blue/20 pb-2">Desktop Icons</h3>
+                <h3 className="text-[12px] font-bold uppercase tracking-widest border-b border-hw-blue/20 pb-2" style={{ borderColor: 'var(--theme-border-color)' }}>Desktop Icons</h3>
 
                 <div className="grid grid-cols-2 gap-4">
-                  {Object.entries(desktopIcons).map(([appId, isEnabled]) => (
-                    <label key={appId} className="flex items-center gap-2 cursor-pointer group">
+                  {APPS.map((app) => (
+                    <label key={app.id} className="flex items-center gap-2 cursor-pointer group">
                       <input
                         type="checkbox"
-                        checked={isEnabled}
-                        onChange={(e) => setDesktopIcons(prev => ({ ...prev, [appId]: e.target.checked }))}
+                        checked={localTheme.desktopIcons[app.id] !== false}
+                        onChange={(e) => setLocalTheme(prev => ({ 
+                          ...prev, 
+                          desktopIcons: { ...prev.desktopIcons, [app.id]: e.target.checked } 
+                        }))}
                         className="accent-hw-blue"
                       />
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-hw-blue/60 group-hover:text-hw-blue">
-                        {appId}
+                      <span className="text-[10px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100">
+                        {app.label}
                       </span>
                     </label>
                   ))}
                 </div>
               </div>
 
-              <button type="submit" className="hw-button flex items-center gap-2">
-                <Save className="w-4 h-4" /> Apply Preferences
-              </button>
+              {/* TaskBar Style */}
+              <div className="space-y-4">
+                <h3 className="text-[12px] font-bold uppercase tracking-widest border-b border-hw-blue/20 pb-2" style={{ borderColor: 'var(--theme-border-color)' }}>TaskBar</h3>
+                <div className="flex flex-col gap-6">
+                  <div className="flex gap-6">
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <input
+                        type="radio"
+                        name="taskbarStyle"
+                        value="fixed"
+                        checked={localTheme.taskbarStyle === 'fixed'}
+                        onChange={() => setLocalTheme(prev => ({ ...prev, taskbarStyle: 'fixed' }))}
+                        className="accent-hw-blue"
+                      />
+                      <span className="text-[10px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100">Fixed (Classic)</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <input
+                        type="radio"
+                        name="taskbarStyle"
+                        value="panel"
+                        checked={localTheme.taskbarStyle === 'panel'}
+                        onChange={() => setLocalTheme(prev => ({ ...prev, taskbarStyle: 'panel' }))}
+                        className="accent-hw-blue"
+                      />
+                      <span className="text-[10px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100">Panel (Modern)</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Performance */}
+              <div className="space-y-4">
+                <h3 className="text-[12px] font-bold uppercase tracking-widest border-b border-hw-blue/20 pb-2" style={{ borderColor: 'var(--theme-border-color)' }}>Performance</h3>
+                <div className="p-4 bg-hw-blue/5 border border-hw-blue/10 rounded-lg flex items-center justify-between" style={{ borderColor: 'var(--theme-border-color)' }}>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold uppercase tracking-widest">Animation Speed</span>
+                    <span className="text-[8px] opacity-40 uppercase">Lower is faster</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-[10px] font-bold">{localTheme.animationSpeed}s</span>
+                    <input 
+                      type="range" min="0" max="1" step="0.1"
+                      value={localTheme.animationSpeed}
+                      onChange={e => setLocalTheme(prev => ({ ...prev, animationSpeed: parseFloat(e.target.value) }))}
+                      className="w-32 h-1 bg-hw-blue/20 rounded-lg appearance-none cursor-pointer accent-hw-blue"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Save Button */}
+              <div className="pt-6 flex items-center gap-4">
+                <button type="submit" className="hw-button flex items-center gap-2 px-8 py-3">
+                  <Save size={16} />
+                  SAVE PREFERENCES
+                </button>
+                {themeMsg && (
+                  <span className="text-[10px] text-hw-blue uppercase tracking-widest animate-pulse">{themeMsg}</span>
+                )}
+              </div>
             </form>
+          </div>
+        )}
+        {activeTab === 'widgets' && (
+          <div className="max-w-3xl">
+            <h2 className="text-lg font-bold text-hw-blue uppercase tracking-widest mb-6 flex items-center gap-2">
+              <Layout className="w-5 h-5" /> Desktop Widgets
+            </h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Available Widgets */}
+              <div className="space-y-4">
+                <h3 className="text-[12px] font-bold uppercase tracking-widest border-b border-hw-blue/20 pb-2" style={{ borderColor: 'var(--theme-border-color)' }}>Available Widgets</h3>
+                <div className="space-y-3">
+                  {WIDGET_REGISTRY.map(widget => (
+                    <div 
+                      key={widget.id}
+                      className="p-3 bg-hw-blue/5 border border-hw-blue/10 rounded-lg flex items-center justify-between group hover:border-hw-blue/40 transition-colors"
+                      style={{ borderColor: 'var(--theme-border-color)' }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-hw-blue/10 rounded-lg">
+                          <widget.icon className="w-4 h-4 text-hw-blue" />
+                        </div>
+                        <div>
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-hw-blue">{widget.name}</div>
+                          <div className="text-[8px] opacity-60 uppercase tracking-wider">{widget.description}</div>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          const instanceId = `widget-${Date.now()}`;
+                          const newWidget: ActiveWidget = {
+                            instanceId,
+                            widgetId: widget.id,
+                            x: 0,
+                            y: 0,
+                            w: widget.defaultSize.w,
+                            h: widget.defaultSize.h,
+                            isFloating: false
+                          };
+                          updateTheme(prev => ({
+                            widgets: [...(prev.widgets || []), newWidget]
+                          }));
+                        }}
+                        className="p-2 hover:bg-hw-blue/20 rounded-lg transition-colors text-hw-blue"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Active Widgets */}
+              <div className="space-y-4">
+                <h3 className="text-[12px] font-bold uppercase tracking-widest border-b border-hw-blue/20 pb-2" style={{ borderColor: 'var(--theme-border-color)' }}>Active on Desktop</h3>
+                <div className="space-y-3">
+                  {(!theme.widgets || theme.widgets.length === 0) ? (
+                    <div className="text-[10px] opacity-40 uppercase tracking-widest py-8 text-center border-2 border-dashed border-hw-blue/10 rounded-lg">
+                      No active widgets
+                    </div>
+                  ) : (
+                    theme.widgets.map(widget => {
+                      const def = WIDGET_REGISTRY.find(w => w.id === widget.widgetId);
+                      return (
+                        <div 
+                          key={widget.instanceId}
+                          className="p-3 bg-hw-blue/5 border border-hw-blue/20 rounded-lg space-y-3"
+                          style={{ borderColor: 'var(--theme-border-color)' }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              {def && <def.icon className="w-3 h-3 text-hw-blue" />}
+                              <span className="text-[10px] font-bold uppercase tracking-widest">{def?.name || 'Unknown Widget'}</span>
+                            </div>
+                            <button 
+                              onClick={() => {
+                                updateTheme(prev => ({
+                                  widgets: prev.widgets.filter(w => w.instanceId !== widget.instanceId)
+                                }));
+                              }}
+                              className="p-1 hover:bg-red-500/20 rounded transition-colors text-red-500"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                          
+                          <div className="flex items-center justify-between pt-2 border-t border-hw-blue/10" style={{ borderColor: 'var(--theme-border-color)' }}>
+                            <label className="flex items-center gap-2 cursor-pointer group">
+                              <input
+                                type="checkbox"
+                                checked={widget.isFloating}
+                                onChange={(e) => {
+                                  updateTheme(prev => ({
+                                    widgets: prev.widgets.map(w => w.instanceId === widget.instanceId ? { ...w, isFloating: e.target.checked } : w)
+                                  }));
+                                }}
+                                className="accent-hw-blue"
+                              />
+                              <div className="flex items-center gap-1">
+                                <Layers className="w-3 h-3 opacity-60" />
+                                <span className="text-[9px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100">Float over windows</span>
+                              </div>
+                            </label>
+                            <div className="text-[8px] opacity-40 uppercase tracking-widest">
+                              Size: {widget.w}x{widget.h}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

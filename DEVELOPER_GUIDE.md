@@ -1,142 +1,183 @@
-# Developer Guide: Creating Custom Apps for the OS Platform
+# OS Platform Technical Specification & Developer Guide
 
-Welcome to the Developer Guide! This tutorial will walk you through the process of creating and integrating your own custom application into this web-based OS platform.
-
-## Overview
-
-The OS platform is built with **React**, **TypeScript**, and **Tailwind CSS**. 
-Applications are essentially React components that are registered in the main `App.tsx` file. The OS handles window management (dragging, resizing, minimizing, maximizing), taskbar integration, and desktop icon placement automatically.
-
-To create a new app, you need to:
-1. Create your app component.
-2. Register the app's ID in the global types.
-3. Add the app to the OS registry in `App.tsx`.
-4. (Optional) Add it to the default desktop icons in `SettingsContext.tsx`.
+This document provides a structured technical overview of the OS architecture. It is designed to be parsed by both human developers and AI agents to ensure consistency and rapid application development.
 
 ---
 
-## Step 1: Create Your App Component
+## 1. Core Architecture Overview
 
-Create a new file in the `src/components/apps/` directory. For example, let's create a simple "Notes" app: `src/components/apps/NotesApp.tsx`.
+The OS is a Single Page Application (SPA) built with **React 18**, **Vite**, **Tailwind CSS**, and **Framer Motion**. It simulates a desktop environment with window management, a taskbar, and a persistent settings system.
 
+### 1.1 Key Files & Responsibilities
+- `src/App.tsx`: The "Kernel". Manages global state for windows, desktop icons, and the application registry.
+- `src/components/os/Window.tsx`: The "Window Manager". Handles dragging, resizing, snapping, and window state (min/max/close).
+- `src/components/os/Taskbar.tsx`: The "Shell". Renders the taskbar, start menu, and handles window switching.
+- `src/contexts/SettingsContext.tsx`: The "Registry". Manages persistent theme settings, user profiles, and desktop icon visibility.
+- `src/components/apps/`: Directory for all application-specific logic.
+
+---
+
+## 2. Windowing System (Critical Logic)
+
+The windowing system is built on a custom pointer-event-driven movement logic combined with `motion/react` for state transitions.
+
+### 2.1 Snapping Rules
+- **Threshold**: `30px` from any edge.
+- **Top Edge**: Triggers `onMaximize`.
+- **Left Edge**: Snaps to `x: 0, width: screenWidth / 2, height: screenHeight - taskbarHeight`.
+- **Right Edge**: Snaps to `x: screenWidth / 2, width: screenWidth / 2, height: screenHeight - taskbarHeight`.
+
+**Implementation Example (from `Window.tsx`):**
 ```tsx
-import React, { useState } from 'react';
-
-export const NotesApp: React.FC = () => {
-  const [note, setNote] = useState('');
-
-  return (
-    <div className="flex flex-col h-full bg-hw-black p-4 text-hw-blue">
-      <h2 className="text-sm font-bold uppercase tracking-widest mb-4 border-b border-hw-blue/20 pb-2">
-        My Notes
-      </h2>
-      <textarea
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        placeholder="Type your notes here..."
-        className="flex-1 bg-hw-blue/5 border border-hw-blue/20 p-2 text-xs text-hw-blue outline-none focus:border-hw-blue resize-none custom-scrollbar"
-      />
-    </div>
-  );
+const handlePointerUp = (upEvent: PointerEvent) => {
+  const screenWidth = window.innerWidth;
+  const screenHeight = window.innerHeight;
+  
+  if (upEvent.clientY < 30) {
+    if (!isMaximized) onMaximize();
+  } else if (upEvent.clientX < 30) {
+    if (isMaximized) onMaximize();
+    setBounds({ x: 0, y: 0, width: screenWidth / 2, height: screenHeight - taskbarHeight });
+  } else if (upEvent.clientX > screenWidth - 30) {
+    if (isMaximized) onMaximize();
+    setBounds({ x: screenWidth / 2, y: 0, width: screenWidth / 2, height: screenHeight - taskbarHeight });
+  }
 };
 ```
 
-**Styling Tips:**
-* Use `bg-hw-black` for the main background.
-* Use `text-hw-blue` for the primary text color.
-* Use `border-hw-blue/20` for subtle borders.
-* Add `custom-scrollbar` to scrollable areas to match the OS theme.
+### 2.2 Animation Standards
+- **Duration**: `0.15s` for all window state changes.
+- **Constraint**: The "Windows Area" container in `App.tsx` MUST have its `bottom` offset dynamically calculated based on `theme.taskbarStyle` (48px for fixed, 60px for panel) to account for the taskbar height.
 
----
-
-## Step 2: Register the App ID
-
-Open `src/App.tsx` and locate the `AppView` type definition. Add your new app's ID to this union type.
-
+**Transition Config:**
 ```tsx
-// In src/App.tsx
-type AppView = 'console' | 'eeprom' | 'rfid' | 'binary' | 'cyphonator' | 'flasher' | 'admin' | 'settings' | 'notes'; 
-// Added 'notes' here ^
+<motion.div
+  animate={windowState}
+  transition={{ duration: 0.15, display: { delay: isVisible ? 0 : 0.15 } }}
+  className={cn(
+    "flex flex-col bg-hw-black border shadow-2xl overflow-hidden",
+    // CRITICAL: No transition-all here as it breaks dragging
+    isMaximized ? "border-none" : cn("border-hw-border", globalTheme === 'glassy' ? "rounded-2xl" : "rounded-sm")
+  )}
+>
 ```
 
 ---
 
-## Step 3: Add the App to the OS Registry
+## 3. Theming & UI Consistency
 
-Still in `src/App.tsx`, locate the `apps` array. This array defines the metadata for all applications installed on the OS.
+The OS supports two primary visual styles: **Retro Terminal** and **Modern Glassy**.
 
-You will need an icon for your app. The OS uses `lucide-react` for icons.
+### 3.1 Global Theme Rules
+| Element | Retro Terminal (`retro`) | Modern Glassy (`glassy`) |
+| :--- | :--- | :--- |
+| **Rounding** | `rounded-sm` (2px) | `rounded-2xl` (16px) |
+| **Borders** | `border-hw-blue/30` | `border-white/10` |
+| **Background** | Solid `bg-hw-black` | `bg-hw-black/60` + `backdrop-blur-xl` |
 
+**Conditional Styling Example:**
 ```tsx
-import { FileText } from 'lucide-react'; // Import your icon
-import { NotesApp } from './components/apps/NotesApp'; // Import your component
+const { theme } = useSettings();
+const isGlassy = theme.globalTheme === 'glassy';
 
-// Inside the App component, find the `apps` array:
+return (
+  <div className={cn(
+    "p-4 border transition-all",
+    isGlassy ? "rounded-2xl bg-white/5 backdrop-blur-md border-white/10" : "rounded-sm bg-black border-hw-blue/30"
+  )}>
+    {/* Content */}
+  </div>
+);
+```
+
+---
+
+## 4. Desktop Grid System
+
+The desktop uses a dynamic grid where icons snap to cells on release.
+
+- **Cell Size**: `100px x 100px`.
+- **Snapping Logic**:
+```tsx
+const snapToGrid = (x: number, y: number) => {
+  const col = Math.round(x / cellWidth);
+  const row = Math.round(y / cellHeight);
+  return {
+    x: col * cellWidth,
+    y: row * cellHeight
+  };
+};
+```
+
+---
+
+## 5. Application Development Workflow
+
+### 5.1 Registration Pattern
+
+**1. Define ID (`src/App.tsx`):**
+```tsx
+type AppView = 'console' | 'settings' | 'my-new-app';
+```
+
+**2. Registry Entry (`src/App.tsx`):**
+```tsx
 const apps = [
-  // ... existing apps ...
   { 
-    id: 'notes', 
-    label: 'Notes', 
-    icon: FileText, 
-    component: NotesApp,
-    defaultSize: { width: 400, height: 500 } // Set your preferred default window size
+    id: 'my-new-app', 
+    label: 'My App', 
+    icon: LayoutIcon, 
+    component: MyAppComponent, 
+    defaultSize: { width: 600, height: 400 } 
   },
 ];
 ```
 
----
-
-## Step 4: Enable the Desktop Icon (Optional)
-
-If you want your app to appear on the desktop by default, you need to update the default settings.
-
-Open `src/contexts/SettingsContext.tsx` and locate the `defaultTheme` object. Add your app to the `desktopIcons` record:
-
+**3. Default Visibility (`src/contexts/SettingsContext.tsx`):**
 ```tsx
 const defaultTheme: ThemeConfig = {
-  // ... other settings ...
   desktopIcons: {
     'console': true,
-    'eeprom': true,
-    'rfid': true,
-    'binary': true,
-    'cyphonator': true,
-    'flasher': true,
-    'admin': true,
-    'settings': true,
-    'notes': true // Added your app here
+    'my-new-app': true, // Enable by default
   },
-  iconPositions: {}
 };
 ```
 
-*Note: If you've already run the app, your previous settings are saved in `localStorage`. You may need to clear your browser's local storage or manually enable the icon in the OS Settings app under "Preferences" -> "Desktop Icons".*
-
 ---
 
-## Advanced Integration
+## 6. Accessing Global State
 
-### Accessing Global State
-Your app can access the global OS settings (like the current theme colors or user profile) using the `useSettings` hook.
+Always use the `useSettings` hook to ensure your app matches the OS environment.
 
 ```tsx
 import { useSettings } from '../../contexts/SettingsContext';
 
-export const MyCustomApp: React.FC = () => {
+export const MyAppComponent = () => {
   const { theme, profile } = useSettings();
   
   return (
-    <div style={{ color: theme.mainColor }}>
-      Welcome, {profile.name}!
+    <div className="h-full flex flex-col" style={{ color: theme.mainColor }}>
+      <header className="p-2 border-b border-current opacity-50 uppercase text-[10px] font-bold">
+        {profile.name}'s Workspace
+      </header>
+      <main className="flex-1 p-4 custom-scrollbar overflow-y-auto">
+        {/* App Content */}
+      </main>
     </div>
   );
 };
 ```
 
-### Window Management
-The OS automatically wraps your component in a `Window` component. Your component will automatically stretch to fill the window's content area. 
-If you need scrollable content, ensure your root `div` has `h-full` and `flex flex-col`, and the scrollable container has `flex-1 overflow-y-auto`.
+---
 
-## Conclusion
+## 7. Constraints & Anti-Patterns
 
-That's it! You've successfully created and integrated a custom application into the OS. The platform is designed to be highly modular, so you can build anything from simple utilities to complex tools using standard React patterns.
+- **NO `window.alert`**: Use custom modals.
+- **NO `transition-all` on Windows**: It creates lag during dragging.
+- **Z-Index**: Taskbar is `z-[9999]`. Windows use dynamic `zIndex` from state.
+- **Labels**: Desktop labels MUST be single-line:
+```tsx
+<span className="text-[9px] font-bold uppercase truncate block w-full text-center">
+  {app.label}
+</span>
+```

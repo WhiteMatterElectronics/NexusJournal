@@ -1,18 +1,33 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { ActiveWidget } from '../types/widgets';
 
 export interface UserProfile {
   name: string;
   passwordHash: string; // Stored locally
 }
 
+export interface GlassyConfig {
+  opacity: number;
+  blur: number;
+  borderOpacity: number;
+  saturation: number;
+}
+
 export interface ThemeConfig {
   mainColor: string;
   terminalColor: string;
   globalTheme: 'retro' | 'glassy';
-  backgroundType: 'base1' | 'base2' | 'custom';
+  isDarkMode: boolean;
+  glassyConfig: GlassyConfig;
+  backgroundType: 'base1' | 'base2' | 'custom' | 'none';
   customBackgroundUrl: string | null;
   desktopIcons: Record<string, boolean>;
   iconPositions: Record<string, { x: number, y: number }>;
+  taskbarStyle: 'fixed' | 'panel';
+  intellihide: boolean;
+  hideDelay: number;
+  animationSpeed: number;
+  widgets: ActiveWidget[];
 }
 
 interface SettingsContextType {
@@ -31,6 +46,13 @@ const defaultTheme: ThemeConfig = {
   mainColor: '#00f2ff',
   terminalColor: '#00f2ff',
   globalTheme: 'retro',
+  isDarkMode: true,
+  glassyConfig: {
+    opacity: 0.4,
+    blur: 12,
+    borderOpacity: 0.1,
+    saturation: 100
+  },
   backgroundType: 'base1',
   customBackgroundUrl: null,
   desktopIcons: {
@@ -45,7 +67,12 @@ const defaultTheme: ThemeConfig = {
     'admin': true,
     'settings': true
   },
-  iconPositions: {}
+  iconPositions: {},
+  taskbarStyle: 'fixed',
+  intellihide: false,
+  hideDelay: 500,
+  animationSpeed: 0.3,
+  widgets: []
 };
 
 const SettingsContext = createContext<SettingsContextType | null>(null);
@@ -92,26 +119,54 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     root.style.setProperty('--theme-terminal', theme.terminalColor);
     
     if (theme.globalTheme === 'glassy') {
-      root.style.setProperty('--theme-panel-bg', 'rgba(5, 5, 5, 0.4)');
-      root.style.setProperty('--theme-backdrop-filter', 'blur(12px)');
-      root.style.setProperty('--theme-border-opacity', '0.1');
+      const { opacity, blur, borderOpacity, saturation } = theme.glassyConfig || defaultTheme.glassyConfig;
+      root.style.setProperty('--theme-backdrop-filter', `blur(${blur}px) saturate(${saturation}%)`);
+      
+      if (theme.isDarkMode) {
+        root.style.setProperty('--theme-panel-bg', `rgba(5, 5, 5, ${opacity})`);
+        root.style.setProperty('--theme-text', '#ffffff');
+        root.style.setProperty('--theme-border-opacity', borderOpacity.toString());
+        root.style.setProperty('--theme-border-color', `rgba(255, 255, 255, ${borderOpacity})`);
+      } else {
+        // macOS style light
+        root.style.setProperty('--theme-panel-bg', `rgba(255, 255, 255, ${opacity})`);
+        root.style.setProperty('--theme-text', '#1a1a1a');
+        root.style.setProperty('--theme-border-opacity', borderOpacity.toString());
+        root.style.setProperty('--theme-border-color', `rgba(0, 0, 0, ${borderOpacity})`);
+      }
     } else {
-      root.style.setProperty('--theme-panel-bg', '#050505');
       root.style.setProperty('--theme-backdrop-filter', 'none');
-      root.style.setProperty('--theme-border-opacity', '0.3');
+      if (theme.isDarkMode) {
+        root.style.setProperty('--theme-panel-bg', '#050505');
+        root.style.setProperty('--theme-text', theme.mainColor);
+        root.style.setProperty('--theme-border-opacity', '0.3');
+        root.style.setProperty('--theme-border-color', `${theme.mainColor}4D`); // 30% opacity
+      } else {
+        // Retro light blueish
+        root.style.setProperty('--theme-panel-bg', '#e0f7fa');
+        root.style.setProperty('--theme-text', '#006064');
+        root.style.setProperty('--theme-border-opacity', '0.4');
+        root.style.setProperty('--theme-border-color', 'rgba(0, 96, 100, 0.4)');
+      }
     }
 
     if (theme.backgroundType === 'base1') {
-      root.style.setProperty('--theme-bg-image', 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.05) 1px, transparent 0)');
+      const dotColor = theme.isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+      root.style.setProperty('--theme-bg-image', `radial-gradient(circle at 2px 2px, ${dotColor} 1px, transparent 0)`);
       root.style.setProperty('--theme-bg-size', '24px 24px');
+      root.style.setProperty('--theme-bg-color', theme.isDarkMode ? '#020202' : '#f5f7f8');
     } else if (theme.backgroundType === 'base2') {
-      root.style.setProperty('--theme-bg-image', 'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)');
+      const gridColor = theme.isDarkMode ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)';
+      root.style.setProperty('--theme-bg-image', `linear-gradient(${gridColor} 1px, transparent 1px), linear-gradient(90deg, ${gridColor} 1px, transparent 1px)`);
       root.style.setProperty('--theme-bg-size', '30px 30px');
+      root.style.setProperty('--theme-bg-color', theme.isDarkMode ? '#020202' : '#f5f7f8');
     } else if (theme.backgroundType === 'custom' && theme.customBackgroundUrl) {
       root.style.setProperty('--theme-bg-image', `url(${theme.customBackgroundUrl})`);
       root.style.setProperty('--theme-bg-size', 'cover');
+      root.style.setProperty('--theme-bg-color', '#000000');
     } else {
       root.style.setProperty('--theme-bg-image', 'none');
+      root.style.setProperty('--theme-bg-color', theme.isDarkMode ? '#020202' : '#f5f7f8');
     }
     
   }, [theme]);

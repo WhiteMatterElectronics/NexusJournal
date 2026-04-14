@@ -26,16 +26,11 @@ export const EepromApp: React.FC = () => {
 
       if (!isDumpingRef.current) return;
 
-      if (text.includes("--- DUMPING DEVICE")) {
+      if (text.includes("--- EEPROM DUMP")) {
         setIsDumping(true);
         memoryBufferRef.current = [];
         setMemoryData(new Uint8Array());
-      } else if (text.includes("--- DUMP COMPLETE ---")) {
-        isDumpingRef.current = false;
-        setIsDumping(false);
-        setMemoryData(new Uint8Array(memoryBufferRef.current));
-        if (dumpTimeoutRef.current) clearTimeout(dumpTimeoutRef.current);
-      } else if (text.includes("ERROR: Device not responding")) {
+      } else if (text.includes("ERR: Connection lost")) {
         isDumpingRef.current = false;
         setIsDumping(false);
         if (dumpTimeoutRef.current) clearTimeout(dumpTimeoutRef.current);
@@ -58,6 +53,13 @@ export const EepromApp: React.FC = () => {
           }
           
           setMemoryData(new Uint8Array(memoryBufferRef.current));
+
+          // If we reached the end of 4096 bytes (0x0FF0 is the last 16-byte block)
+          if (addr >= 4080) {
+            isDumpingRef.current = false;
+            setIsDumping(false);
+            if (dumpTimeoutRef.current) clearTimeout(dumpTimeoutRef.current);
+          }
         }
       }
     };
@@ -82,13 +84,14 @@ export const EepromApp: React.FC = () => {
       }
     }, 15000);
 
-    writeToSerial(`DUMP ${i2cAddress}\n`);
+    writeToSerial(`EEPROM DUMP ${i2cAddress}\n`);
   };
 
   const handleEEPROMWrite = (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     if (!connected || !port || !port.writable || !writeData.trim()) return;
-    writeToSerial(`WRITE ${i2cAddress} ${writeMemAddr} ${writeData}\n`);
+    writeToSerial(`EEPROM WRITE ${i2cAddress} ${writeMemAddr} ${writeData}\n`);
     setWriteData("");
   };
 

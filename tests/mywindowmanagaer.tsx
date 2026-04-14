@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, useDragControls, useMotionValue } from 'motion/react';
-import { X, Minus, Square, Minimize2 } from 'lucide-react';
-import { cn, getContrastColor } from '../../lib/utils';
+import { X, Minus, Square } from 'lucide-react';
+import { cn } from '../src/lib/utils';
 
 interface WindowProps {
   id: string;
@@ -16,19 +16,11 @@ interface WindowProps {
   onMinimize: () => void;
   onMaximize: () => void;
   onFocus: () => void;
-  onCollapse?: () => void;
   children: React.ReactNode;
   defaultSize?: { width: number; height: number };
   defaultPosition?: { x: number; y: number };
   globalTheme?: 'retro' | 'glassy';
   taskbarHeight?: number;
-  shouldHideTaskbar?: boolean;
-  taskbarStyle?: 'fixed' | 'panel';
-  intellihide?: boolean;
-  mainColor?: string;
-  isDarkMode?: boolean;
-  layoutId?: string;
-  morphFromId?: string;
 }
 
 export const Window: React.FC<WindowProps> = ({
@@ -44,19 +36,11 @@ export const Window: React.FC<WindowProps> = ({
   onMinimize,
   onMaximize,
   onFocus,
-  onCollapse,
   children,
   defaultSize = { width: 800, height: 600 },
   defaultPosition = { x: 50, y: 50 },
   globalTheme = 'retro',
-  taskbarHeight = 48,
-  shouldHideTaskbar = false,
-  taskbarStyle = 'fixed',
-  intellihide = false,
-  mainColor = '#00f2ff',
-  isDarkMode = true,
-  layoutId,
-  morphFromId
+  taskbarHeight = 48
 }) => {
   const dragControls = useDragControls();
   const [bounds, setBounds] = useState({ 
@@ -192,47 +176,35 @@ export const Window: React.FC<WindowProps> = ({
   // We keep the window mounted to preserve state (like serial subscriptions)
   // We just hide it visually when closed or minimized
   const isVisible = isOpen && !isMinimized;
-  // If intellihide is on, we want the window to be full height and the taskbar to overlay it
-  const effectiveTaskbarHeight = (shouldHideTaskbar || intellihide) ? 0 : taskbarHeight;
-  const isPanel = taskbarStyle === 'panel';
-  const contrastColor = getContrastColor(mainColor);
 
   const windowState = !isOpen ? { 
     opacity: 0, 
     pointerEvents: 'none' as const, 
-    ...(isMaximized ? { x: 0, y: 0, width: '100%', height: isPanel ? `calc(100% - ${effectiveTaskbarHeight}px)` : '100%', scale: 1 } : { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height, scale: 0.95 })
+    display: 'none',
+    ...(isMaximized ? { x: 0, y: 0, width: '100%', height: '100%', scale: 1 } : { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height, scale: 0.95 })
   } :
   isMinimized ? { 
     opacity: 0, 
     y: 500, 
     pointerEvents: 'none' as const, 
-    ...(isMaximized ? { x: 0, width: '100%', height: isPanel ? `calc(100% - ${effectiveTaskbarHeight}px)` : '100%', scale: 1 } : { x: bounds.x, width: bounds.width, height: bounds.height, scale: 0.8 })
+    display: 'none',
+    ...(isMaximized ? { x: 0, width: '100%', height: '100%', scale: 1 } : { x: bounds.x, width: bounds.width, height: bounds.height, scale: 0.8 })
   } :
   isMaximized
-    ? { opacity: 1, x: 0, y: 0, width: '100%', height: isPanel ? `calc(100% - ${effectiveTaskbarHeight}px)` : '100%', scale: 1, pointerEvents: 'auto' as const }
-    : { opacity: 1, x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height, scale: 1, pointerEvents: 'auto' as const };
+    ? { opacity: 1, x: 0, y: 0, width: '100%', height: '100%', scale: 1, pointerEvents: 'auto' as const, display: 'flex' }
+    : { opacity: 1, x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height, scale: 1, pointerEvents: 'auto' as const, display: 'flex' };
 
   return (
     <motion.div
       id={`window-${id}`}
-      initial={false}
-      animate={{
-        ...windowState,
-        display: isVisible ? 'flex' : 'none'
-      }}
-      layoutId={layoutId}
-      transition={{ 
-        type: "spring",
-        stiffness: 400,
-        damping: 40,
-        mass: 1,
-        display: { delay: isVisible ? 0 : 0.4 }
-      }}
+      initial={windowState}
+      animate={windowState}
+      transition={{ duration: 0.15, display: { delay: isVisible ? 0 : 0.15 } }}
       onMouseDown={onFocus}
-      style={{ zIndex, position: 'absolute', backdropFilter: 'var(--theme-backdrop-filter)', color: 'var(--theme-text)' }}
+      style={{ zIndex, position: 'absolute', backdropFilter: 'var(--theme-backdrop-filter)' }}
       className={cn(
         "flex flex-col bg-hw-black border shadow-2xl overflow-hidden",
-        isMaximized ? "border-none" : cn("border-hw-border", globalTheme === 'glassy' ? "rounded-2xl" : "rounded-sm"),
+        isMaximized ? "border-none" : "border-hw-blue/30 rounded-sm",
         isActive ? "border-hw-blue shadow-[0_0_30px_rgba(0,242,255,0.15)]" : "opacity-90"
       )}
     >
@@ -240,13 +212,9 @@ export const Window: React.FC<WindowProps> = ({
       <div 
         className={cn(
           "h-8 flex items-center justify-between px-3 shrink-0 select-none",
-          isActive ? "" : "bg-hw-blue/5 border-b border-hw-blue/20"
+          isActive ? "bg-hw-blue/20 border-b border-hw-blue/40" : "bg-hw-blue/5 border-b border-hw-blue/20"
         )}
-        style={{ 
-          cursor: isMaximized ? 'default' : 'grab',
-          backgroundColor: isActive ? mainColor : undefined,
-          borderBottomColor: isActive ? mainColor : undefined
-        }}
+        style={{ cursor: isMaximized ? 'default' : 'grab' }}
         onPointerDown={handleTitleBarPointerDown}
         onDoubleClick={(e) => {
           e.stopPropagation();
@@ -254,42 +222,20 @@ export const Window: React.FC<WindowProps> = ({
         }}
       >
         <div className="flex items-center gap-2 pointer-events-none">
-          <Icon className="w-4 h-4" style={{ color: isActive ? contrastColor : mainColor }} />
-          <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: isActive ? contrastColor : mainColor }}>{title}</span>
+          <Icon className="w-4 h-4 text-hw-blue" />
+          <span className="text-[10px] font-bold text-hw-blue uppercase tracking-widest">{title}</span>
         </div>
         <div 
-          className="flex items-center gap-1"
+          className="flex items-center gap-2"
           onPointerDown={(e) => e.stopPropagation()}
         >
-          <button 
-            onClick={(e) => { e.stopPropagation(); onMinimize(); }} 
-            className={cn("p-1.5 transition-colors", globalTheme === 'glassy' && "hover:bg-white/10 rounded-lg")}
-            style={{ color: isActive ? contrastColor : mainColor }}
-          >
+          <button onClick={(e) => { e.stopPropagation(); onMinimize(); }} className="text-hw-blue/60 hover:text-hw-blue p-1">
             <Minus className="w-3 h-3" />
           </button>
-          {morphFromId && onCollapse && (
-            <button 
-              onClick={(e) => { e.stopPropagation(); onCollapse(); }} 
-              className={cn("p-1.5 transition-colors", globalTheme === 'glassy' && "hover:bg-white/10 rounded-lg")}
-              style={{ color: isActive ? contrastColor : mainColor }}
-              title="Collapse to Widget"
-            >
-              <Minimize2 className="w-3 h-3" />
-            </button>
-          )}
-          <button 
-            onClick={(e) => { e.stopPropagation(); onMaximize(); }} 
-            className={cn("p-1.5 transition-colors", globalTheme === 'glassy' && "hover:bg-white/10 rounded-lg")}
-            style={{ color: isActive ? contrastColor : mainColor }}
-          >
+          <button onClick={(e) => { e.stopPropagation(); onMaximize(); }} className="text-hw-blue/60 hover:text-hw-blue p-1">
             {isMaximized ? <Minus className="w-3 h-3" /> : <Square className="w-3 h-3" />}
           </button>
-          <button 
-            onClick={(e) => { e.stopPropagation(); onClose(); }} 
-            className={cn("p-1.5 transition-colors", globalTheme === 'glassy' && "hover:bg-red-500/10 rounded-lg")}
-            style={{ color: isActive ? contrastColor : 'rgb(239, 68, 68)' }}
-          >
+          <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="text-red-500/60 hover:text-red-500 p-1">
             <X className="w-3 h-3" />
           </button>
         </div>
@@ -313,4 +259,3 @@ export const Window: React.FC<WindowProps> = ({
     </motion.div>
   );
 };
-

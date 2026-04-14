@@ -1,12 +1,14 @@
 import React, { useRef, useState, useEffect } from "react";
 import { BinaryAnalysis } from "../BinaryAnalysis";
 import { useSerial } from "../../contexts/SerialContext";
+import { cn } from "../../lib/utils";
 
 export const BinaryApp: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   
   // Local State for this specific instance
   const [memoryData, setMemoryData] = useState<Uint8Array>(new Uint8Array());
+  const [isCapturing, setIsCapturing] = useState(false);
   const isDumpingRef = useRef(false);
   const memoryBufferRef = useRef<number[]>([]);
   const dumpTimeoutRef = useRef<any>(null);
@@ -16,18 +18,14 @@ export const BinaryApp: React.FC = () => {
       const customEvent = e as CustomEvent<string>;
       const text = customEvent.detail;
 
-      if (text.includes("--- DUMPING DEVICE")) {
+      if (text.includes("--- EEPROM DUMP") && isCapturing) {
         isDumpingRef.current = true;
         memoryBufferRef.current = [];
         setMemoryData(new Uint8Array());
-      } else if (text.includes("--- DUMP COMPLETE ---")) {
-        isDumpingRef.current = false;
-        setMemoryData(new Uint8Array(memoryBufferRef.current));
-        if (dumpTimeoutRef.current) clearTimeout(dumpTimeoutRef.current);
-      } else if (text.includes("ERROR: Device not responding")) {
+      } else if (text.includes("ERR: Connection lost")) {
         isDumpingRef.current = false;
         if (dumpTimeoutRef.current) clearTimeout(dumpTimeoutRef.current);
-      } else if (isDumpingRef.current) {
+      } else if (isDumpingRef.current && isCapturing) {
         const match = text.match(/(0x[0-9A-Fa-f]{4}):\s*(.*)/);
         if (match) {
           const addr = parseInt(match[1], 16);
@@ -46,6 +44,11 @@ export const BinaryApp: React.FC = () => {
           }
           
           setMemoryData(new Uint8Array(memoryBufferRef.current));
+
+          if (addr >= 4080) {
+            isDumpingRef.current = false;
+            if (dumpTimeoutRef.current) clearTimeout(dumpTimeoutRef.current);
+          }
         }
       }
     };
@@ -60,6 +63,17 @@ export const BinaryApp: React.FC = () => {
         <div className="flex items-center gap-4">
           <span>BINARY_ANALYSIS_TOOL</span>
           <div className="flex items-center gap-2 border-l border-hw-blue/20 pl-4">
+            <button
+              onClick={() => setIsCapturing(!isCapturing)}
+              className={cn(
+                "px-3 py-0.5 rounded-sm text-[9px] uppercase tracking-widest transition-all",
+                isCapturing 
+                  ? "bg-hw-blue text-black font-bold shadow-[0_0_10px_rgba(0,242,255,0.5)]" 
+                  : "bg-hw-blue/10 text-hw-blue/60 hover:bg-hw-blue/20"
+              )}
+            >
+              {isCapturing ? "CAPTURING..." : "START CAPTURE"}
+            </button>
             <button
               onClick={() => {
                 if (scrollRef.current) scrollRef.current.scrollTop = 0;

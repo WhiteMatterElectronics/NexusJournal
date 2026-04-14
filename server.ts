@@ -83,6 +83,17 @@ async function startServer() {
 
   // Seed data if empty
   const tutorialCount = db.prepare("SELECT count(*) as count FROM tutorials").get() as { count: number };
+  
+  const firstTutorialBlocks = [
+    { id: 'b1', type: 'sub_heading', data: { text: 'Welcome to ElectronAssistant' } },
+    { id: 'b2', type: 'markdown', data: { text: '<p>ElectronAssistant is a comprehensive hardware and software platform designed to streamline your embedded development workflow. At its core, it consists of a <strong>tiny custom PCB powered by the ESP32-C3</strong> microcontroller, seamlessly integrated with this powerful web-based platform.</p>' } },
+    { id: 'b3', type: 'sub_heading', data: { text: 'The Hardware: ESP32-C3 Custom PCB' } },
+    { id: 'b4', type: 'image', data: { url: '/uploads/1776080347349-523477590-2D_PCB1_2026-04-12.png', caption: 'ElectronAssistant ESP32-C3 Schematic & PCB Layout' } },
+    { id: 'b5', type: 'markdown', data: { text: '<p>The ElectronAssistant board is designed for rapid prototyping and learning. It acts as a bridge between your computer and the physical world. It features:</p><ul><li><strong>ESP32-C3 RISC-V MCU</strong>: Wi-Fi & Bluetooth LE 5.0 capabilities.</li><li><strong>USB Type-C</strong>: For power, programming, and serial communication.</li><li><strong>Compact Form Factor</strong>: Fits perfectly on a breadboard.</li><li><strong>Built-in RGB LED</strong>: For status indication and visual debugging.</li></ul>' } },
+    { id: 'b6', type: 'note', data: { type: 'tip', text: 'Try navigating to the FLASH_MODULE now to upload your first firmware, or head over to the LAB to see what your board is currently outputting!' } },
+    { id: 'b7', type: 'code', data: { language: 'cpp', code: 'void setup() {\n  Serial.begin(115200);\n  Serial.println("ElectronAssistant Online");\n}\n\nvoid loop() {\n  // Your code here\n}' } }
+  ];
+
   if (tutorialCount.count === 0) {
     const seedTutorials = [
       {
@@ -91,7 +102,7 @@ async function startServer() {
         category: 'theory',
         difficulty: 'beginner',
         description: 'A comprehensive introduction to the ElectronAssistant ESP32-C3 hardware and web platform.',
-        content: '# Welcome to ElectronAssistant\n\nElectronAssistant is a comprehensive hardware and software platform designed to streamline your embedded development workflow. At its core, it consists of a **tiny custom PCB powered by the ESP32-C3** microcontroller, seamlessly integrated with this powerful web-based platform.\n\n## The Hardware: ESP32-C3 Custom PCB\n\nThe ElectronAssistant board is designed for rapid prototyping and learning. It acts as a bridge between your computer and the physical world. It features:\n- **ESP32-C3 RISC-V MCU**: Wi-Fi & Bluetooth LE 5.0 capabilities.\n- **USB Type-C**: For power, programming, and serial communication.\n- **Compact Form Factor**: Fits perfectly on a breadboard.\n- **Built-in RGB LED**: For status indication and visual debugging.\n\n### What it does\nOut of the box, the ElectronAssistant board runs a specialized firmware that communicates with this web platform. It allows you to interface with various protocols (like I2C, SPI, UART) and read/write to components (like EEPROMs, RFID tags) directly from your browser without writing any code. The web platform sends commands via Web Serial, and the board executes them and returns the results.\n\n### Flashing Your Own Firmware\nThe true power of the ElectronAssistant board is that it is a fully functional ESP32-C3 development board. If you flash your own custom firmware (using the Flash Module or Arduino IDE/PlatformIO), you can use it for **anything**:\n- Build IoT devices that connect to your home Wi-Fi.\n- Create Bluetooth beacons or controllers.\n- Read sensors and control motors.\n- Run a tiny web server.\n\nWhen you flash custom firmware, the board will no longer respond to the default ElectronAssistant web platform commands (like the EEPROM dumper), but you can still use the **Lab (Serial Console)** to view your custom firmware\'s `Serial.print()` output and send it commands!\n\n## Connecting to the Platform\n\nConnecting your ElectronAssistant to the web platform is incredibly simple, thanks to the **Web Serial API**.\n\n1. **Plug it in**: Connect the ElectronAssistant board to your computer using a USB-C cable.\n2. **Access the Lab or Flash Module**: Open the `LAB` or `FLASH_MODULE` app in the OS interface.\n3. **Select Port**: Click the `SELECT_PORT` button. A browser prompt will appear.\n4. **Choose the Device**: Select the USB Serial device corresponding to your ESP32-C3 (often labeled as "USB JTAG/serial debug unit" or similar) and click "Connect".\n\nOnce connected, the platform maintains the serial connection across different views, allowing you to flash firmware and immediately monitor the output without reconnecting!\n\n## Platform Features\n\nThis web platform is your all-in-one command center, designed like a tiny operating system:\n\n### 📚 Knowledge Base (Tutorials)\nYou are here! The Knowledge Base contains interactive tutorials, documentation, and guides. Tutorials can even be linked directly to firmware files. If a tutorial has associated firmware, you\'ll see a `FLASH_FIRMWARE` button at the top right.\n\n### ⚡ Flash Module\nThe Flash Module allows you to upload pre-compiled `.bin` firmware files directly to your ElectronAssistant board from the browser. No need to install complex toolchains or IDEs. Just select the firmware, click flash, and watch the progress.\n\n### 🔬 The Lab (Serial Console)\nThe Lab is your primary debugging interface. It provides a real-time serial monitor to view logs, sensor data, and debug messages coming from your board. It also allows you to send commands back to the device.\n\n### ⚙️ System Config\nThe System Config area is for administrators to manage the platform. Here you can upload new firmware binaries, write new tutorials using the block-based editor, and link tutorials to specific firmware versions.\n\n---\n\n> **Tip**: Try navigating to the `FLASH_MODULE` now to upload your first firmware, or head over to the `LAB` to see what your board is currently outputting!'
+        content: JSON.stringify(firstTutorialBlocks)
       },
       {
         id: 'blinky-hello-world',
@@ -145,6 +156,9 @@ async function startServer() {
 
     const insertTutorial = db.prepare("INSERT INTO tutorials (id, title, category, difficulty, description, content, attachments, firmwareId) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
     seedTutorials.forEach(t => insertTutorial.run(t.id, t.title, t.category, t.difficulty, t.description, t.content, null, null));
+  } else {
+    // Force update the first tutorial to be "beautiful" with blocks
+    db.prepare("UPDATE tutorials SET content = ? WHERE id = ?").run(JSON.stringify(firstTutorialBlocks), 'intro-electron-assistant');
   }
 
   app.use(cors());

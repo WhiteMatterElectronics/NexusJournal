@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Cpu, Power, Settings, BookOpen, Zap, Terminal, Database, Radio, FileCode, Lock, X } from 'lucide-react';
+import { Cpu, Power, Settings, BookOpen, Zap, Terminal, Database, Radio, FileCode, Lock, X, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '../../lib/utils';
+import { cn, getContrastColor, adjustColor } from '../../lib/utils';
 import { AppView } from '../../types';
+
+import { APPS } from '../../constants';
 
 interface TaskbarProps {
   windows: any[];
@@ -13,6 +15,13 @@ interface TaskbarProps {
   onCloseWindow: (instanceId: string) => void;
   isOverflowing?: boolean;
   onToggleDash?: () => void;
+  taskbarStyle?: 'fixed' | 'panel';
+  globalTheme?: 'retro' | 'glassy';
+  mainColor?: string;
+  isDarkMode?: boolean;
+  shouldHide?: boolean;
+  onHoverChange?: (hovered: boolean) => void;
+  animationSpeed?: number;
 }
 
 export const Taskbar: React.FC<TaskbarProps> = ({
@@ -23,13 +32,23 @@ export const Taskbar: React.FC<TaskbarProps> = ({
   onShutdown,
   onCloseWindow,
   isOverflowing,
-  onToggleDash
+  onToggleDash,
+  taskbarStyle = 'fixed',
+  globalTheme = 'retro',
+  mainColor = '#00f2ff',
+  isDarkMode = true,
+  shouldHide = false,
+  onHoverChange,
+  animationSpeed = 0.3
 }) => {
   const [isStartOpen, setIsStartOpen] = useState(false);
   const [time, setTime] = useState(new Date());
   const [hoveredAppId, setHoveredAppId] = useState<string | null>(null);
   const [hoverRect, setHoverRect] = useState<{ left: number, width: number } | null>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const taskbarRef = useRef<HTMLDivElement>(null);
+
+  const contrastColor = getContrastColor(mainColor);
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
@@ -39,7 +58,11 @@ export const Taskbar: React.FC<TaskbarProps> = ({
   const handleMouseEnter = (appId: string, e: React.MouseEvent) => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     const rect = e.currentTarget.getBoundingClientRect();
-    setHoverRect({ left: rect.left, width: rect.width });
+    const taskbarRect = taskbarRef.current?.getBoundingClientRect();
+    
+    // Calculate relative left position within the taskbar
+    const left = taskbarRect ? rect.left - taskbarRect.left : rect.left;
+    setHoverRect({ left, width: rect.width });
     setHoveredAppId(appId);
   };
 
@@ -49,20 +72,7 @@ export const Taskbar: React.FC<TaskbarProps> = ({
     }, 150);
   };
 
-  const apps = [
-    { id: 'console', icon: Terminal, label: 'SERIAL_CONSOLE' },
-    { id: 'eeprom', icon: Database, label: 'EEPROM_DUMPER' },
-    { id: 'rfid', icon: Radio, label: 'RFID_TOOL' },
-    { id: 'binary', icon: FileCode, label: 'BINARY_ANALYSIS' },
-    { id: 'cyphonator', icon: Lock, label: 'CYPHONATOR' },
-    { id: 'tutorials', icon: BookOpen, label: 'KNOWLEDGE_BASE' },
-    { id: 'flasher', icon: Zap, label: 'FLASH_MODULE' },
-    { id: 'notes', icon: FileCode, label: 'DATA_SLABS' },
-    { id: 'admin', icon: Settings, label: 'SYS_CONFIG' },
-    { id: 'settings', icon: Settings, label: 'SETTINGS' },
-  ];
-
-  const groupedWindows = apps.map(app => {
+  const groupedWindows = APPS.map(app => {
     return {
       ...app,
       instances: windows.filter(w => w.appId === app.id)
@@ -79,12 +89,15 @@ export const Taskbar: React.FC<TaskbarProps> = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.15 }}
-            className="absolute bottom-12 left-0 w-64 bg-hw-black border border-hw-blue/30 shadow-[0_0_30px_rgba(0,242,255,0.15)] rounded-tr-sm z-[9999] flex flex-col origin-bottom-left"
+            className={cn(
+              "absolute bottom-12 left-0 w-64 bg-hw-black border border-hw-border shadow-[0_0_30px_rgba(0,242,255,0.15)] z-[9999] flex flex-col origin-bottom-left",
+              globalTheme === 'glassy' ? "rounded-2xl" : "rounded-tr-sm"
+            )}
             style={{ backdropFilter: 'var(--theme-backdrop-filter)' }}
           >
-            <div className="p-4 border-b border-hw-blue/20 bg-hw-blue/5">
+            <div className="p-4 border-b border-hw-border bg-hw-blue/5">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-hw-blue/10 border border-hw-blue/30 flex items-center justify-center">
+                <div className="w-8 h-8 bg-hw-blue/10 border border-hw-border flex items-center justify-center">
                   <Cpu className="w-5 h-5 text-hw-blue" />
                 </div>
                 <div>
@@ -94,8 +107,8 @@ export const Taskbar: React.FC<TaskbarProps> = ({
               </div>
             </div>
             
-            <div className="p-2 flex flex-col gap-1">
-              {apps.map((app) => (
+            <div className="p-2 flex flex-col gap-1 overflow-y-auto custom-scrollbar max-h-[400px]">
+              {APPS.map((app) => (
                 <button
                   key={app.id}
                   onClick={() => {
@@ -110,7 +123,7 @@ export const Taskbar: React.FC<TaskbarProps> = ({
               ))}
             </div>
 
-            <div className="mt-auto p-2 border-t border-hw-blue/20">
+            <div className="mt-auto p-2 border-t border-hw-border">
               <button
                 onClick={() => {
                   onShutdown();
@@ -126,26 +139,71 @@ export const Taskbar: React.FC<TaskbarProps> = ({
         )}
       </AnimatePresence>
 
-      {/* Taskbar */}
+      {/* Reveal Arrow */}
+      <AnimatePresence>
+        {shouldHide && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 0.4, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            className="absolute bottom-2 left-1/2 -translate-x-1/2 z-[9998] pointer-events-none"
+          >
+            <ChevronUp className="w-4 h-4 text-hw-blue" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Hover Zone for intellihide */}
       <div 
-        className="absolute bottom-0 left-0 right-0 h-12 bg-hw-black border-t border-hw-blue/30 flex items-center px-2 z-[9999] select-none"
-        style={{ backdropFilter: 'var(--theme-backdrop-filter)' }}
+        className="absolute bottom-0 left-0 right-0 h-[2px] z-[9998]"
+        onMouseEnter={() => onHoverChange?.(true)}
+        onMouseLeave={() => onHoverChange?.(false)}
+      />
+
+      {/* Taskbar */}
+      <motion.div 
+        ref={taskbarRef}
+        onMouseEnter={() => onHoverChange?.(true)}
+        onMouseLeave={() => onHoverChange?.(false)}
+        animate={{ y: shouldHide ? 100 : 0 }}
+        transition={{ duration: animationSpeed, ease: "easeInOut" }}
+        className={cn(
+          "absolute flex items-center px-2 z-[9999] select-none",
+          taskbarStyle === 'panel' 
+            ? "bottom-1 left-1/2 -translate-x-1/2 h-14 bg-hw-black/60 border border-hw-border rounded-2xl shadow-2xl px-4 min-w-[300px] max-w-[90vw]" 
+            : "bottom-0 left-0 right-0 h-12 bg-hw-black border-t border-hw-border"
+        )}
+        style={{ backdropFilter: 'var(--theme-backdrop-filter)', borderColor: 'var(--theme-border-color)', color: 'var(--theme-text)' }}
       >
         <button
-          onClick={() => setIsStartOpen(!isStartOpen)}
+          onClick={() => {
+            if (taskbarStyle === 'panel' && onToggleDash) {
+              onToggleDash();
+            } else {
+              setIsStartOpen(!isStartOpen);
+            }
+          }}
           className={cn(
-            "h-8 px-3 flex items-center justify-center gap-2 border transition-colors",
-            isStartOpen ? "bg-hw-blue/20 border-hw-blue" : "bg-transparent border-transparent hover:bg-hw-blue/10 hover:border-hw-blue/30"
+            "h-8 px-3 flex items-center justify-center gap-2 border transition-all",
+            (taskbarStyle === 'panel' || globalTheme === 'glassy') ? "rounded-xl" : "rounded-none",
+            isStartOpen ? "bg-hw-blue/20 border-hw-blue" : "bg-transparent border-transparent hover:bg-hw-blue/10 hover:border-hw-border"
           )}
+          style={{ 
+            backgroundColor: isStartOpen ? mainColor : undefined,
+            borderColor: isStartOpen ? mainColor : undefined,
+            color: isStartOpen ? contrastColor : mainColor
+          }}
         >
           <Cpu className="w-4 h-4 text-hw-blue" />
-          <span className="text-[10px] font-bold text-hw-blue uppercase tracking-widest">START</span>
+          <span className="text-[10px] font-bold text-hw-blue uppercase tracking-widest">
+            {taskbarStyle === 'panel' ? 'DASH' : 'START'}
+          </span>
         </button>
 
-        {isOverflowing && (
+        {isOverflowing && taskbarStyle === 'fixed' && (
           <button
             onClick={onToggleDash}
-            className="h-8 px-3 flex items-center justify-center gap-2 border border-hw-blue/30 bg-hw-blue/5 hover:bg-hw-blue/20 hover:border-hw-blue transition-all ml-1 group"
+            className="h-8 px-3 flex items-center justify-center gap-2 border border-hw-border bg-hw-blue/5 hover:bg-hw-blue/20 hover:border-hw-blue transition-all ml-1 group"
           >
             <div className="grid grid-cols-2 gap-0.5">
               <div className="w-1 h-1 bg-hw-blue/60 group-hover:bg-hw-blue"></div>
@@ -191,11 +249,17 @@ export const Taskbar: React.FC<TaskbarProps> = ({
                     }
                   }}
                   className={cn(
-                    "h-8 px-3 flex items-center gap-2 border min-w-[120px] max-w-[200px] transition-colors truncate",
+                    "h-8 px-3 flex items-center gap-2 border min-w-[120px] max-w-[200px] transition-all truncate",
+                    (taskbarStyle === 'panel' || globalTheme === 'glassy') ? "rounded-xl" : "rounded-none",
                     isActiveGroup
-                      ? "bg-hw-blue/20 border-hw-blue text-hw-blue"
-                      : "bg-hw-blue/5 border-hw-blue/20 text-hw-blue/60 hover:bg-hw-blue/10 hover:text-hw-blue"
+                      ? ""
+                      : "bg-hw-blue/5 border-hw-border text-hw-blue/60 hover:bg-hw-blue/10 hover:text-hw-blue"
                   )}
+                  style={{
+                    backgroundColor: isActiveGroup ? mainColor : undefined,
+                    borderColor: isActiveGroup ? mainColor : undefined,
+                    color: isActiveGroup ? contrastColor : mainColor
+                  }}
                 >
                   <Icon className="w-3 h-3 shrink-0" />
                   <span className="text-[9px] font-bold uppercase tracking-widest truncate flex-1 text-left">
@@ -228,13 +292,16 @@ export const Taskbar: React.FC<TaskbarProps> = ({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 10 }}
               transition={{ duration: 0.15 }}
-              className="absolute bottom-full pb-2 z-[10000]"
-              style={{ left: hoverRect.left }}
+              style={{ left: hoverRect.left + hoverRect.width / 2 }}
+              className={cn(
+                "absolute bottom-full pb-2 z-[10000] -translate-x-1/2",
+                taskbarStyle === 'panel' ? "mb-1" : ""
+              )}
               onMouseEnter={() => { if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current); }}
               onMouseLeave={handleMouseLeave}
             >
               <div 
-                className="bg-hw-black border border-hw-blue/30 shadow-[0_0_15px_rgba(0,242,255,0.2)] rounded-sm py-1 min-w-[160px]"
+                className="bg-hw-black border border-hw-border shadow-[0_0_15px_rgba(0,242,255,0.2)] rounded-sm py-1 min-w-[160px]"
                 style={{ backdropFilter: 'var(--theme-backdrop-filter)' }}
               >
                 {groupedWindows.find(g => g.id === hoveredAppId)?.instances.map(inst => (
@@ -258,7 +325,7 @@ export const Taskbar: React.FC<TaskbarProps> = ({
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
+      </motion.div>
     </>
   );
 };

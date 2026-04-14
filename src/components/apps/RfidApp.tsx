@@ -33,12 +33,13 @@ export const RfidApp: React.FC = () => {
         setIsRfidScanning(false);
         isScanningRef.current = false;
         setRfidStatus("Timeout: No card detected.");
-      } else if (text.startsWith("BLOCK:")) {
+      } else if (text.includes("BLOCK:")) {
         setRfidStatus("Reading data...");
-        const parts = text.split(":");
-        const blockNum = parseInt(parts[1], 10);
-        if (parts[2] === "DATA" && parts[3]) {
-          const hexStr = parts[3].trim();
+        // The text might be "[RFID] BLOCK:0:DATA:..."
+        const blockMatch = text.match(/BLOCK:(\d+):DATA:(.*)/);
+        if (blockMatch) {
+          const blockNum = parseInt(blockMatch[1], 10);
+          const hexStr = blockMatch[2].trim();
           const bytes = [];
           for (let i = 0; i < hexStr.length; i += 2) {
             bytes.push(parseInt(hexStr.substring(i, i + 2), 16));
@@ -89,7 +90,7 @@ export const RfidApp: React.FC = () => {
     setRfidStatus("Initiating dump...");
     setIsRfidScanning(true);
     isScanningRef.current = true;
-    writeToSerial("DUMP\n");
+    writeToSerial("RFID DUMP\n");
     
     // Auto timeout to release lock
     setTimeout(() => {
@@ -112,7 +113,7 @@ export const RfidApp: React.FC = () => {
     setRfidStatus(`Initiating read for sector ${rfidSector}...`);
     setIsRfidScanning(true);
     isScanningRef.current = true;
-    writeToSerial(`READ ${rfidSector}\n`);
+    writeToSerial(`RFID READ ${rfidSector}\n`);
     
     setTimeout(() => {
       if (isScanningRef.current) {
@@ -125,6 +126,7 @@ export const RfidApp: React.FC = () => {
 
   const handleRfidWrite = (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     if (!connected || !port || !port.writable) return;
 
     const blockNum = parseInt(rfidWriteBlock.trim(), 10);
@@ -171,7 +173,7 @@ export const RfidApp: React.FC = () => {
     setRfidStatus(`Initiating write to block ${blockNum}...`);
     setIsRfidScanning(true);
     isScanningRef.current = true;
-    writeToSerial(`WRITE ${blockNum} ${finalHexData}\n`);
+    writeToSerial(`RFID WRITE ${blockNum} ${finalHexData}\n`);
     
     setTimeout(() => {
       if (isScanningRef.current) {
