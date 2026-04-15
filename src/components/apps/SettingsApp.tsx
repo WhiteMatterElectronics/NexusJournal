@@ -16,6 +16,12 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile'
   const { profile, updateProfile, theme, updateTheme } = useSettings();
   const [activeTab, setActiveTab] = useState(initialTab);
 
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
   // Profile State
   const [name, setName] = useState(profile.name);
   const [oldPassword, setOldPassword] = useState('');
@@ -273,8 +279,8 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile'
 
                   <div className="flex items-center justify-between">
                     <div className="flex flex-col">
-                      <span className="text-[10px] font-bold uppercase tracking-widest">Icon Scaling</span>
-                      <span className="text-[8px] opacity-40 uppercase">Visual scale of desktop elements</span>
+                      <span className="text-[10px] font-bold uppercase tracking-widest">Grid Scaling</span>
+                      <span className="text-[8px] opacity-40 uppercase">Base size of desktop grid cells</span>
                     </div>
                     <div className="flex items-center gap-4">
                       <span className="text-[10px] font-bold">{localTheme.desktopGridSize}px</span>
@@ -282,6 +288,22 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile'
                         type="range" min="60" max="150" step="5"
                         value={localTheme.desktopGridSize}
                         onChange={e => handleUpdateLocalTheme({ desktopGridSize: parseInt(e.target.value) })}
+                        className="w-32 h-1 bg-hw-blue/20 rounded-lg appearance-none cursor-pointer accent-hw-blue"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-bold uppercase tracking-widest">Icon Scale</span>
+                      <span className="text-[8px] opacity-40 uppercase">Internal icon size multiplier</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className="text-[10px] font-bold">{localTheme.iconScale || 1}x</span>
+                      <input 
+                        type="range" min="0.5" max="2" step="0.1"
+                        value={localTheme.iconScale || 1}
+                        onChange={e => handleUpdateLocalTheme({ iconScale: parseFloat(e.target.value) })}
                         className="w-32 h-1 bg-hw-blue/20 rounded-lg appearance-none cursor-pointer accent-hw-blue"
                       />
                     </div>
@@ -303,6 +325,19 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile'
                         className="w-8 h-8 bg-transparent border-none cursor-pointer"
                       />
                       <span className="text-[10px] font-mono opacity-60 uppercase">{localTheme.desktopLabelColor}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-widest">Label Scale</span>
+                    <div className="flex items-center gap-4">
+                      <span className="text-[10px] font-bold">{localTheme.labelScale || 1}x</span>
+                      <input 
+                        type="range" min="0.5" max="2" step="0.1"
+                        value={localTheme.labelScale || 1}
+                        onChange={e => handleUpdateLocalTheme({ labelScale: parseFloat(e.target.value) })}
+                        className="w-32 h-1 bg-hw-blue/20 rounded-lg appearance-none cursor-pointer accent-hw-blue"
+                      />
                     </div>
                   </div>
                 </div>
@@ -342,13 +377,14 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile'
                     <select 
                       value={localTheme.iconTheme}
                       onChange={e => handleUpdateLocalTheme({ iconTheme: e.target.value as any })}
-                      className="bg-hw-blue/10 border border-hw-blue/20 text-[10px] font-bold uppercase tracking-widest p-1 outline-none"
+                      className="bg-hw-black border border-hw-blue/30 text-[10px] font-bold uppercase tracking-widest p-2 outline-none focus:border-hw-blue transition-colors min-w-[120px]"
+                      style={{ color: 'var(--theme-text)' }}
                     >
-                      <option value="classic">Classic</option>
-                      <option value="neon">Neon Glow</option>
-                      <option value="minimal">Minimalist</option>
-                      <option value="glass">Glass Morph</option>
-                      <option value="pixel">Pixel Retro</option>
+                      <option value="classic" className="bg-hw-black">Classic</option>
+                      <option value="neon" className="bg-hw-black">Neon Glow</option>
+                      <option value="minimal" className="bg-hw-black">Minimalist</option>
+                      <option value="glass" className="bg-hw-black">Glass Morph</option>
+                      <option value="pixel" className="bg-hw-black">Pixel Retro</option>
                     </select>
                   </div>
 
@@ -367,14 +403,15 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile'
                               if (e.target.value === 'default') delete newThemes[app.id];
                               handleUpdateLocalTheme({ iconThemes: newThemes });
                             }}
-                            className="bg-transparent border-b border-hw-blue/20 text-[8px] font-bold uppercase tracking-widest outline-none"
+                            className="bg-hw-black border-b border-hw-blue/20 text-[8px] font-bold uppercase tracking-widest outline-none focus:border-hw-blue p-1"
+                            style={{ color: 'var(--theme-text)' }}
                           >
-                            <option value="default">Default</option>
-                            <option value="classic">Classic</option>
-                            <option value="neon">Neon</option>
-                            <option value="minimal">Minimal</option>
-                            <option value="glass">Glass</option>
-                            <option value="pixel">Pixel</option>
+                            <option value="default" className="bg-hw-black">Default</option>
+                            <option value="classic" className="bg-hw-black">Classic</option>
+                            <option value="neon" className="bg-hw-black">Neon</option>
+                            <option value="minimal" className="bg-hw-black">Minimal</option>
+                            <option value="glass" className="bg-hw-black">Glass</option>
+                            <option value="pixel" className="bg-hw-black">Pixel</option>
                           </select>
                         </div>
                       ))}
@@ -511,9 +548,42 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile'
                       />
                       <span className="text-[10px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100">Advanced Colors</span>
                     </label>
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={localTheme.animateIcons}
+                        onChange={(e) => handleUpdateLocalTheme({ animateIcons: e.target.checked })}
+                        className="accent-hw-blue"
+                      />
+                      <span className="text-[10px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100">Animated Icons</span>
+                    </label>
                   </div>
                 </div>
               </div>
+
+              {/* Base Theme Color */}
+              {!localTheme.useGranular && (
+                <div className="space-y-4 p-4 bg-hw-blue/5 border border-hw-blue/10 rounded-lg" style={{ borderColor: 'var(--theme-border-color)' }}>
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-hw-blue mb-4">Base Theme Color</h3>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3 p-2 bg-hw-blue/10 rounded-lg border border-hw-blue/20">
+                      <input
+                        type="color"
+                        value={localTheme.mainColor}
+                        onChange={e => handleUpdateLocalTheme({ mainColor: e.target.value, terminalColor: e.target.value })}
+                        className="w-10 h-10 bg-transparent border-none cursor-pointer"
+                      />
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-mono uppercase">{localTheme.mainColor}</span>
+                        <span className="text-[8px] opacity-40 uppercase tracking-widest">Primary Accent</span>
+                      </div>
+                    </div>
+                    <div className="flex-1 text-[9px] opacity-40 uppercase tracking-widest leading-relaxed">
+                      This color will be applied to borders, text, and primary UI elements across the entire system.
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Glassy Settings */}
               {localTheme.globalTheme === 'glassy' && (
@@ -614,6 +684,26 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile'
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* Custom CSS */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b border-hw-blue/20 pb-2" style={{ borderColor: 'var(--theme-border-color)' }}>
+                  <h3 className="text-[12px] font-bold uppercase tracking-widest">Custom System CSS</h3>
+                  <span className="text-[9px] text-hw-blue/40 uppercase font-bold italic">Inject custom styles into the OS</span>
+                </div>
+                <div className="p-4 bg-hw-blue/5 border border-hw-blue/10 rounded-lg" style={{ borderColor: 'var(--theme-border-color)' }}>
+                  <textarea
+                    value={localTheme.customCss}
+                    onChange={e => handleUpdateLocalTheme({ customCss: e.target.value })}
+                    placeholder="/* Example: .desktop-icon { filter: drop-shadow(0 0 10px var(--theme-main)); } */"
+                    className="w-full h-48 bg-hw-black/50 border border-hw-blue/20 p-4 text-xs font-mono outline-none focus:border-hw-blue custom-scrollbar resize-none"
+                    style={{ color: 'var(--theme-text)', borderColor: 'var(--theme-border-color)' }}
+                  />
+                  <div className="mt-2 text-[8px] opacity-40 uppercase tracking-widest">
+                    Changes are applied in real-time. Use with caution as invalid CSS can break the UI.
+                  </div>
                 </div>
               </div>
 

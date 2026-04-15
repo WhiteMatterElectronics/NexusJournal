@@ -60,6 +60,10 @@ export interface ThemeConfig {
   iconTheme: 'classic' | 'neon' | 'minimal' | 'glass' | 'pixel';
   iconThemes: Record<string, string>;
   timeConfig: TimeConfig;
+  customCss: string;
+  animateIcons: boolean;
+  iconScale: number;
+  labelScale: number;
 }
 
 interface SettingsContextType {
@@ -130,8 +134,8 @@ export const defaultGranular: Record<ThemeMode, GranularColors> = {
 };
 
 const defaultTheme: ThemeConfig = {
-  mainColor: '#00f2ff',
-  terminalColor: '#00f2ff',
+  mainColor: '#3b82f6',
+  terminalColor: '#3b82f6',
   globalTheme: 'retro',
   isDarkMode: true,
   glassyConfig: {
@@ -156,6 +160,7 @@ const defaultTheme: ThemeConfig = {
     'admin': true,
     'settings': true,
     'bluetooth': true,
+    'my_files': true,
     'properties': false
   },
   iconPositions: {},
@@ -175,7 +180,11 @@ const defaultTheme: ThemeConfig = {
     manualOffset: 0,
     showSeconds: true,
     is24Hour: true
-  }
+  },
+  customCss: '',
+  animateIcons: true,
+  iconScale: 1,
+  labelScale: 1
 };
 
 const SettingsContext = createContext<SettingsContextType | null>(null);
@@ -231,6 +240,8 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
     root.style.setProperty('--desktop-grid-size', `${theme.desktopGridSize}px`);
     root.style.setProperty('--desktop-label-color', theme.desktopLabelColor);
+    root.style.setProperty('--desktop-icon-scale', theme.iconScale?.toString() || '1');
+    root.style.setProperty('--desktop-label-scale', theme.labelScale?.toString() || '1');
 
     if (theme.useGranular) {
       root.style.setProperty('--theme-main', g.accentColor);
@@ -314,6 +325,15 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
       root.style.setProperty('--theme-bg-image', 'none');
       root.style.setProperty('--theme-bg-color', theme.isDarkMode ? '#020202' : '#f5f7f8');
     }
+
+    // Apply Custom CSS
+    let styleTag = document.getElementById('nexus-custom-css');
+    if (!styleTag) {
+      styleTag = document.createElement('style');
+      styleTag.id = 'nexus-custom-css';
+      document.head.appendChild(styleTag);
+    }
+    styleTag.innerHTML = theme.customCss;
     
   }, [theme]);
 

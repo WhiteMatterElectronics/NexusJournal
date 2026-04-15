@@ -29,7 +29,9 @@ import { WifiApp } from './components/apps/WifiApp';
 import { CtfManagerApp } from './components/apps/CtfManagerApp';
 import { CtfChallengeApp } from './components/apps/CtfChallengeApp';
 import { InventoryApp } from './components/apps/InventoryApp';
+import { MyFilesApp } from './components/apps/MyFilesApp';
 import { WidgetContainer } from './components/os/WidgetContainer';
+import { SaveFileDialog } from './components/os/SaveFileDialog';
 import { useSettings } from './contexts/SettingsContext';
 import { cn, getContrastColor, adjustColor } from './lib/utils';
 import { APPS } from './constants';
@@ -193,20 +195,34 @@ function DesktopIcon({
           isDragging && (isGlassy ? "bg-white/30" : "bg-black/80 border-hw-blue")
         )}
         style={{ 
-          width: `${theme.desktopGridSize * 0.6}px`,
-          height: `${theme.desktopGridSize * 0.6}px`,
-          maxWidth: '80%',
-          maxHeight: '80%',
+          width: `calc(${theme.desktopGridSize * 0.6}px * var(--desktop-icon-scale))`,
+          height: `calc(${theme.desktopGridSize * 0.6}px * var(--desktop-icon-scale))`,
+          maxWidth: '95%',
+          maxHeight: '95%',
           ...themeStyles.inner
         }}
       >
-        <app.icon 
-          className={cn("w-1/2 h-1/2 transition-colors", !isGlassy && "drop-shadow-none")} 
-          style={{ 
-            color: appIconTheme === 'pixel' ? '#ffffff' : isGlassy ? (isDark ? mainColor : adjustColor(mainColor, -40)) : mainColor,
-            ...themeStyles.icon
+        <motion.div
+          animate={theme.animateIcons ? {
+            y: [0, -4, 0],
+            scale: [1, 1.05, 1],
+          } : {}}
+          transition={{
+            duration: 4,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: Math.random() * 2
           }}
-        />
+          className="w-full h-full flex items-center justify-center"
+        >
+          <app.icon 
+            className={cn("w-1/2 h-1/2 transition-colors", !isGlassy && "drop-shadow-none")} 
+            style={{ 
+              color: appIconTheme === 'pixel' ? '#ffffff' : isGlassy ? (isDark ? mainColor : adjustColor(mainColor, -40)) : mainColor,
+              ...themeStyles.icon
+            }}
+          />
+        </motion.div>
 
         {/* Text Label - Absolute positioned to match GridTest style */}
         <div className="absolute top-full left-1/2 -translate-x-1/2 pt-2 w-[140%] flex justify-center pointer-events-none">
@@ -220,7 +236,8 @@ function DesktopIcon({
               color: isDragging ? contrastColor : theme.desktopLabelColor,
               textShadow: isDark ? `0 0 10px ${theme.desktopLabelColor}66` : '0 2px 4px rgba(0,0,0,0.5)',
               backgroundColor: isDragging ? mainColor : undefined,
-              border: isDragging ? `1px solid ${contrastColor}33` : 'none'
+              border: isDragging ? `1px solid ${contrastColor}33` : 'none',
+              fontSize: `calc(9px * var(--desktop-label-scale))`
             }}
           >
             {labelText}
@@ -237,6 +254,19 @@ export default function App() {
   const [lockPassword, setLockPassword] = useState('');
   const [lockError, setLockError] = useState('');
 
+  // Save File Dialog State
+  const [saveDialog, setSaveDialog] = useState<{
+    isOpen: boolean;
+    fileName: string;
+    onSaveToDB: () => void;
+    onSaveToLocal: () => void;
+  }>({
+    isOpen: false,
+    fileName: '',
+    onSaveToDB: () => {},
+    onSaveToLocal: () => {}
+  });
+
   const [windows, setWindows] = useState<WindowState[]>([
     { instanceId: 'console-1', appId: 'console', isOpen: true, isMinimized: false, isMaximized: true, zIndex: 1, instanceNumber: 1 }
   ]);
@@ -246,6 +276,7 @@ export default function App() {
 
   const handleContextMenu = (e: React.MouseEvent, type: 'desktop' | 'taskbar' | 'dash' | 'icon' = 'desktop', appId?: string) => {
     e.preventDefault();
+    e.stopPropagation();
     setContextMenu({ x: e.clientX, y: e.clientY, show: true, type, appId });
   };
 
@@ -789,6 +820,8 @@ export default function App() {
         return <CtfChallengeApp challengeId={initialProps?.challengeId} onStartApp={handleStartApp} />;
       case 'inventory':
         return <InventoryApp />;
+      case 'my_files':
+        return <MyFilesApp />;
       case 'properties':
         return (
           <PropertiesApp 
@@ -818,6 +851,20 @@ export default function App() {
     window.addEventListener('hw_os_open_app', handleOpenApp);
     return () => window.removeEventListener('hw_os_open_app', handleOpenApp);
   }, [handleStartApp]);
+
+  useEffect(() => {
+    const handleTriggerSaveDialog = (e: any) => {
+      const { fileName, onSaveToDB, onSaveToLocal } = e.detail;
+      setSaveDialog({
+        isOpen: true,
+        fileName,
+        onSaveToDB,
+        onSaveToLocal
+      });
+    };
+    window.addEventListener('hw_os_trigger_save_dialog', handleTriggerSaveDialog);
+    return () => window.removeEventListener('hw_os_trigger_save_dialog', handleTriggerSaveDialog);
+  }, []);
 
   if (isLocked) {
     return (
@@ -865,6 +912,18 @@ export default function App() {
       onContextMenu={(e) => handleContextMenu(e, 'desktop')}
       onClick={() => setContextMenu(null)}
     >
+      <AnimatePresence>
+        {saveDialog.isOpen && (
+          <SaveFileDialog 
+            isOpen={saveDialog.isOpen}
+            fileName={saveDialog.fileName}
+            onClose={() => setSaveDialog(prev => ({ ...prev, isOpen: false }))}
+            onSaveToDB={saveDialog.onSaveToDB}
+            onSaveToLocal={saveDialog.onSaveToLocal}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Custom Context Menu */}
       <AnimatePresence>
         {contextMenu?.show && (
@@ -930,7 +989,7 @@ export default function App() {
                   className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-red-500/10 flex items-center gap-2 transition-colors group"
                 >
                   <Trash2 size={12} className="text-red-500/60 group-hover:text-red-500" />
-                  <span className="tracking-widest uppercase text-red-500/80 group-hover:text-red-500">Remove Icon</span>
+                  <span className="tracking-widest uppercase text-red-500/80 group-hover:text-red-500">Delete Icon</span>
                 </button>
               </>
             ) : contextMenu.type === 'desktop' ? (

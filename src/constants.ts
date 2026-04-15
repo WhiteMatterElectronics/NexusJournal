@@ -1,4 +1,4 @@
-import { Settings, BookOpen, Zap, Terminal, Database, Radio, FileCode, Lock, Activity, Cloud, Clock, Bluetooth, Wifi, Flag, Package, Info } from 'lucide-react';
+import { Settings, BookOpen, Zap, Terminal, Database, Radio, FileCode, Lock, Activity, Cloud, Clock, Bluetooth, Wifi, Flag, Package, Info, Folder } from 'lucide-react';
 import { AppView } from './types';
 
 export interface AppDefinition {
@@ -16,6 +16,7 @@ export const APPS: AppDefinition[] = [
   { id: 'tutorials', icon: BookOpen, label: 'KNOWLEDGE_BASE' },
   { id: 'flasher', icon: Zap, label: 'FLASH_MODULE' },
   { id: 'notes', icon: FileCode, label: 'DATA_SLABS' },
+  { id: 'my_files', icon: Folder, label: 'MY_FILES' },
   { id: 'sys_monitor', icon: Activity, label: 'SYS_MONITOR' },
   { id: 'admin', icon: Settings, label: 'SYS_CONFIG' },
   { id: 'settings', icon: Settings, label: 'SETTINGS' },

@@ -430,7 +430,41 @@ export const NotesApp: React.FC<{ initialNoteId?: string }> = ({ initialNoteId }
       jsPDF:        { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const }
     };
 
-    html2pdf().set(opt).from(printContainer).save();
+    const triggerSave = () => {
+      window.dispatchEvent(new CustomEvent('hw_os_trigger_save_dialog', {
+        detail: {
+          fileName: opt.filename,
+          onSaveToDB: () => {
+            // Save to virtual FS
+            html2pdf().set(opt).from(printContainer).output('blob').then((blob: Blob) => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                window.dispatchEvent(new CustomEvent('hw_os_save_file', {
+                  detail: {
+                    file: {
+                      name: activeNote.title,
+                      extension: 'pdf',
+                      type: 'file',
+                      category: 'pdf',
+                      parentId: 'documents', // Default to documents
+                      size: blob.size,
+                      content: reader.result // Base64
+                    }
+                  }
+                }));
+              };
+              reader.readAsDataURL(blob);
+            });
+          },
+          onSaveToLocal: () => {
+            // Standard browser download
+            html2pdf().set(opt).from(printContainer).save();
+          }
+        }
+      }));
+    };
+
+    triggerSave();
   };
 
   return (

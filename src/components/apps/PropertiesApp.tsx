@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Info, Zap, Monitor, Trash2, Activity, Cpu, Database, Shield, Calendar, Tag } from 'lucide-react';
+import { Info, Zap, Monitor, Trash2, Activity, Cpu, Database, Shield, Calendar, Tag, HardDrive, Globe, Lock as LockIcon, Wifi, Server, Box } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useSettings } from '../../contexts/SettingsContext';
 import { APPS } from '../../constants';
@@ -37,7 +37,18 @@ export const PropertiesApp: React.FC<PropertiesAppProps> = ({
     ram: Math.floor(Math.random() * 50 + 20),
     threads: Math.floor(Math.random() * 8 + 2),
     uptime: Math.floor(Math.random() * 3600 + 600),
-  }), []);
+    bundleSize: (Math.random() * 500 + 100).toFixed(1),
+    lastModified: new Date(Date.now() - Math.random() * 1000000000).toLocaleDateString(),
+    permissions: ['Storage', 'Network', 'Notifications'],
+    latency: Math.floor(Math.random() * 50 + 5),
+    storageQuota: Math.floor(Math.random() * 100 + 10),
+    endpoints: [`/api/v1/${appId}`, `/ws/${appId}`],
+    cacheStatus: Math.random() > 0.5 ? 'Optimized' : 'Bypassed',
+    framework: 'React 18.2.0',
+    runtime: 'Node.js 20.x',
+    environment: 'Production (Cloud Run)',
+    deploymentUrl: window.location.origin,
+  }), [appId]);
 
   return (
     <div className="flex flex-col h-full bg-hw-black text-hw-blue/90 font-sans select-none overflow-hidden">
@@ -108,6 +119,92 @@ export const PropertiesApp: React.FC<PropertiesAppProps> = ({
           </div>
         </section>
 
+        {/* Web & Storage Info */}
+        <section className="space-y-4">
+          <h3 className="text-[10px] font-bold uppercase tracking-widest opacity-40 flex items-center gap-2">
+            <Globe size={12} /> Web & Storage Metrics
+          </h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-3 bg-hw-blue/5 border border-hw-blue/10 rounded-lg flex items-center gap-3">
+              <HardDrive size={16} className="opacity-40" />
+              <div>
+                <span className="text-[9px] uppercase opacity-40 block">Bundle Size</span>
+                <span className="text-xs font-mono">{stats.bundleSize} KB</span>
+              </div>
+            </div>
+            <div className="p-3 bg-hw-blue/5 border border-hw-blue/10 rounded-lg flex items-center gap-3">
+              <Calendar size={16} className="opacity-40" />
+              <div>
+                <span className="text-[9px] uppercase opacity-40 block">Last Modified</span>
+                <span className="text-xs font-mono">{stats.lastModified}</span>
+              </div>
+            </div>
+            <div className="p-3 bg-hw-blue/5 border border-hw-blue/10 rounded-lg flex items-center gap-3">
+              <Wifi size={16} className="opacity-40" />
+              <div>
+                <span className="text-[9px] uppercase opacity-40 block">Latency</span>
+                <span className="text-xs font-mono">{stats.latency}ms</span>
+              </div>
+            </div>
+            <div className="p-3 bg-hw-blue/5 border border-hw-blue/10 rounded-lg flex items-center gap-3">
+              <Database size={16} className="opacity-40" />
+              <div>
+                <span className="text-[9px] uppercase opacity-40 block">Storage Quota</span>
+                <span className="text-xs font-mono">{stats.storageQuota}MB</span>
+              </div>
+            </div>
+            <div className="col-span-2 p-3 bg-hw-blue/5 border border-hw-blue/10 rounded-lg">
+              <span className="text-[9px] uppercase opacity-40 block mb-2 flex items-center gap-2">
+                <Server size={10} /> API Endpoints
+              </span>
+              <div className="space-y-1">
+                {stats.endpoints.map(e => (
+                  <div key={e} className="text-[10px] font-mono opacity-80">{e}</div>
+                ))}
+              </div>
+            </div>
+            <div className="col-span-2 p-3 bg-hw-blue/5 border border-hw-blue/10 rounded-lg flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Box size={14} className="opacity-40" />
+                <span className="text-[9px] uppercase opacity-40">Cache Strategy</span>
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-hw-blue">{stats.cacheStatus}</span>
+            </div>
+            <div className="col-span-2 p-3 bg-hw-blue/5 border border-hw-blue/10 rounded-lg space-y-3">
+              <span className="text-[9px] uppercase opacity-40 block flex items-center gap-2">
+                <Globe size={10} /> Deployment & Environment
+              </span>
+              <div className="grid grid-cols-2 gap-y-2">
+                <div>
+                  <span className="text-[8px] uppercase opacity-30 block">Framework</span>
+                  <span className="text-[10px] font-mono">{stats.framework}</span>
+                </div>
+                <div>
+                  <span className="text-[8px] uppercase opacity-30 block">Runtime</span>
+                  <span className="text-[10px] font-mono">{stats.runtime}</span>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-[8px] uppercase opacity-30 block">Deployment URL</span>
+                  <span className="text-[10px] font-mono truncate block">{stats.deploymentUrl}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="col-span-2 p-3 bg-hw-blue/5 border border-hw-blue/10 rounded-lg">
+              <span className="text-[9px] uppercase opacity-40 block mb-2 flex items-center gap-2">
+                <LockIcon size={10} /> Active Permissions
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {stats.permissions.map(p => (
+                  <span key={p} className="px-2 py-0.5 bg-hw-blue/10 border border-hw-blue/20 rounded text-[8px] uppercase tracking-widest">
+                    {p}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Actions */}
         <section className="space-y-4 pt-4 border-t border-hw-blue/10">
           <h3 className="text-[10px] font-bold uppercase tracking-widest opacity-40">Available Actions</h3>
@@ -138,7 +235,7 @@ export const PropertiesApp: React.FC<PropertiesAppProps> = ({
             >
               <Trash2 size={16} className="text-red-500 group-hover:scale-110 transition-transform" />
               <div className="text-left">
-                <span className="text-[10px] font-bold uppercase tracking-widest block text-red-500">Remove Icon</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest block text-red-500">Delete Icon</span>
                 <span className="text-[8px] opacity-40 uppercase text-red-500/60">Hide from desktop grid</span>
               </div>
             </button>
