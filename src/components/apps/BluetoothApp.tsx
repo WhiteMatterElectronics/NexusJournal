@@ -43,6 +43,9 @@ export const BluetoothApp: React.FC = () => {
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
+  
+  const lastReadUuidRef = useRef<string | null>(null);
+  const pendingConnectionAddressRef = useRef<string | null>(null);
 
   const addLog = useCallback((type: LogEntry['type'], message: string) => {
     setLogs(prev => [
@@ -67,87 +70,103 @@ export const BluetoothApp: React.FC = () => {
       const customEvent = e as CustomEvent<string>;
       const text = customEvent.detail;
 
-      if (text.includes("[BLE]")) {
-        if (text.includes("SCAN_START")) {
+      if (text.includes("[BLE]") || text.includes("[BLE-NOTIFY]")) {
+        if (text.includes("Starting 5s scan")) {
           setIsScanning(true);
           setDevices([]);
           addLog('info', 'Started BLE scan...');
-        } else if (text.includes("SCAN_STOP")) {
+        } else if (text.includes("Scan Ended") || text.includes("Scan routine finished")) {
           setIsScanning(false);
           addLog('info', 'BLE scan stopped.');
-        } else if (text.includes("DEVICE:")) {
-          const parts = text.split(":");
-          if (parts.length >= 5) {
-            const address = parts[2];
-            const name = parts[3] || "Unknown Device";
-            const rssi = parseInt(parts[4], 10);
+        } else if (text.includes("Device: ")) {
+          // Extract address, name, rssi from NimBLE toString() format
+          const addressMatch = text.match(/Address:\s*([0-9a-fA-F:]+)/i);
+          const nameMatch = text.match(/Name:\s*([^,]+)/i);
+          const rssiMatch = text.match(/RSSI:\s*(-?\d+)/i) || text.match(/rssi:\s*(-?\d+)/i);
+          
+          if (addressMatch) {
+            const address = addressMatch[1];
+            const name = nameMatch && nameMatch[1].trim() !== "" ? nameMatch[1].trim() : "Unknown Device";
+            const rssi = rssiMatch ? parseInt(rssiMatch[1], 10) : -100;
+            
             setDevices(prev => {
               const existing = prev.find(d => d.address === address);
               if (existing) {
-                return prev.map(d => d.address === address ? { ...d, rssi, lastSeen: Date.now() } : d);
+                return prev.map(d => d.address === address ? { ...d, rssi, lastSeen: Date.now(), name: name !== "Unknown Device" ? name : d.name } : d);
               }
               return [...prev, { address, name, rssi, lastSeen: Date.now() }];
             });
           }
-        } else if (text.includes("CONNECT_SUCCESS:")) {
-          const address = text.split(":")[2];
+        } else if (text.includes("Success! Exploring services") || text.includes("Connected to Server")) {
+          const address = pendingConnectionAddressRef.current || "Unknown";
           const device = devices.find(d => d.address === address);
           setConnectedDevice(device || { address, name: "Connected Device", rssi: 0, lastSeen: Date.now() });
           addLog('success', `Connected to ${address}`);
-          writeToSerial("BLE SERVICES\n");
-        } else if (text.includes("CONNECT_FAIL:")) {
-          addLog('error', `Failed to connect to ${text.split(":")[2]}`);
+        } else if (text.includes("Connection Failed")) {
+          addLog('error', `Failed to connect`);
           setConnectedDevice(null);
-        } else if (text.includes("DISCONNECTED")) {
+          pendingConnectionAddressRef.current = null;
+        } else if (text.includes("Disconnected")) {
           addLog('info', 'Device disconnected.');
           setConnectedDevice(null);
           setServices([]);
-        } else if (text.includes("SERVICE:")) {
-          const uuid = text.split(":")[2];
-          setServices(prev => {
-            if (prev.find(s => s.uuid === uuid)) return prev;
-            return [...prev, { uuid, characteristics: [], isExpanded: false }];
-          });
-          writeToSerial(`BLE CHARACTERISTICS ${uuid}\n`);
-        } else if (text.includes("CHAR:")) {
-          const parts = text.split(":");
-          const charUuid = parts[2];
-          const props = parts[3].split(",");
-          // We need to know which service this belongs to. 
-          // For simplicity, we'll add it to the last added service or match by UUID if possible.
-          // In a real implementation, the ESP32 would send the service UUID too.
-          setServices(prev => {
-            const lastService = prev[prev.length - 1];
-            if (!lastService) return prev;
-            if (lastService.characteristics.find(c => c.uuid === charUuid)) return prev;
-            const newChar: BleCharacteristic = { uuid: charUuid, properties: props, isNotifying: false };
-            return prev.map((s, idx) => idx === prev.length - 1 ? { ...s, characteristics: [...s.characteristics, newChar] } : s);
-          });
-        } else if (text.includes("DATA:")) {
-          const parts = text.split(":");
-          const charUuid = parts[2];
-          const hexData = parts[3];
-          addLog('data', `[${charUuid}] READ: ${hexData}`);
-          setServices(prev => prev.map(s => ({
-            ...s,
-            characteristics: s.characteristics.map(c => c.uuid === charUuid ? { ...c, value: hexData } : c)
-          })));
-        } else if (text.includes("NOTIFY:")) {
-          const parts = text.split(":");
-          const charUuid = parts[2];
-          const hexData = parts[3];
-          addLog('data', `[${charUuid}] NOTIFY: ${hexData}`);
-          setServices(prev => prev.map(s => ({
-            ...s,
-            characteristics: s.characteristics.map(c => c.uuid === charUuid ? { ...c, value: hexData } : c)
-          })));
+        } else if (text.includes("Service: ")) {
+          const uuidMatch = text.match(/Service:\s*([a-zA-Z0-9-]+)/);
+          if (uuidMatch) {
+            const uuid = uuidMatch[1];
+            setServices(prev => {
+              if (prev.find(s => s.uuid === uuid)) return prev;
+              return [...prev, { uuid, characteristics: [], isExpanded: false }];
+            });
+          }
+        } else if (text.includes("- Char: ")) {
+          const charMatch = text.match(/- Char:\s*([a-zA-Z0-9-]+)\s*\[(.*?)\]/);
+          if (charMatch) {
+            const charUuid = charMatch[1];
+            const propsStr = charMatch[2];
+            const props = [];
+            if (propsStr.includes("R")) props.push("READ");
+            if (propsStr.includes("W")) props.push("WRITE");
+            if (propsStr.includes("N")) props.push("NOTIFY");
+            
+            setServices(prev => {
+              const lastService = prev[prev.length - 1];
+              if (!lastService) return prev;
+              if (lastService.characteristics.find(c => c.uuid === charUuid)) return prev;
+              // Firmware auto-subscribes to notifications if 'N' is present
+              const newChar: BleCharacteristic = { uuid: charUuid, properties: props, isNotifying: props.includes("NOTIFY") };
+              return prev.map((s, idx) => idx === prev.length - 1 ? { ...s, characteristics: [...s.characteristics, newChar] } : s);
+            });
+          }
+        } else if (text.includes("[BLE-READ] Hex:")) {
+          const hexMatch = text.match(/Hex:\s*([a-zA-Z0-9]+)/);
+          if (hexMatch && lastReadUuidRef.current) {
+            const hexData = hexMatch[1];
+            const charUuid = lastReadUuidRef.current;
+            addLog('data', `[${charUuid}] READ: ${hexData}`);
+            setServices(prev => prev.map(s => ({
+              ...s,
+              characteristics: s.characteristics.map(c => c.uuid === charUuid ? { ...c, value: hexData } : c)
+            })));
+          }
+        } else if (text.includes("[BLE-NOTIFY]")) {
+          const parts = text.replace("[BLE-NOTIFY]", "").trim().split(":");
+          if (parts.length >= 2) {
+            const charUuid = parts[0].trim();
+            const hexData = parts[1].trim();
+            addLog('data', `[${charUuid}] NOTIFY: ${hexData}`);
+            setServices(prev => prev.map(s => ({
+              ...s,
+              characteristics: s.characteristics.map(c => c.uuid === charUuid ? { ...c, value: hexData } : c)
+            })));
+          }
         }
       }
     };
 
     window.addEventListener('hw_serial_line', handleSerialLine);
     return () => window.removeEventListener('hw_serial_line', handleSerialLine);
-  }, [devices, addLog, writeToSerial]);
+  }, [devices, addLog]);
 
   const startScan = () => {
     if (!connected) return;
@@ -156,12 +175,15 @@ export const BluetoothApp: React.FC = () => {
 
   const stopScan = () => {
     if (!connected) return;
-    writeToSerial("BLE SCAN STOP\n");
+    // Firmware doesn't have a stop scan command, it scans for 5s automatically.
+    // We'll just update UI state if they click it.
+    setIsScanning(false);
   };
 
   const connectDevice = (address: string) => {
     if (!connected) return;
     addLog('info', `Connecting to ${address}...`);
+    pendingConnectionAddressRef.current = address;
     writeToSerial(`BLE CONNECT ${address}\n`);
   };
 
@@ -172,6 +194,7 @@ export const BluetoothApp: React.FC = () => {
 
   const readChar = (uuid: string) => {
     if (!connected) return;
+    lastReadUuidRef.current = uuid;
     addLog('sent', `Reading characteristic ${uuid}...`);
     writeToSerial(`BLE READ ${uuid}\n`);
   };
@@ -185,14 +208,8 @@ export const BluetoothApp: React.FC = () => {
   };
 
   const toggleNotify = (uuid: string, current: boolean) => {
-    if (!connected) return;
-    const newState = !current;
-    addLog('sent', `${newState ? 'Subscribing to' : 'Unsubscribing from'} ${uuid}...`);
-    writeToSerial(`BLE NOTIFY ${uuid} ${newState ? 'ON' : 'OFF'}\n`);
-    setServices(prev => prev.map(s => ({
-      ...s,
-      characteristics: s.characteristics.map(c => c.uuid === uuid ? { ...c, isNotifying: newState } : c)
-    })));
+    // Firmware auto-subscribes. We don't need to send a command.
+    addLog('info', `Firmware automatically manages subscriptions.`);
   };
 
   const toggleService = (uuid: string) => {
@@ -306,13 +323,6 @@ export const BluetoothApp: React.FC = () => {
                       <Database className="w-6 h-6 text-hw-blue" />
                       <h2 className="text-lg font-bold tracking-[0.2em] uppercase">Service Explorer</h2>
                     </div>
-                    <button 
-                      onClick={() => writeToSerial("BLE SERVICES\n")}
-                      className="hw-button px-4 py-1 text-[10px] flex items-center gap-2"
-                    >
-                      <RefreshCw className="w-3 h-3" />
-                      REFRESH SERVICES
-                    </button>
                   </div>
 
                   {services.length === 0 && (
