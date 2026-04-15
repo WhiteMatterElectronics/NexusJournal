@@ -4,17 +4,28 @@ import { useSerial } from '../contexts/SerialContext';
 import { cn } from '../lib/utils';
 
 interface EspStatus {
-  ip: string;
-  rssi: string;
-  uptime: string;
-  heap: string;
-  chip: string;
-  version: string;
+  chipModel: string;
+  cores: string;
+  cpuFreq: string;
+  flashSize: string;
+  totalHeap: string;
+  freeHeap: string;
+  bleActive: string;
+  wifiMode: string;
 }
 
 export const EspStatusWidget: React.FC<any> = ({ mainColor }) => {
   const { connected, writeToSerial } = useSerial();
-  const [status, setStatus] = useState<EspStatus | null>(null);
+  const [status, setStatus] = useState<EspStatus>({
+    chipModel: 'N/A',
+    cores: 'N/A',
+    cpuFreq: 'N/A',
+    flashSize: 'N/A',
+    totalHeap: 'N/A',
+    freeHeap: 'N/A',
+    bleActive: 'N/A',
+    wifiMode: 'N/A'
+  });
   const [isRefreshing, setIsRefreshing] = useState(false);
   const lastUpdateRef = useRef<number>(0);
 
@@ -31,17 +42,23 @@ export const EspStatusWidget: React.FC<any> = ({ mainColor }) => {
       const customEvent = e as CustomEvent<string>;
       const text = customEvent.detail;
 
-      if (text.includes("[STATUS]")) {
-        // Parse status line: [STATUS] IP:192.168.1.1 RSSI:-45 Uptime:123s Heap:120000 Chip:ESP32 Version:1.0.0
-        const ip = text.match(/IP:([^\s]+)/)?.[1] || "N/A";
-        const rssi = text.match(/RSSI:([^\s]+)/)?.[1] || "N/A";
-        const uptime = text.match(/Uptime:([^\s]+)/)?.[1] || "N/A";
-        const heap = text.match(/Heap:([^\s]+)/)?.[1] || "N/A";
-        const chip = text.match(/Chip:([^\s]+)/)?.[1] || "ESP32";
-        const version = text.match(/Version:([^\s]+)/)?.[1] || "1.0.0";
-
-        setStatus({ ip, rssi, uptime, heap, chip, version });
-        setIsRefreshing(false);
+      if (text.includes("Chip Model:")) {
+        setStatus(s => ({ ...s, chipModel: text.split("Chip Model:")[1].trim() }));
+      } else if (text.includes("Cores:")) {
+        setStatus(s => ({ ...s, cores: text.split("Cores:")[1].trim() }));
+      } else if (text.includes("CPU Freq:")) {
+        setStatus(s => ({ ...s, cpuFreq: text.split("CPU Freq:")[1].trim() }));
+      } else if (text.includes("Flash Size:")) {
+        setStatus(s => ({ ...s, flashSize: text.split("Flash Size:")[1].trim() }));
+      } else if (text.includes("Total Heap:")) {
+        setStatus(s => ({ ...s, totalHeap: text.split("Total Heap:")[1].trim() }));
+      } else if (text.includes("Free Heap:")) {
+        setStatus(s => ({ ...s, freeHeap: text.split("Free Heap:")[1].trim() }));
+      } else if (text.includes("BLE Active:")) {
+        setStatus(s => ({ ...s, bleActive: text.split("BLE Active:")[1].trim() }));
+      } else if (text.includes("WiFi Mode:")) {
+        setStatus(s => ({ ...s, wifiMode: text.split("WiFi Mode:")[1].trim() }));
+        setIsRefreshing(false); // Last line of the report
       }
     };
 
@@ -93,19 +110,11 @@ export const EspStatusWidget: React.FC<any> = ({ mainColor }) => {
       <div className="grid grid-cols-2 gap-2 flex-1 overflow-y-auto custom-scrollbar pr-1">
         <div className="bg-white/5 p-2 rounded flex flex-col gap-1">
           <div className="flex items-center gap-1.5 opacity-40">
-            <Wifi style={{ width: 'max(6px, 5cqmin)', height: 'max(6px, 5cqmin)' }} />
-            <span className="uppercase font-bold" style={{ fontSize: 'max(5px, 4cqmin)' }}>Network</span>
+            <Cpu style={{ width: 'max(6px, 5cqmin)', height: 'max(6px, 5cqmin)' }} />
+            <span className="uppercase font-bold" style={{ fontSize: 'max(5px, 4cqmin)' }}>Hardware</span>
           </div>
-          <span className="font-mono truncate" style={{ fontSize: 'max(6px, 5cqmin)' }}>{status?.ip || "..."}</span>
-          <span className="opacity-60 font-mono" style={{ fontSize: 'max(5px, 4cqmin)' }}>{status?.rssi ? `${status.rssi} dBm` : "..."}</span>
-        </div>
-
-        <div className="bg-white/5 p-2 rounded flex flex-col gap-1">
-          <div className="flex items-center gap-1.5 opacity-40">
-            <Clock style={{ width: 'max(6px, 5cqmin)', height: 'max(6px, 5cqmin)' }} />
-            <span className="uppercase font-bold" style={{ fontSize: 'max(5px, 4cqmin)' }}>Uptime</span>
-          </div>
-          <span className="font-mono truncate" style={{ fontSize: 'max(6px, 5cqmin)' }}>{status?.uptime || "..."}</span>
+          <span className="font-mono truncate" style={{ fontSize: 'max(6px, 5cqmin)' }}>{status.chipModel}</span>
+          <span className="opacity-60 font-mono" style={{ fontSize: 'max(5px, 4cqmin)' }}>{status.cpuFreq}</span>
         </div>
 
         <div className="bg-white/5 p-2 rounded flex flex-col gap-1">
@@ -113,17 +122,19 @@ export const EspStatusWidget: React.FC<any> = ({ mainColor }) => {
             <Database style={{ width: 'max(6px, 5cqmin)', height: 'max(6px, 5cqmin)' }} />
             <span className="uppercase font-bold" style={{ fontSize: 'max(5px, 4cqmin)' }}>Memory</span>
           </div>
-          <span className="font-mono truncate" style={{ fontSize: 'max(6px, 5cqmin)' }}>{status?.heap || "..."}</span>
-          <span className="opacity-60 font-mono uppercase" style={{ fontSize: 'max(5px, 4cqmin)' }}>Free Heap</span>
+          <span className="font-mono truncate" style={{ fontSize: 'max(6px, 5cqmin)' }}>{status.freeHeap} Free</span>
+          <span className="opacity-60 font-mono" style={{ fontSize: 'max(5px, 4cqmin)' }}>{status.totalHeap} Total</span>
         </div>
 
-        <div className="bg-white/5 p-2 rounded flex flex-col gap-1">
+        <div className="bg-white/5 p-2 rounded flex flex-col gap-1 col-span-2">
           <div className="flex items-center gap-1.5 opacity-40">
-            <Cpu style={{ width: 'max(6px, 5cqmin)', height: 'max(6px, 5cqmin)' }} />
-            <span className="uppercase font-bold" style={{ fontSize: 'max(5px, 4cqmin)' }}>System</span>
+            <Wifi style={{ width: 'max(6px, 5cqmin)', height: 'max(6px, 5cqmin)' }} />
+            <span className="uppercase font-bold" style={{ fontSize: 'max(5px, 4cqmin)' }}>Connectivity</span>
           </div>
-          <span className="font-mono truncate" style={{ fontSize: 'max(6px, 5cqmin)' }}>{status?.chip || "..."}</span>
-          <span className="opacity-60 font-mono uppercase" style={{ fontSize: 'max(5px, 4cqmin)' }}>v{status?.version || "1.0.0"}</span>
+          <div className="flex justify-between items-center">
+            <span className="font-mono truncate" style={{ fontSize: 'max(6px, 5cqmin)' }}>BLE: {status.bleActive}</span>
+            <span className="opacity-60 font-mono" style={{ fontSize: 'max(5px, 4cqmin)' }}>WiFi: {status.wifiMode}</span>
+          </div>
         </div>
       </div>
     </div>

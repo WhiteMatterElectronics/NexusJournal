@@ -44,6 +44,7 @@ export const BluetoothApp: React.FC = () => {
   const [devices, setDevices] = useState<BleDevice[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [connectedDevice, setConnectedDevice] = useState<BleDevice | null>(null);
+  const [lastConnectedAddress, setLastConnectedAddress] = useState<string | null>(null);
   const [services, setServices] = useState<BleService[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [activeTab, setActiveTab] = useState<'explorer' | 'console' | 'terminal'>('explorer');
@@ -83,13 +84,13 @@ export const BluetoothApp: React.FC = () => {
 
   useEffect(() => {
     if (logsEndRef.current) {
-      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }, [logs]);
 
   useEffect(() => {
     if (terminalEndRef.current) {
-      terminalEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      terminalEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }, [terminalLogs]);
 
@@ -129,6 +130,7 @@ export const BluetoothApp: React.FC = () => {
           const address = pendingConnectionAddressRef.current || "Unknown";
           const device = devices.find(d => d.address === address);
           setConnectedDevice(device || { address, name: "Connected Device", rssi: 0, lastSeen: Date.now() });
+          setLastConnectedAddress(address);
           addLog('success', `Connected to ${address}`);
         } else if (text.includes("Connection Failed")) {
           addLog('error', `Failed to connect`);
@@ -137,7 +139,7 @@ export const BluetoothApp: React.FC = () => {
         } else if (text.includes("Disconnected")) {
           addLog('info', 'Device disconnected.');
           setConnectedDevice(null);
-          setServices([]);
+          // Do not clear services so terminal can still show history/state
         } else if (text.includes("Service: ")) {
           const uuidMatch = text.match(/Service:\s*([a-zA-Z0-9-]+)/);
           if (uuidMatch) {
@@ -571,13 +573,24 @@ export const BluetoothApp: React.FC = () => {
             </div>
           ) : activeTab === 'terminal' ? (
             <div className="flex-1 flex flex-col p-6 max-w-4xl mx-auto w-full">
-              {!connectedDevice ? (
+              {!connectedDevice && !lastConnectedAddress ? (
                 <div className="h-full flex flex-col items-center justify-center text-hw-blue/20 space-y-4">
                   <Terminal className="w-16 h-16 opacity-10" />
                   <p className="text-sm tracking-widest uppercase">Connect to a device to use Terminal</p>
                 </div>
               ) : (
                 <>
+                  {!connectedDevice && lastConnectedAddress && (
+                    <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded flex justify-between items-center">
+                      <span className="text-red-400 text-xs uppercase tracking-widest font-bold">Device Disconnected</span>
+                      <button 
+                        onClick={() => connectToDevice(lastConnectedAddress)}
+                        className="px-4 py-1.5 bg-red-500/20 hover:bg-red-500/40 text-red-400 rounded text-[10px] font-bold uppercase tracking-widest transition-colors"
+                      >
+                        Reconnect
+                      </button>
+                    </div>
+                  )}
                   <div className="flex gap-4 mb-4">
                     <div className="flex-1">
                       <label className="block text-[10px] font-bold uppercase opacity-50 mb-2">RX Characteristic (Notify/Read)</label>
@@ -629,13 +642,21 @@ export const BluetoothApp: React.FC = () => {
                         type="text" 
                         value={terminalInput}
                         onChange={e => setTerminalInput(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && sendTerminal()}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            sendTerminal();
+                          }
+                        }}
                         placeholder="Type message to send..."
                         className="flex-1 bg-black/40 border border-hw-blue/30 rounded px-3 py-2 text-sm font-mono outline-none focus:border-hw-blue text-hw-blue"
                       />
                       <button 
-                        onClick={sendTerminal}
-                        disabled={!txChar || !terminalInput}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          sendTerminal();
+                        }}
+                        disabled={!txChar || !terminalInput || !connectedDevice}
                         className="px-6 py-2 bg-hw-blue/20 hover:bg-hw-blue/30 disabled:opacity-30 rounded font-bold uppercase tracking-widest text-xs transition-colors"
                       >
                         Send

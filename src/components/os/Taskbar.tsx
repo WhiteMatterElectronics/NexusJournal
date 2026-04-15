@@ -155,7 +155,7 @@ export const Taskbar: React.FC<TaskbarProps> = ({
 
       {/* Hover Zone for intellihide */}
       <div 
-        className="absolute bottom-0 left-0 right-0 h-[2px] z-[9998]"
+        className="absolute bottom-0 left-0 right-0 h-12 z-[9998]"
         onMouseEnter={() => onHoverChange?.(true)}
         onMouseLeave={() => onHoverChange?.(false)}
       />
