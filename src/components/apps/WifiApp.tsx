@@ -54,14 +54,14 @@ export const WifiApp: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (logsEndRef.current) {
-      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (logsEndRef.current?.parentElement) {
+      logsEndRef.current.parentElement.scrollTop = logsEndRef.current.parentElement.scrollHeight;
     }
   }, [logs]);
 
   useEffect(() => {
-    if (pingEndRef.current) {
-      pingEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (pingEndRef.current?.parentElement) {
+      pingEndRef.current.parentElement.scrollTop = pingEndRef.current.parentElement.scrollHeight;
     }
   }, [pingResults]);
 

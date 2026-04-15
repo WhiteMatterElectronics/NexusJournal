@@ -42,22 +42,22 @@ export const EspStatusWidget: React.FC<any> = ({ mainColor }) => {
       const customEvent = e as CustomEvent<string>;
       const text = customEvent.detail;
 
-      if (text.includes("Chip Model:")) {
-        setStatus(s => ({ ...s, chipModel: text.split("Chip Model:")[1].trim() }));
-      } else if (text.includes("Cores:")) {
-        setStatus(s => ({ ...s, cores: text.split("Cores:")[1].trim() }));
-      } else if (text.includes("CPU Freq:")) {
-        setStatus(s => ({ ...s, cpuFreq: text.split("CPU Freq:")[1].trim() }));
-      } else if (text.includes("Flash Size:")) {
-        setStatus(s => ({ ...s, flashSize: text.split("Flash Size:")[1].trim() }));
-      } else if (text.includes("Total Heap:")) {
-        setStatus(s => ({ ...s, totalHeap: text.split("Total Heap:")[1].trim() }));
-      } else if (text.includes("Free Heap:")) {
-        setStatus(s => ({ ...s, freeHeap: text.split("Free Heap:")[1].trim() }));
-      } else if (text.includes("BLE Active:")) {
-        setStatus(s => ({ ...s, bleActive: text.split("BLE Active:")[1].trim() }));
-      } else if (text.includes("WiFi Mode:")) {
-        setStatus(s => ({ ...s, wifiMode: text.split("WiFi Mode:")[1].trim() }));
+      if (text.match(/Chip Model:/i)) {
+        setStatus(s => ({ ...s, chipModel: text.split(/Chip Model:/i)[1].trim() }));
+      } else if (text.match(/Cores:/i)) {
+        setStatus(s => ({ ...s, cores: text.split(/Cores:/i)[1].trim() }));
+      } else if (text.match(/CPU Freq:/i)) {
+        setStatus(s => ({ ...s, cpuFreq: text.split(/CPU Freq:/i)[1].trim() }));
+      } else if (text.match(/Flash Size:/i)) {
+        setStatus(s => ({ ...s, flashSize: text.split(/Flash Size:/i)[1].trim() }));
+      } else if (text.match(/Total Heap:/i)) {
+        setStatus(s => ({ ...s, totalHeap: text.split(/Total Heap:/i)[1].trim() }));
+      } else if (text.match(/Free Heap:/i)) {
+        setStatus(s => ({ ...s, freeHeap: text.split(/Free Heap:/i)[1].trim() }));
+      } else if (text.match(/BLE Active:/i)) {
+        setStatus(s => ({ ...s, bleActive: text.split(/BLE Active:/i)[1].trim() }));
+      } else if (text.match(/WiFi Mode:/i)) {
+        setStatus(s => ({ ...s, wifiMode: text.split(/WiFi Mode:/i)[1].trim() }));
         setIsRefreshing(false); // Last line of the report
       }
     };

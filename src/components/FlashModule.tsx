@@ -55,7 +55,9 @@ export const FlashModule: React.FC<FlashModuleProps> = ({ autoFlashFirmwareId, o
   const addLog = (msg: string) => {
     setLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
     setTimeout(() => {
-      logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      if (logEndRef.current?.parentElement) {
+        logEndRef.current.parentElement.scrollTop = logEndRef.current.parentElement.scrollHeight;
+      }
     }, 100);
   };
 

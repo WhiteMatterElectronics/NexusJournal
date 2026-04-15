@@ -56,8 +56,7 @@ export const BluetoothApp: React.FC = () => {
   const [terminalInput, setTerminalInput] = useState('');
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const logsEndRef = useRef<HTMLDivElement>(null);
-  const terminalEndRef = useRef<HTMLDivElement>(null);
+  const terminalScrollRef = useRef<HTMLDivElement>(null);
   
   const lastReadUuidRef = useRef<string | null>(null);
   const lastWriteUuidRef = useRef<string | null>(null);
@@ -83,14 +82,14 @@ export const BluetoothApp: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (logsEndRef.current) {
-      logsEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [logs]);
 
   useEffect(() => {
-    if (terminalEndRef.current) {
-      terminalEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (terminalScrollRef.current) {
+      terminalScrollRef.current.scrollTop = terminalScrollRef.current.scrollHeight;
     }
   }, [terminalLogs]);
 
@@ -386,7 +385,7 @@ export const BluetoothApp: React.FC = () => {
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar: Device List */}
-        {!connectedDevice && (
+        {!connectedDevice && !(activeTab === 'terminal' && lastConnectedAddress) && (
           <div className="w-72 border-r border-hw-blue/10 flex flex-col bg-black/40">
             <div className="p-3 border-b border-hw-blue/10 flex justify-between items-center bg-hw-blue/5">
               <span className="text-[9px] font-bold uppercase tracking-widest opacity-60">Discovered Devices</span>
@@ -621,7 +620,7 @@ export const BluetoothApp: React.FC = () => {
                   </div>
                   
                   <div className="flex-1 bg-black/40 border border-hw-blue/20 rounded-xl flex flex-col overflow-hidden">
-                    <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar" ref={terminalScrollRef}>
                       {terminalLogs.length === 0 && (
                         <div className="h-full flex items-center justify-center text-hw-blue/30 italic text-xs">
                           No messages yet. Select RX/TX characteristics and start typing.
@@ -635,7 +634,6 @@ export const BluetoothApp: React.FC = () => {
                           </div>
                         </div>
                       ))}
-                      <div ref={terminalEndRef} />
                     </div>
                     <div className="p-4 border-t border-hw-blue/20 bg-black/60 flex gap-2">
                       <input 
@@ -708,7 +706,6 @@ export const BluetoothApp: React.FC = () => {
                     </span>
                   </div>
                 ))}
-                <div ref={logsEndRef} />
               </div>
             </div>
           )}
