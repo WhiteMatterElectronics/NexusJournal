@@ -25,6 +25,9 @@ import { WeatherApp } from './components/apps/WeatherApp';
 import { ClockApp } from './components/apps/ClockApp';
 import { BluetoothApp } from './components/apps/BluetoothApp';
 import { WifiApp } from './components/apps/WifiApp';
+import { CtfManagerApp } from './components/apps/CtfManagerApp';
+import { CtfChallengeApp } from './components/apps/CtfChallengeApp';
+import { InventoryApp } from './components/apps/InventoryApp';
 import { WidgetContainer } from './components/os/WidgetContainer';
 import { useSettings } from './contexts/SettingsContext';
 import { cn, getContrastColor, adjustColor } from './lib/utils';
@@ -733,6 +736,12 @@ export default function App() {
         return <BluetoothApp />;
       case 'wifi':
         return <WifiApp />;
+      case 'ctf_manager':
+        return <CtfManagerApp onLaunchChallenge={(challengeId) => handleStartApp('ctf_challenge', undefined, { challengeId })} />;
+      case 'ctf_challenge':
+        return <CtfChallengeApp challengeId={initialProps?.challengeId} />;
+      case 'inventory':
+        return <InventoryApp />;
       default:
         return null;
     }
