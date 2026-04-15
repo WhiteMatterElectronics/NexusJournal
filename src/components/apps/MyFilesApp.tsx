@@ -285,7 +285,7 @@ export const MyFilesApp: React.FC = () => {
     }
   };
 
-  const handleContextMenu = (e: React.MouseEvent, item: any) => {
+  const handleContextMenu = (e: React.MouseEvent, item: any = null) => {
     e.preventDefault();
     e.stopPropagation();
     const rect = containerRef.current?.getBoundingClientRect();
@@ -303,25 +303,11 @@ export const MyFilesApp: React.FC = () => {
       return;
     }
 
-    if (item.category === 'note') {
-      const noteId = item.id.replace('note-', '');
+    if (item.category === 'note' || item.category === 'tutorial' || item.type === 'file') {
       window.dispatchEvent(new CustomEvent('hw_os_open_app', { 
-        detail: { appId: 'notes', initialProps: { initialNoteId: noteId } } 
+        detail: { appId: 'text_editor', initialProps: { file: item } } 
       }));
-    } else if (item.category === 'tutorial') {
-      const tutorialId = item.id.replace('tutorial-', '');
-      window.dispatchEvent(new CustomEvent('hw_os_open_tutorial', { 
-        detail: { tutorialId } 
-      }));
-    } else if (item.category === 'image') {
-      alert("Image viewer coming soon! For now, you can download it.");
-    } else if (item.category === 'pdf') {
-      if (item.content) {
-        const link = document.createElement('a');
-        link.href = item.content;
-        link.download = `${item.name}.pdf`;
-        link.click();
-      }
+      return;
     }
   };
 
@@ -385,6 +371,19 @@ export const MyFilesApp: React.FC = () => {
     }
     const updated = items.filter(i => i.id !== id && i.parentId !== id);
     saveFS(updated);
+  };
+
+  const pasteItem = () => {
+    if (!clipboard) return;
+    const newItem = { ...clipboard.item, id: crypto.randomUUID(), parentId: currentFolderId };
+    const updated = [...items, newItem];
+    if (clipboard.action === 'cut') {
+      const filtered = updated.filter(i => i.id !== clipboard.item.id);
+      saveFS(filtered);
+      setClipboard(null);
+    } else {
+      saveFS(updated);
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -609,12 +608,16 @@ export const MyFilesApp: React.FC = () => {
               <span className="text-[10px] uppercase tracking-[0.2em]">Folder is empty</span>
             </div>
           ) : (
-            <div className={cn(
-              "grid gap-4",
-              viewMode === 'grid' 
-                ? "grid-cols-[repeat(auto-fill,minmax(var(--icon-size),1fr))]" 
-                : "grid-cols-1"
-            )} style={{ '--icon-size': `${iconSize}px` } as any}>
+            <div 
+              className={cn(
+                "grid gap-4",
+                viewMode === 'grid' 
+                  ? "grid-cols-[repeat(auto-fill,minmax(var(--icon-size),1fr))]" 
+                  : "grid-cols-1"
+              )} 
+              style={{ '--icon-size': `${iconSize}px` } as any}
+              onContextMenu={(e) => handleContextMenu(e)}
+            >
               {currentItems.map(item => (
                 <motion.div
                   key={item.id}
@@ -706,93 +709,113 @@ export const MyFilesApp: React.FC = () => {
                 : { top: contextMenu.y })
             }}
           >
-            <div className="px-3 py-1 text-[8px] uppercase tracking-widest opacity-40 border-b border-hw-blue/10 mb-1 truncate">
-              {contextMenu.item.name}
-            </div>
+            {contextMenu.item ? (
+              <div className="px-3 py-1 text-[8px] uppercase tracking-widest opacity-40 border-b border-hw-blue/10 mb-1 truncate">
+                {contextMenu.item.name}
+              </div>
+            ) : (
+              <div className="px-3 py-1 text-[8px] uppercase tracking-widest opacity-40 border-b border-hw-blue/10 mb-1 truncate">
+                Files
+              </div>
+            )}
             
-            <button 
-              onClick={() => { openFile(contextMenu.item); setContextMenu(null); }}
-              className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors"
-            >
-              <ArrowRight size={12} className="opacity-60" /> Open
-            </button>
+            {contextMenu.item && (
+              <>
+                <button 
+                  onClick={() => { openFile(contextMenu.item); setContextMenu(null); }}
+                  className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors"
+                >
+                  <ArrowRight size={12} className="opacity-60" /> Open
+                </button>
 
-            {contextMenu.item.isHost && (
-              <button 
-                onClick={() => { importHostFile(contextMenu.item); setContextMenu(null); }}
-                className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors text-hw-blue"
-              >
-                <Download size={12} className="opacity-60" /> Import to DB
-              </button>
+                {contextMenu.item.isHost && (
+                  <button 
+                    onClick={() => { importHostFile(contextMenu.item); setContextMenu(null); }}
+                    className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors text-hw-blue"
+                  >
+                    <Download size={12} className="opacity-60" /> Import to DB
+                  </button>
+                )}
+
+                {!contextMenu.item.isHost && contextMenu.item.type === 'file' && (
+                  <button 
+                    onClick={() => { 
+                      const link = document.createElement('a');
+                      link.href = contextMenu.item.content || '';
+                      link.download = contextMenu.item.name || 'download';
+                      link.click();
+                      setContextMenu(null); 
+                    }}
+                    className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors"
+                  >
+                    <FileDown size={12} className="opacity-60" /> Download to PC
+                  </button>
+                )}
+
+                <button 
+                  onClick={() => { createShortcut(contextMenu.item); setContextMenu(null); }}
+                  className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors"
+                >
+                  <Share2 size={12} className="opacity-60" /> Create Shortcut
+                </button>
+
+                {contextMenu.item.category === 'image' && (
+                  <button 
+                    onClick={() => { setAsWallpaper(contextMenu.item); setContextMenu(null); }}
+                    className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors"
+                  >
+                    <ImageIcon size={12} className="opacity-60" /> Set as Wallpaper
+                  </button>
+                )}
+
+                <button className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors">
+                  <MoreVertical size={12} className="opacity-60" /> Open With...
+                </button>
+
+                <button 
+                  onClick={() => { window.dispatchEvent(new CustomEvent('hw_os_open_app', { detail: { id: 'properties', props: { file: contextMenu.item } } })); setContextMenu(null); }}
+                  className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors"
+                >
+                  <Info size={12} className="opacity-60" /> Properties
+                </button>
+
+                <div className="h-[1px] bg-hw-blue/10 my-1" />
+
+                <button 
+                  onClick={() => { setClipboard({ item: contextMenu.item, action: 'copy' }); setContextMenu(null); }}
+                  className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors"
+                >
+                  <ArrowRight size={12} className="opacity-60" /> Copy
+                </button>
+
+                <button 
+                  onClick={() => { setClipboard({ item: contextMenu.item, action: 'cut' }); setContextMenu(null); }}
+                  className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors"
+                >
+                  <ArrowRight size={12} className="opacity-60" /> Cut
+                </button>
+              </>
             )}
-
-            {!contextMenu.item.isHost && contextMenu.item.type === 'file' && (
-              <button 
-                onClick={() => { openFile(contextMenu.item); setContextMenu(null); }}
-                className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors"
-              >
-                <FileDown size={12} className="opacity-60" /> Download to PC
-              </button>
-            )}
-
-            <button 
-              onClick={() => { createShortcut(contextMenu.item); setContextMenu(null); }}
-              className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors"
-            >
-              <Share2 size={12} className="opacity-60" /> Create Shortcut
-            </button>
-
-            {contextMenu.item.category === 'image' && (
-              <button 
-                onClick={() => { setAsWallpaper(contextMenu.item); setContextMenu(null); }}
-                className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors"
-              >
-                <ImageIcon size={12} className="opacity-60" /> Set as Wallpaper
-              </button>
-            )}
-
-            <button className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors">
-              <MoreVertical size={12} className="opacity-60" /> Open With...
-            </button>
-
-            <button 
-              onClick={() => { window.dispatchEvent(new CustomEvent('hw_os_open_app', { detail: { id: 'properties', props: { file: contextMenu.item } } })); setContextMenu(null); }}
-              className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors"
-            >
-              <Info size={12} className="opacity-60" /> Properties
-            </button>
-
-            <div className="h-[1px] bg-hw-blue/10 my-1" />
-
-            <button 
-              onClick={() => { setClipboard({ item: contextMenu.item, action: 'copy' }); setContextMenu(null); }}
-              className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors"
-            >
-              <ArrowRight size={12} className="opacity-60" /> Copy
-            </button>
-
-            <button 
-              onClick={() => { setClipboard({ item: contextMenu.item, action: 'cut' }); setContextMenu(null); }}
-              className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors"
-            >
-              <ArrowRight size={12} className="opacity-60" /> Cut
-            </button>
 
             <button 
               disabled={!clipboard}
+              onClick={() => { pasteItem(); setContextMenu(null); }}
               className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors disabled:opacity-20"
             >
               <ArrowRight size={12} className="opacity-60" /> Paste
             </button>
 
-            <div className="h-[1px] bg-hw-blue/10 my-1" />
-
-            <button 
-              onClick={() => { deleteItem(contextMenu.item.id); setContextMenu(null); }}
-              className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-red-500/10 text-red-500 flex items-center gap-2 uppercase tracking-widest transition-colors"
-            >
-              <Trash2 size={12} className="opacity-60" /> Delete
-            </button>
+            {contextMenu.item && (
+              <>
+                <div className="h-[1px] bg-hw-blue/10 my-1" />
+                <button 
+                  onClick={() => { deleteItem(contextMenu.item.id); setContextMenu(null); }}
+                  className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-red-500/10 text-red-500 flex items-center gap-2 uppercase tracking-widest transition-colors"
+                >
+                  <Trash2 size={12} className="opacity-60" /> Delete
+                </button>
+              </>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

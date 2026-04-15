@@ -30,6 +30,7 @@ import { CtfManagerApp } from './components/apps/CtfManagerApp';
 import { CtfChallengeApp } from './components/apps/CtfChallengeApp';
 import { InventoryApp } from './components/apps/InventoryApp';
 import { MyFilesApp } from './components/apps/MyFilesApp';
+import { TextEditorApp } from './components/apps/TextEditorApp';
 import { WidgetContainer } from './components/os/WidgetContainer';
 import { SaveFileDialog } from './components/os/SaveFileDialog';
 import { useSettings } from './contexts/SettingsContext';
@@ -854,6 +855,8 @@ export default function App() {
         return <InventoryApp />;
       case 'my_files':
         return <MyFilesApp />;
+      case 'text_editor':
+        return <TextEditorApp file={initialProps?.file} onClose={() => handleWindowAction(instanceId, 'close')} />;
       case 'properties':
         return (
           <PropertiesApp 

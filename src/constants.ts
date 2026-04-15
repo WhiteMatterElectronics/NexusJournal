@@ -1,4 +1,4 @@
-import { Settings, BookOpen, Zap, Terminal, Database, Radio, FileCode, Lock, Activity, Cloud, Clock, Bluetooth, Wifi, Flag, Package, Info, Folder } from 'lucide-react';
+import { Settings, BookOpen, Zap, Terminal, Database, Radio, FileCode, Lock, Activity, Cloud, Clock, Bluetooth, Wifi, Flag, Package, Info, Folder, FileText } from 'lucide-react';
 import { AppView } from './types';
 
 export interface AppDefinition {
@@ -27,4 +27,5 @@ export const APPS: AppDefinition[] = [
   { id: 'ctf_manager', icon: Flag, label: 'CTF_MANAGER' },
   { id: 'inventory', icon: Package, label: 'INVENTORY' },
   { id: 'properties', icon: Info, label: 'PROPERTIES' },
+  { id: 'text_editor', icon: FileText, label: 'TEXT_EDITOR' },
 ];
