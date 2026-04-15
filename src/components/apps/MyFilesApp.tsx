@@ -44,6 +44,25 @@ export const MyFilesApp: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Host Machine State
+  const [hostHandle, setHostHandle] = useState<FileSystemDirectoryHandle | null>(null);
+  const [hostItems, setHostItems] = useState<any[]>([]);
+  const [isHostLoading, setIsHostLoading] = useState(false);
+
+  // Context Menu State
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    show: boolean;
+    item: FileSystemItem | any;
+    isHost?: boolean;
+  } | null>(null);
+
+  const [clipboard, setClipboard] = useState<{
+    item: FileSystemItem;
+    action: 'copy' | 'cut';
+  } | null>(null);
+
   // Dynamic content states
   const [syncedNotes, setSyncedNotes] = useState<FileSystemItem[]>([]);
   const [syncedTutorials, setSyncedTutorials] = useState<FileSystemItem[]>([]);
@@ -62,6 +81,33 @@ export const MyFilesApp: React.FC = () => {
       localStorage.setItem('hw_os_fs', JSON.stringify(DEFAULT_STRUCTURE));
     }
   }, []);
+
+  // Host Machine Connection
+  const connectHost = async () => {
+    try {
+      const handle = await (window as any).showDirectoryPicker();
+      setHostHandle(handle);
+      setCurrentFolderId('host-root');
+      loadHostItems(handle);
+    } catch (err) {
+      console.error("Host connection failed", err);
+    }
+  };
+
+  const loadHostItems = async (handle: FileSystemDirectoryHandle) => {
+    setIsHostLoading(true);
+    try {
+      const entries: any[] = [];
+      for await (const entry of (handle as any).values()) {
+        entries.push(entry);
+      }
+      setHostItems(entries);
+    } catch (err) {
+      console.error("Failed to load host items", err);
+    } finally {
+      setIsHostLoading(false);
+    }
+  };
 
   // Sync Notes
   useEffect(() => {
@@ -148,9 +194,24 @@ export const MyFilesApp: React.FC = () => {
     return () => window.removeEventListener('hw_os_save_file', handleExternalSave);
   }, []);
 
-  const currentFolder = useMemo(() => items.find(i => i.id === currentFolderId), [items, currentFolderId]);
+  const currentFolder = useMemo(() => {
+    if (currentFolderId === 'host-root') return { name: hostHandle?.name || 'Host Root', id: 'host-root' };
+    return items.find(i => i.id === currentFolderId);
+  }, [items, currentFolderId, hostHandle]);
   
   const currentItems = useMemo(() => {
+    if (currentFolderId === 'host-root') {
+      return hostItems.map(entry => ({
+        id: entry.name,
+        name: entry.name,
+        type: entry.kind === 'directory' ? 'folder' : 'file',
+        parentId: 'host-root',
+        createdAt: Date.now(),
+        isHost: true,
+        handle: entry
+      }));
+    }
+
     let combined = [...items];
     if (currentFolderId === 'notes') combined = [...combined, ...syncedNotes];
     if (currentFolderId === 'tutorials') combined = [...combined, ...syncedTutorials];
@@ -165,17 +226,18 @@ export const MyFilesApp: React.FC = () => {
       if (a.type === b.type) return a.name.localeCompare(b.name);
       return a.type === 'folder' ? -1 : 1;
     });
-  }, [items, currentFolderId, searchTerm, syncedNotes, syncedTutorials]);
+  }, [items, currentFolderId, searchTerm, syncedNotes, syncedTutorials, hostItems]);
 
   const breadcrumbs = useMemo(() => {
+    if (currentFolderId === 'host-root') return [{ id: 'host-root', name: hostHandle?.name || 'Host Machine' }];
     const path: FileSystemItem[] = [];
-    let current = currentFolder;
+    let current = currentFolder as FileSystemItem;
     while (current) {
       path.unshift(current);
-      current = items.find(i => i.id === current?.parentId);
+      current = items.find(i => i.id === current?.parentId) as FileSystemItem;
     }
     return path;
-  }, [items, currentFolder]);
+  }, [items, currentFolder, currentFolderId, hostHandle]);
 
   const navigateTo = (folderId: string) => {
     if (folderId === currentFolderId) return;
@@ -199,6 +261,17 @@ export const MyFilesApp: React.FC = () => {
       setHistoryIndex(historyIndex + 1);
       setCurrentFolderId(history[historyIndex + 1]);
     }
+  };
+
+  const handleContextMenu = (e: React.MouseEvent, item: any) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      show: true,
+      item
+    });
   };
 
   const deleteItem = (id: string) => {
@@ -248,7 +321,7 @@ export const MyFilesApp: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
-  const getFileIcon = (item: FileSystemItem) => {
+  const getFileIcon = (item: any) => {
     if (item.type === 'folder') return <Folder className="text-hw-blue/60" />;
     switch (item.category) {
       case 'note': return <FileText className="text-hw-blue" />;
@@ -268,7 +341,11 @@ export const MyFilesApp: React.FC = () => {
   };
 
   return (
-    <div className="flex h-full select-none" style={{ backgroundColor: 'var(--theme-panel-bg)', color: 'var(--theme-text)' }}>
+    <div 
+      className="flex h-full select-none relative" 
+      style={{ backgroundColor: 'var(--theme-panel-bg)', color: 'var(--theme-text)' }}
+      onClick={() => setContextMenu(null)}
+    >
       {/* Sidebar */}
       <div className="w-48 border-r border-hw-blue/10 flex flex-col bg-hw-blue/5" style={{ borderColor: 'var(--theme-border-color)' }}>
         <div className="p-4 space-y-1">
@@ -292,6 +369,20 @@ export const MyFilesApp: React.FC = () => {
               {link.label}
             </button>
           ))}
+
+          <div className="pt-4">
+            <div className="text-[9px] uppercase tracking-widest opacity-40 mb-2 px-2">Host Machine</div>
+            <button
+              onClick={connectHost}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2 rounded text-[10px] font-bold uppercase tracking-wider transition-colors",
+                currentFolderId === 'host-root' ? "bg-hw-blue/20 text-hw-blue" : "hover:bg-hw-blue/10 opacity-70 hover:opacity-100"
+              )}
+            >
+              <HardDrive size={14} />
+              {hostHandle ? hostHandle.name : 'Connect PC'}
+            </button>
+          </div>
         </div>
 
         <div className="mt-auto p-4 border-t border-hw-blue/10" style={{ borderColor: 'var(--theme-border-color)' }}>
@@ -372,7 +463,12 @@ export const MyFilesApp: React.FC = () => {
 
         {/* File Grid */}
         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
-          {currentItems.length === 0 ? (
+          {isHostLoading ? (
+            <div className="h-full flex flex-col items-center justify-center opacity-40">
+              <Loader2 size={32} className="animate-spin mb-4" />
+              <span className="text-[10px] uppercase tracking-widest">Accessing Host Filesystem...</span>
+            </div>
+          ) : currentItems.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center opacity-20">
               <Folder size={48} className="mb-4" />
               <span className="text-[10px] uppercase tracking-[0.2em]">Folder is empty</span>
@@ -388,6 +484,7 @@ export const MyFilesApp: React.FC = () => {
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   onDoubleClick={() => item.type === 'folder' ? navigateTo(item.id) : null}
+                  onContextMenu={(e) => handleContextMenu(e, item)}
                   className={cn(
                     "group relative flex flex-col items-center p-4 rounded-lg border border-transparent transition-all cursor-pointer",
                     viewMode === 'grid' ? "hover:bg-hw-blue/5 hover:border-hw-blue/10" : "flex-row gap-4 py-2"
@@ -413,7 +510,7 @@ export const MyFilesApp: React.FC = () => {
 
                   {/* Context Actions (Hover) */}
                   <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                    {!item.isVirtual && (
+                    {!item.isVirtual && !item.isHost && (
                       <button 
                         onClick={(e) => { e.stopPropagation(); deleteItem(item.id); }}
                         className="p-1 hover:bg-red-500/20 text-red-500 rounded"
@@ -424,6 +521,11 @@ export const MyFilesApp: React.FC = () => {
                     {item.isVirtual && (
                       <div className="px-1.5 py-0.5 bg-hw-blue/20 text-hw-blue text-[7px] font-bold rounded uppercase tracking-tighter">
                         Synced
+                      </div>
+                    )}
+                    {item.isHost && (
+                      <div className="px-1.5 py-0.5 bg-green-500/20 text-green-500 text-[7px] font-bold rounded uppercase tracking-tighter">
+                        Host
                       </div>
                     )}
                   </div>
@@ -439,6 +541,63 @@ export const MyFilesApp: React.FC = () => {
           <span>{currentFolder?.name}</span>
         </div>
       </div>
+
+      {/* Custom Context Menu */}
+      <AnimatePresence>
+        {contextMenu?.show && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="absolute z-[1000] bg-hw-black border border-hw-blue/30 shadow-2xl rounded-sm py-1 min-w-[160px]"
+            style={{ left: contextMenu.x - 20, top: contextMenu.y - 20 }}
+          >
+            <div className="px-3 py-1 text-[8px] uppercase tracking-widest opacity-40 border-b border-hw-blue/10 mb-1">
+              {contextMenu.item.name}
+            </div>
+            
+            <button className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors">
+              <ArrowRight size={12} className="opacity-60" /> Open
+            </button>
+
+            <button className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors">
+              <MoreVertical size={12} className="opacity-60" /> Open With...
+            </button>
+
+            <div className="h-[1px] bg-hw-blue/10 my-1" />
+
+            <button 
+              onClick={() => setClipboard({ item: contextMenu.item, action: 'copy' })}
+              className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors"
+            >
+              <ArrowRight size={12} className="opacity-60" /> Copy
+            </button>
+
+            <button 
+              onClick={() => setClipboard({ item: contextMenu.item, action: 'cut' })}
+              className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors"
+            >
+              <ArrowRight size={12} className="opacity-60" /> Cut
+            </button>
+
+            <button 
+              disabled={!clipboard}
+              className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors disabled:opacity-20"
+            >
+              <ArrowRight size={12} className="opacity-60" /> Paste
+            </button>
+
+            <div className="h-[1px] bg-hw-blue/10 my-1" />
+
+            <button 
+              onClick={() => deleteItem(contextMenu.item.id)}
+              className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-red-500/10 text-red-500 flex items-center gap-2 uppercase tracking-widest transition-colors"
+            >
+              <Trash2 size={12} className="opacity-60" /> Delete
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
