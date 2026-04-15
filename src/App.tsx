@@ -917,11 +917,10 @@ export default function App() {
       </div>
       
       {/* Desktop Icons Container */}
-      <motion.div 
+      <div 
         className="absolute inset-0 z-10 overflow-hidden" 
         ref={desktopRef}
-        animate={{ bottom: (theme.taskbarStyle === 'panel' || shouldHideTaskbar || theme.intellihide) ? 0 : taskbarHeight }}
-        transition={{ duration: theme.animationSpeed, ease: "easeInOut" }}
+        style={{ bottom: taskbarHeight }}
       >
         {APPS.map((app) => {
           if (theme.desktopIcons?.[app.id] === false) return null;
@@ -965,7 +964,7 @@ export default function App() {
             />
           );
         })}
-      </motion.div>
+      </div>
 
       {/* Dash Panel (Ubuntu-style overflow) */}
       {showDash && (

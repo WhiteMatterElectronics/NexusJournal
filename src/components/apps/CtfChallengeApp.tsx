@@ -5,6 +5,8 @@ import { useSerial } from '../../contexts/SerialContext';
 import { useInventory } from '../../contexts/InventoryContext';
 import { cn } from '../../lib/utils';
 import Markdown from 'react-markdown';
+import { BlockRenderer } from '../shared/BlockRenderer';
+import { TutorialBlock } from '../../types/tutorial';
 
 const CollapsibleSection: React.FC<{ title: string; defaultOpen?: boolean; children: React.ReactNode }> = ({ title, defaultOpen = false, children }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
@@ -41,6 +43,18 @@ export const CtfChallengeApp: React.FC<{
   const [availableTutorials, setAvailableTutorials] = useState<any[]>([]);
   const [availableNotes, setAvailableNotes] = useState<any[]>([]);
   const [flagInputs, setFlagInputs] = useState<Record<string, string>>(challenge?.flagJournal || {});
+  
+  const renderDescription = (description: string) => {
+    try {
+      const parsed = JSON.parse(description);
+      if (Array.isArray(parsed)) {
+        return <BlockRenderer blocks={parsed as TutorialBlock[]} />;
+      }
+    } catch (e) {
+      // Fallback to markdown block
+    }
+    return <BlockRenderer blocks={[{ id: 'legacy', type: 'markdown', data: { text: description } }]} />;
+  };
   
   const terminalScrollRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -272,7 +286,7 @@ export const CtfChallengeApp: React.FC<{
               </div>
 
               <div className="prose prose-invert prose-hw max-w-none">
-                <Markdown>{challenge.description}</Markdown>
+                {renderDescription(challenge.description)}
               </div>
 
               {challenge.flags && challenge.flags.length > 0 && (
@@ -369,7 +383,7 @@ export const CtfChallengeApp: React.FC<{
                           </button>
                         </div>
                         <div className="prose prose-invert prose-hw max-w-none text-xs">
-                          <Markdown>{tut.content}</Markdown>
+                          {renderDescription(tut.content)}
                         </div>
                       </CollapsibleSection>
                     );

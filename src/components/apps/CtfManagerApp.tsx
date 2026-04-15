@@ -6,6 +6,8 @@ import { CtfChallenge, SerialTrigger, CtfFlag } from '../../types/ctf';
 import { cn } from '../../lib/utils';
 import { Tutorial } from '../../types';
 import Markdown from 'react-markdown';
+import { BlockRenderer } from '../shared/BlockRenderer';
+import { TutorialBlock } from '../../types/tutorial';
 
 const CollapsibleSection: React.FC<{ title: string; defaultOpen?: boolean; children: React.ReactNode }> = ({ title, defaultOpen = false, children }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
@@ -38,6 +40,18 @@ export const CtfManagerApp: React.FC<{
   const [editForm, setEditForm] = useState<Partial<CtfChallenge>>({});
   const [availableTutorials, setAvailableTutorials] = useState<Tutorial[]>([]);
   const [availableNotes, setAvailableNotes] = useState<any[]>([]);
+
+  const renderDescription = (description: string) => {
+    try {
+      const parsed = JSON.parse(description);
+      if (Array.isArray(parsed)) {
+        return <BlockRenderer blocks={parsed as TutorialBlock[]} />;
+      }
+    } catch (e) {
+      // Fallback to markdown block
+    }
+    return <BlockRenderer blocks={[{ id: 'legacy', type: 'markdown', data: { text: description } }]} />;
+  };
 
   useEffect(() => {
     // Fetch tutorials from API
@@ -540,7 +554,7 @@ export const CtfManagerApp: React.FC<{
                   </div>
 
                   <div className="prose prose-invert prose-hw max-w-none">
-                    <Markdown>{activeChallenge.description}</Markdown>
+                    {renderDescription(activeChallenge.description)}
                   </div>
 
                   {activeChallenge.flags && activeChallenge.flags.length > 0 && (
@@ -602,7 +616,7 @@ export const CtfManagerApp: React.FC<{
                               </button>
                             </div>
                             <div className="prose prose-invert prose-hw max-w-none text-xs">
-                              <Markdown>{tut.content}</Markdown>
+                              {renderDescription(tut.content)}
                             </div>
                           </CollapsibleSection>
                         );

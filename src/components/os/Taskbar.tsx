@@ -47,6 +47,27 @@ export const Taskbar: React.FC<TaskbarProps> = ({
   const [hoverRect, setHoverRect] = useState<{ left: number, width: number } | null>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const taskbarRef = useRef<HTMLDivElement>(null);
+  const startMenuRef = useRef<HTMLDivElement>(null);
+  const startButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        isStartOpen &&
+        startMenuRef.current &&
+        !startMenuRef.current.contains(event.target as Node) &&
+        startButtonRef.current &&
+        !startButtonRef.current.contains(event.target as Node)
+      ) {
+        setIsStartOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isStartOpen]);
 
   const contrastColor = getContrastColor(mainColor);
 
@@ -85,6 +106,7 @@ export const Taskbar: React.FC<TaskbarProps> = ({
       <AnimatePresence>
         {isStartOpen && (
           <motion.div 
+            ref={startMenuRef}
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
@@ -176,6 +198,7 @@ export const Taskbar: React.FC<TaskbarProps> = ({
         style={{ backdropFilter: 'var(--theme-backdrop-filter)', borderColor: 'var(--theme-border-color)', color: 'var(--theme-text)' }}
       >
         <button
+          ref={startButtonRef}
           onClick={() => {
             if (taskbarStyle === 'panel' && onToggleDash) {
               onToggleDash();
