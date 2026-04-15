@@ -179,12 +179,11 @@ export const BluetoothApp: React.FC = () => {
         } else if (text.includes("ERR: UUID not found/writable")) {
           if (lastWriteUuidRef.current) {
             const uuid = lastWriteUuidRef.current;
-            addLog('error', `[${uuid}] Write failed. Removing write permission.`);
+            addLog('error', `[${uuid}] Write failed. Marking as unverified.`);
             setServices(prev => prev.map(s => ({
               ...s,
               characteristics: s.characteristics.map(c => c.uuid === uuid ? { 
                 ...c, 
-                properties: c.properties.filter(p => p !== 'WRITE'),
                 verifiedWritable: false 
               } : c)
             })));
@@ -583,7 +582,7 @@ export const BluetoothApp: React.FC = () => {
                     <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded flex justify-between items-center">
                       <span className="text-red-400 text-xs uppercase tracking-widest font-bold">Device Disconnected</span>
                       <button 
-                        onClick={() => connectToDevice(lastConnectedAddress)}
+                        onClick={() => connectDevice(lastConnectedAddress)}
                         className="px-4 py-1.5 bg-red-500/20 hover:bg-red-500/40 text-red-400 rounded text-[10px] font-bold uppercase tracking-widest transition-colors"
                       >
                         Reconnect
