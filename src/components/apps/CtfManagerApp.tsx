@@ -4,10 +4,9 @@ import { useInventory } from '../../contexts/InventoryContext';
 import { useCtf } from '../../contexts/CtfContext';
 import { CtfChallenge, SerialTrigger, CtfFlag } from '../../types/ctf';
 import { cn } from '../../lib/utils';
-import { Tutorial } from '../../types';
+import { Tutorial, TutorialBlock } from '../../types';
 import Markdown from 'react-markdown';
 import { BlockRenderer } from '../shared/BlockRenderer';
-import { TutorialBlock } from '../../types/tutorial';
 
 const CollapsibleSection: React.FC<{ title: string; defaultOpen?: boolean; children: React.ReactNode }> = ({ title, defaultOpen = false, children }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
@@ -141,6 +140,17 @@ export const CtfManagerApp: React.FC<{
         return { ...prev, notes: current.filter(id => id !== noteId) };
       } else {
         return { ...prev, notes: [...current, noteId] };
+      }
+    });
+  };
+
+  const handleToggleInventoryItem = (itemId: string) => {
+    setEditForm(prev => {
+      const current = prev.inventoryItems || [];
+      if (current.includes(itemId)) {
+        return { ...prev, inventoryItems: current.filter(id => id !== itemId) };
+      } else {
+        return { ...prev, inventoryItems: [...current, itemId] };
       }
     });
   };

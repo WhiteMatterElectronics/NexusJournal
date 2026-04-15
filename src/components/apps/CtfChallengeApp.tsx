@@ -6,7 +6,7 @@ import { useInventory } from '../../contexts/InventoryContext';
 import { cn } from '../../lib/utils';
 import Markdown from 'react-markdown';
 import { BlockRenderer } from '../shared/BlockRenderer';
-import { TutorialBlock } from '../../types/tutorial';
+import { TutorialBlock } from '../../types';
 
 const CollapsibleSection: React.FC<{ title: string; defaultOpen?: boolean; children: React.ReactNode }> = ({ title, defaultOpen = false, children }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
@@ -121,7 +121,7 @@ export const CtfChallengeApp: React.FC<{
   useEffect(() => {
     if (iframeRef.current && iframeRef.current.contentWindow) {
       const lastLog = logs[logs.length - 1];
-      if (lastLog && lastLog.type === 'data') {
+      if (lastLog) {
         iframeRef.current.contentWindow.postMessage({ type: 'SERIAL_DATA', data: lastLog.text }, '*');
       }
     }
@@ -132,7 +132,7 @@ export const CtfChallengeApp: React.FC<{
     if (!challenge || challenge.status === 'solved') return;
 
     const lastLog = logs[logs.length - 1];
-    if (!lastLog || lastLog.type !== 'data') return;
+    if (!lastLog) return;
 
     challenge.serialTriggers.forEach(trigger => {
       try {

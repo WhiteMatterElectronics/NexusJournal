@@ -3,7 +3,7 @@ import { Terminal, Copy, AlertTriangle, Lightbulb } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { cn } from '../../lib/utils';
-import { TutorialBlock } from '../../types/tutorial';
+import { TutorialBlock } from '../../types';
 
 export const BlockRenderer: React.FC<{ blocks: TutorialBlock[] }> = ({ blocks }) => {
   const renderBlock = (block: TutorialBlock) => {

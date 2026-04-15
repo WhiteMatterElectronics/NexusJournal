@@ -54,6 +54,7 @@ export const BluetoothApp: React.FC = () => {
   const [rxChar, setRxChar] = useState<string>('');
   const [terminalLogs, setTerminalLogs] = useState<TerminalLog[]>([]);
   const [terminalInput, setTerminalInput] = useState('');
+  const [autoScroll, setAutoScroll] = useState(true);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const terminalScrollRef = useRef<HTMLDivElement>(null);
@@ -88,10 +89,10 @@ export const BluetoothApp: React.FC = () => {
   }, [logs]);
 
   useEffect(() => {
-    if (terminalScrollRef.current) {
+    if (autoScroll && terminalScrollRef.current) {
       terminalScrollRef.current.scrollTop = terminalScrollRef.current.scrollHeight;
     }
-  }, [terminalLogs]);
+  }, [terminalLogs, autoScroll]);
 
   useEffect(() => {
     const handleSerialLine = (e: Event) => {
@@ -619,6 +620,30 @@ export const BluetoothApp: React.FC = () => {
                   </div>
                   
                   <div className="flex-1 bg-black/40 border border-hw-blue/20 rounded-xl flex flex-col overflow-hidden">
+                    <div className="hw-panel-header flex justify-between items-center border-b border-hw-blue/20 px-4 py-2 shrink-0">
+                      <div className="flex items-center gap-2">
+                        <Terminal className="w-3 h-3 opacity-50" />
+                        <span className="text-[9px] font-bold uppercase tracking-widest opacity-60">Terminal Output</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <button 
+                          onClick={() => setAutoScroll(!autoScroll)}
+                          className={cn(
+                            "text-[8px] font-bold uppercase tracking-widest px-2 py-0.5 rounded transition-all",
+                            autoScroll ? "bg-hw-blue/20 text-hw-blue" : "bg-hw-blue/5 text-hw-blue/40 hover:text-hw-blue/60"
+                          )}
+                        >
+                          {autoScroll ? "Auto-Scroll: ON" : "Auto-Scroll: OFF"}
+                        </button>
+                        <button 
+                          onClick={() => setTerminalLogs([])}
+                          className="p-1 hover:bg-red-500/20 rounded transition-colors"
+                          title="Clear Terminal"
+                        >
+                          <Trash2 className="w-3 h-3 text-red-500/60" />
+                        </button>
+                      </div>
+                    </div>
                     <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar" ref={terminalScrollRef}>
                       {terminalLogs.length === 0 && (
                         <div className="h-full flex items-center justify-center text-hw-blue/30 italic text-xs">

@@ -57,7 +57,7 @@ export const ConsoleApp: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     if (bridgeInput.trim()) {
-      writeToSerial(bridgeInput + "\n");
+      writeToSerial(`BRIDGE WRITE ${bridgeInput}\n`);
       setBridgeInput("");
     }
   };

@@ -210,12 +210,12 @@ void loop() { vTaskDelete(NULL); }
 void taskUartBridge(void *pvParameters) {
   bool needsPrefix = true;
   for (;;) {
-    if (bridgeActive && Serial1.available()) {
-      if (needsPrefix) {
-        Serial.print(F("[UART] "));
-        needsPrefix = false;
-      }
+    if (bridgeActive) {
       while (Serial1.available()) {
+        if (needsPrefix) {
+          Serial.print(F("[UART] "));
+          needsPrefix = false;
+        }
         char c = Serial1.read();
         Serial.write(c);
         if (c == '\n') needsPrefix = true; 
@@ -449,9 +449,14 @@ void handleBridge(String input) {
             assistantPrintln("[BRIDGE] ERR: Invalid Baud Rate");
         }
     }
+    else if (subUpper.startsWith("WRITE ")) {
+        String data = sub.substring(6);
+        // No trim here to allow sending spaces if needed
+        Serial1.println(data);
+    }
     else {
         assistantPrintf("[BRIDGE] Status: %s | Baud: %d\n", bridgeActive ? "ON" : "OFF", bridgeBaud);
-        assistantPrintln("[BRIDGE] Usage: BRIDGE [ON|OFF|BAUD <value>]");
+        assistantPrintln("[BRIDGE] Usage: BRIDGE [ON|OFF|BAUD <value>|WRITE <data>]");
     }
 }
 
