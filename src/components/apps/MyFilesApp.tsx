@@ -4,7 +4,7 @@ import {
   Trash2, Download, Upload, Plus, MoreVertical, 
   FileText, Image as ImageIcon, Video, FileCode, 
   HardDrive, Home, Clock, Star, ArrowLeft, ArrowRight,
-  FileDown, Loader2
+  FileDown, Loader2, Share2, Layout, Activity, Info
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useSettings } from '../../contexts/SettingsContext';
@@ -34,15 +34,17 @@ const DEFAULT_STRUCTURE: FileSystemItem[] = [
 ];
 
 export const MyFilesApp: React.FC = () => {
-  const { theme } = useSettings();
+  const { theme, updateTheme } = useSettings();
   const [items, setItems] = useState<FileSystemItem[]>([]);
   const [currentFolderId, setCurrentFolderId] = useState<string>('root');
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [iconSize, setIconSize] = useState<number>(64);
   const [history, setHistory] = useState<string[]>(['root']);
   const [historyIndex, setHistoryIndex] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Host Machine State
   const [hostHandle, setHostHandle] = useState<FileSystemDirectoryHandle | null>(null);
@@ -82,15 +84,35 @@ export const MyFilesApp: React.FC = () => {
     }
   }, []);
 
+  // Listen for file updates from other apps (like Properties)
+  useEffect(() => {
+    const handleUpdateFile = (e: any) => {
+      const { fileId, updates } = e.detail;
+      setItems(prev => {
+        const next = prev.map(item => item.id === fileId ? { ...item, ...updates } : item);
+        localStorage.setItem('hw_os_fs', JSON.stringify(next));
+        return next;
+      });
+    };
+    window.addEventListener('hw_os_update_file', handleUpdateFile);
+    return () => window.removeEventListener('hw_os_update_file', handleUpdateFile);
+  }, []);
+
   // Host Machine Connection
   const connectHost = async () => {
+    if (!('showDirectoryPicker' in window)) {
+      alert("FILE SYSTEM ACCESS DENIED: Your browser does not support the File System Access API or you are not in a secure context. Please use a Chromium-based browser (Chrome, Edge) and ensure the site is served over HTTPS.");
+      return;
+    }
     try {
       const handle = await (window as any).showDirectoryPicker();
       setHostHandle(handle);
       setCurrentFolderId('host-root');
       loadHostItems(handle);
-    } catch (err) {
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
       console.error("Host connection failed", err);
+      alert(`HOST_BRIDGE_ERROR: ${err.message}`);
     }
   };
 
@@ -266,12 +288,90 @@ export const MyFilesApp: React.FC = () => {
   const handleContextMenu = (e: React.MouseEvent, item: any) => {
     e.preventDefault();
     e.stopPropagation();
+    const rect = containerRef.current?.getBoundingClientRect();
     setContextMenu({
-      x: e.clientX,
-      y: e.clientY,
+      x: e.clientX - (rect?.left || 0),
+      y: e.clientY - (rect?.top || 0),
       show: true,
       item
     });
+  };
+
+  const openFile = (item: any) => {
+    if (item.type === 'folder') {
+      navigateTo(item.id);
+      return;
+    }
+
+    if (item.category === 'note') {
+      const noteId = item.id.replace('note-', '');
+      window.dispatchEvent(new CustomEvent('hw_os_open_app', { 
+        detail: { appId: 'notes', initialProps: { initialNoteId: noteId } } 
+      }));
+    } else if (item.category === 'tutorial') {
+      const tutorialId = item.id.replace('tutorial-', '');
+      window.dispatchEvent(new CustomEvent('hw_os_open_tutorial', { 
+        detail: { tutorialId } 
+      }));
+    } else if (item.category === 'image') {
+      alert("Image viewer coming soon! For now, you can download it.");
+    } else if (item.category === 'pdf') {
+      if (item.content) {
+        const link = document.createElement('a');
+        link.href = item.content;
+        link.download = `${item.name}.pdf`;
+        link.click();
+      }
+    }
+  };
+
+  const importHostFile = async (item: any) => {
+    if (!item.isHost || item.type === 'folder') return;
+    try {
+      const file = await item.handle.getFile();
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        const extension = file.name.split('.').pop()?.toLowerCase();
+        const newItem: FileSystemItem = {
+          id: crypto.randomUUID(),
+          name: file.name.split('.')[0],
+          type: 'file',
+          extension,
+          content,
+          parentId: 'downloads', // Default to downloads
+          createdAt: Date.now(),
+          size: file.size,
+          category: extension === 'pdf' ? 'pdf' : 'text'
+        };
+        saveFS([...items, newItem]);
+        alert(`Imported ${file.name} to virtual database!`);
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error("Import failed", err);
+    }
+  };
+
+  const createShortcut = (item: any) => {
+    const newShortcut = {
+      id: crypto.randomUUID(),
+      label: item.name,
+      type: item.type,
+      targetId: item.id,
+      category: item.category
+    };
+    updateTheme(prev => ({
+      ...prev,
+      shortcuts: [...(prev.shortcuts || []), newShortcut]
+    }));
+    alert(`Shortcut for ${item.name} created on desktop!`);
+  };
+
+  const setAsWallpaper = (item: any) => {
+    if (item.category !== 'image' || !item.content) return;
+    updateTheme({ backgroundType: 'custom', customBackgroundUrl: item.content });
+    alert("Wallpaper updated!");
   };
 
   const deleteItem = (id: string) => {
@@ -342,6 +442,7 @@ export const MyFilesApp: React.FC = () => {
 
   return (
     <div 
+      ref={containerRef}
       className="flex h-full select-none relative" 
       style={{ backgroundColor: 'var(--theme-panel-bg)', color: 'var(--theme-text)' }}
       onClick={() => setContextMenu(null)}
@@ -380,7 +481,7 @@ export const MyFilesApp: React.FC = () => {
               )}
             >
               <HardDrive size={14} />
-              {hostHandle ? hostHandle.name : 'Connect PC'}
+              {hostHandle ? hostHandle.name : 'Real PC'}
             </button>
           </div>
         </div>
@@ -399,7 +500,7 @@ export const MyFilesApp: React.FC = () => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Toolbar */}
-        <div className="h-12 border-b border-hw-blue/10 flex items-center px-4 gap-4" style={{ borderColor: 'var(--theme-border-color)' }}>
+        <div className="h-12 border-b border-hw-blue/10 flex items-center px-4 gap-4 bg-hw-blue/5" style={{ borderColor: 'var(--theme-border-color)' }}>
           <div className="flex items-center gap-1">
             <button 
               onClick={goBack} 
@@ -431,7 +532,41 @@ export const MyFilesApp: React.FC = () => {
             ))}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1 bg-hw-blue/5 rounded-lg p-0.5 border border-hw-blue/10">
+              <button 
+                onClick={() => setViewMode('grid')}
+                className={cn(
+                  "p-1 rounded transition-colors",
+                  viewMode === 'grid' ? "bg-hw-blue/20 text-hw-blue" : "hover:bg-hw-blue/10 opacity-60"
+                )}
+              >
+                <Layout size={14} />
+              </button>
+              <button 
+                onClick={() => setViewMode('list')}
+                className={cn(
+                  "p-1 rounded transition-colors",
+                  viewMode === 'list' ? "bg-hw-blue/20 text-hw-blue" : "hover:bg-hw-blue/10 opacity-60"
+                )}
+              >
+                <Activity size={14} />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 px-2 border-l border-hw-blue/10">
+              <span className="text-[8px] uppercase opacity-40">Size</span>
+              <input 
+                type="range" 
+                min="40" 
+                max="120" 
+                step="10"
+                value={iconSize}
+                onChange={(e) => setIconSize(parseInt(e.target.value))}
+                className="w-16 h-1 bg-hw-blue/20 rounded-lg appearance-none cursor-pointer accent-hw-blue"
+              />
+            </div>
+
             <div className="relative w-48">
               <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 opacity-40" />
               <input 
@@ -476,40 +611,49 @@ export const MyFilesApp: React.FC = () => {
           ) : (
             <div className={cn(
               "grid gap-4",
-              viewMode === 'grid' ? "grid-cols-[repeat(auto-fill,minmax(100px,1fr))]" : "grid-cols-1"
-            )}>
+              viewMode === 'grid' 
+                ? "grid-cols-[repeat(auto-fill,minmax(var(--icon-size),1fr))]" 
+                : "grid-cols-1"
+            )} style={{ '--icon-size': `${iconSize}px` } as any}>
               {currentItems.map(item => (
                 <motion.div
                   key={item.id}
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  onDoubleClick={() => item.type === 'folder' ? navigateTo(item.id) : null}
+                  onDoubleClick={() => openFile(item)}
                   onContextMenu={(e) => handleContextMenu(e, item)}
                   className={cn(
-                    "group relative flex flex-col items-center p-4 rounded-lg border border-transparent transition-all cursor-pointer",
-                    viewMode === 'grid' ? "hover:bg-hw-blue/5 hover:border-hw-blue/10" : "flex-row gap-4 py-2"
+                    "group relative flex items-center rounded-lg border border-transparent transition-all cursor-pointer",
+                    viewMode === 'grid' ? "flex-col p-4 hover:bg-hw-blue/5 hover:border-hw-blue/10" : "flex-row gap-4 py-2 px-4 hover:bg-hw-blue/5"
                   )}
                 >
                   <div className={cn(
-                    "mb-2 transition-transform group-hover:scale-110",
-                    viewMode === 'list' && "mb-0"
-                  )}>
+                    "transition-transform group-hover:scale-110",
+                    viewMode === 'grid' ? "mb-2" : "mb-0"
+                  )} style={viewMode === 'grid' ? { width: iconSize * 0.6, height: iconSize * 0.6 } : {}}>
                     {getFileIcon(item)}
                   </div>
                   <div className={cn(
-                    "text-center w-full",
-                    viewMode === 'list' && "text-left flex items-center justify-between"
+                    "w-full",
+                    viewMode === 'grid' ? "text-center" : "text-left flex items-center justify-between flex-1"
                   )}>
                     <span className="text-[10px] font-bold uppercase tracking-tight truncate block">
                       {item.name}{item.extension ? `.${item.extension}` : ''}
                     </span>
                     {viewMode === 'list' && (
-                      <span className="text-[9px] opacity-40 font-mono">{formatSize(item.size)}</span>
+                      <div className="flex items-center gap-6 text-[9px] uppercase opacity-40">
+                        <span>{item.type}</span>
+                        <span className="w-16 text-right">{item.size ? `${(item.size / 1024).toFixed(1)} KB` : '--'}</span>
+                        <span className="w-24 text-right">{new Date(item.createdAt).toLocaleDateString()}</span>
+                      </div>
                     )}
                   </div>
 
                   {/* Context Actions (Hover) */}
-                  <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                  <div className={cn(
+                    "opacity-0 group-hover:opacity-100 transition-opacity flex gap-1",
+                    viewMode === 'grid' ? "absolute top-1 right-1" : "ml-4"
+                  )}>
                     {!item.isVirtual && !item.isHost && (
                       <button 
                         onClick={(e) => { e.stopPropagation(); deleteItem(item.id); }}
@@ -546,35 +690,89 @@ export const MyFilesApp: React.FC = () => {
       <AnimatePresence>
         {contextMenu?.show && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="absolute z-[1000] bg-hw-black border border-hw-blue/30 shadow-2xl rounded-sm py-1 min-w-[160px]"
-            style={{ left: contextMenu.x - 20, top: contextMenu.y - 20 }}
+            initial={{ opacity: 0, scale: 0.95, y: contextMenu.y > (containerRef.current?.clientHeight || window.innerHeight) - 250 ? 10 : -10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: contextMenu.y > (containerRef.current?.clientHeight || window.innerHeight) - 250 ? 10 : -10 }}
+            transition={{ duration: 0.1 }}
+            className={cn(
+              "absolute z-[1000] shadow-2xl py-1 min-w-[180px] overflow-hidden origin-top-left",
+              contextMenu.y > (containerRef.current?.clientHeight || window.innerHeight) - 250 && "origin-bottom-left",
+              theme.globalTheme === 'glassy' ? "rounded-2xl backdrop-blur-md bg-black/40 border border-white/10" : "rounded-sm bg-hw-black border border-hw-blue/30"
+            )}
+            style={{ 
+              left: Math.min(contextMenu.x, (containerRef.current?.clientWidth || window.innerWidth) - 190), 
+              ...(contextMenu.y > (containerRef.current?.clientHeight || window.innerHeight) - 250 
+                ? { bottom: (containerRef.current?.clientHeight || window.innerHeight) - contextMenu.y } 
+                : { top: contextMenu.y })
+            }}
           >
-            <div className="px-3 py-1 text-[8px] uppercase tracking-widest opacity-40 border-b border-hw-blue/10 mb-1">
+            <div className="px-3 py-1 text-[8px] uppercase tracking-widest opacity-40 border-b border-hw-blue/10 mb-1 truncate">
               {contextMenu.item.name}
             </div>
             
-            <button className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors">
+            <button 
+              onClick={() => { openFile(contextMenu.item); setContextMenu(null); }}
+              className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors"
+            >
               <ArrowRight size={12} className="opacity-60" /> Open
             </button>
+
+            {contextMenu.item.isHost && (
+              <button 
+                onClick={() => { importHostFile(contextMenu.item); setContextMenu(null); }}
+                className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors text-hw-blue"
+              >
+                <Download size={12} className="opacity-60" /> Import to DB
+              </button>
+            )}
+
+            {!contextMenu.item.isHost && contextMenu.item.type === 'file' && (
+              <button 
+                onClick={() => { openFile(contextMenu.item); setContextMenu(null); }}
+                className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors"
+              >
+                <FileDown size={12} className="opacity-60" /> Download to PC
+              </button>
+            )}
+
+            <button 
+              onClick={() => { createShortcut(contextMenu.item); setContextMenu(null); }}
+              className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors"
+            >
+              <Share2 size={12} className="opacity-60" /> Create Shortcut
+            </button>
+
+            {contextMenu.item.category === 'image' && (
+              <button 
+                onClick={() => { setAsWallpaper(contextMenu.item); setContextMenu(null); }}
+                className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors"
+              >
+                <ImageIcon size={12} className="opacity-60" /> Set as Wallpaper
+              </button>
+            )}
 
             <button className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors">
               <MoreVertical size={12} className="opacity-60" /> Open With...
             </button>
 
+            <button 
+              onClick={() => { window.dispatchEvent(new CustomEvent('hw_os_open_app', { detail: { id: 'properties', props: { file: contextMenu.item } } })); setContextMenu(null); }}
+              className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors"
+            >
+              <Info size={12} className="opacity-60" /> Properties
+            </button>
+
             <div className="h-[1px] bg-hw-blue/10 my-1" />
 
             <button 
-              onClick={() => setClipboard({ item: contextMenu.item, action: 'copy' })}
+              onClick={() => { setClipboard({ item: contextMenu.item, action: 'copy' }); setContextMenu(null); }}
               className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors"
             >
               <ArrowRight size={12} className="opacity-60" /> Copy
             </button>
 
             <button 
-              onClick={() => setClipboard({ item: contextMenu.item, action: 'cut' })}
+              onClick={() => { setClipboard({ item: contextMenu.item, action: 'cut' }); setContextMenu(null); }}
               className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors"
             >
               <ArrowRight size={12} className="opacity-60" /> Cut
@@ -590,7 +788,7 @@ export const MyFilesApp: React.FC = () => {
             <div className="h-[1px] bg-hw-blue/10 my-1" />
 
             <button 
-              onClick={() => deleteItem(contextMenu.item.id)}
+              onClick={() => { deleteItem(contextMenu.item.id); setContextMenu(null); }}
               className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-red-500/10 text-red-500 flex items-center gap-2 uppercase tracking-widest transition-colors"
             >
               <Trash2 size={12} className="opacity-60" /> Delete

@@ -10,7 +10,7 @@ import { TutorialDetail } from './components/TutorialDetail';
 import { FlashModule } from './components/FlashModule';
 import { SystemConfig } from './components/SystemConfig';
 import { AppView, Tutorial } from './types';
-import { Settings, BookOpen, Zap, Terminal, Database, Radio, FileCode, Lock, Unlock, Activity, Cloud, ChevronRight, Layout, Plus, Monitor, RotateCcw, Power, Trash2, Info } from 'lucide-react';
+import { Settings, BookOpen, Zap, Terminal, Database, Radio, FileCode, Lock, Unlock, Activity, Cloud, ChevronRight, Layout, Plus, Monitor, RotateCcw, Power, Trash2, Info, Folder, FileText, FileDown, Image as ImageIcon, Video, File, Share2 } from 'lucide-react';
 import { Window } from './components/os/Window';
 import { Taskbar } from './components/os/Taskbar';
 import { ConsoleApp } from './components/apps/ConsoleApp';
@@ -66,7 +66,8 @@ function DesktopIcon({
   handleContextMenu,
   isDragging,
   currentMousePos,
-  dragOffset
+  dragOffset,
+  isShortcut
 }: any) {
   if (!gridPos) return null;
 
@@ -75,7 +76,21 @@ function DesktopIcon({
   const isDark = theme.isDarkMode;
   const contrastColor = getContrastColor(mainColor);
 
-  const labelText = app.label.replace('_', ' ').split(' ').slice(0, 2).join(' ');
+  const labelText = isShortcut ? app.label : app.label.replace('_', ' ').split(' ').slice(0, 2).join(' ');
+
+  const getShortcutIcon = (category?: string, type?: 'file' | 'folder') => {
+    if (type === 'folder') return Folder;
+    switch (category) {
+      case 'note': return FileText;
+      case 'tutorial': return FileCode;
+      case 'pdf': return FileDown;
+      case 'image': return ImageIcon;
+      case 'video': return Video;
+      default: return File;
+    }
+  };
+
+  const Icon = isShortcut ? getShortcutIcon(app.category, app.type) : app.icon;
 
   const desktopRect = desktopRef.current?.getBoundingClientRect();
   
@@ -170,8 +185,8 @@ function DesktopIcon({
 
   return (
     <motion.div
-      onMouseDown={(e) => onMouseDown(e, { id: app.id, pos: gridPos })}
-      onContextMenu={(e) => handleContextMenu(e, 'icon', app.id)}
+      onMouseDown={(e) => onMouseDown(e, { id: isShortcut ? `shortcut-${app.id}` : app.id, pos: gridPos })}
+      onContextMenu={(e) => handleContextMenu(e, isShortcut ? 'shortcut' : 'icon', isShortcut ? `shortcut-${app.id}` : app.id)}
       onTouchStart={(e) => {
         const touch = e.touches[0];
         const mouseEvent = new MouseEvent('mousedown', {
@@ -179,9 +194,9 @@ function DesktopIcon({
           clientY: touch.clientY,
           bubbles: true
         });
-        onMouseDown(mouseEvent as any, { id: app.id, pos: gridPos });
+        onMouseDown(mouseEvent as any, { id: isShortcut ? `shortcut-${app.id}` : app.id, pos: gridPos });
       }}
-      onDoubleClick={() => handleStartApp(app.id as AppView, `desktop-${app.id}`)}
+      onDoubleClick={() => isShortcut ? window.dispatchEvent(new CustomEvent('hw_os_open_shortcut', { detail: { shortcut: app } })) : handleStartApp(app.id as AppView, `desktop-${app.id}`)}
       style={style}
       className={cn(
         "flex flex-col items-center justify-center group cursor-grab",
@@ -215,7 +230,7 @@ function DesktopIcon({
           }}
           className="w-full h-full flex items-center justify-center"
         >
-          <app.icon 
+          <Icon 
             className={cn("w-1/2 h-1/2 transition-colors", !isGlassy && "drop-shadow-none")} 
             style={{ 
               color: appIconTheme === 'pixel' ? '#ffffff' : isGlassy ? (isDark ? mainColor : adjustColor(mainColor, -40)) : mainColor,
@@ -223,6 +238,12 @@ function DesktopIcon({
             }}
           />
         </motion.div>
+
+        {isShortcut && (
+          <div className="absolute bottom-1 right-1 bg-hw-black/60 rounded-sm p-0.5 border border-hw-blue/20">
+            <Share2 size={8} className="text-hw-blue" />
+          </div>
+        )}
 
         {/* Text Label - Absolute positioned to match GridTest style */}
         <div className="absolute top-full left-1/2 -translate-x-1/2 pt-2 w-[140%] flex justify-center pointer-events-none">
@@ -250,6 +271,7 @@ function DesktopIcon({
 
 export default function App() {
   const { profile, theme, updateTheme } = useSettings();
+  const isGlassy = theme.globalTheme === 'glassy';
   const [isLocked, setIsLocked] = useState(true);
   const [lockPassword, setLockPassword] = useState('');
   const [lockError, setLockError] = useState('');
@@ -272,9 +294,9 @@ export default function App() {
   ]);
   const [activeWindowId, setActiveWindowId] = useState<string | null>('console-1');
   const [highestZIndex, setHighestZIndex] = useState(1);
-  const [contextMenu, setContextMenu] = useState<{x: number, y: number, show: boolean, type?: 'desktop' | 'taskbar' | 'dash' | 'icon', appId?: string} | null>(null);
+  const [contextMenu, setContextMenu] = useState<{x: number, y: number, show: boolean, type?: 'desktop' | 'taskbar' | 'dash' | 'icon' | 'shortcut', appId?: string} | null>(null);
 
-  const handleContextMenu = (e: React.MouseEvent, type: 'desktop' | 'taskbar' | 'dash' | 'icon' = 'desktop', appId?: string) => {
+  const handleContextMenu = (e: React.MouseEvent, type: 'desktop' | 'taskbar' | 'dash' | 'icon' | 'shortcut' = 'desktop', appId?: string) => {
     e.preventDefault();
     e.stopPropagation();
     setContextMenu({ x: e.clientX, y: e.clientY, show: true, type, appId });
@@ -343,13 +365,18 @@ export default function App() {
     });
 
     // 1. Place icons with valid custom positions in current grid
-    APPS.forEach((app) => {
-      if (theme.desktopIcons?.[app.id] === false) return;
-      const saved = theme.iconPositions?.[app.id];
+    const allIcons = [...APPS, ...(theme.shortcuts || [])];
+    allIcons.forEach((app) => {
+      const isShortcut = !('icon' in app);
+      const appId = isShortcut ? `shortcut-${app.id}` : app.id;
+      
+      if (!isShortcut && theme.desktopIcons?.[app.id] === false) return;
+      
+      const saved = theme.iconPositions?.[appId];
       if (saved && saved.x < gridSize.cols && saved.y < gridSize.rows) {
         const key = `${Math.round(saved.x)},${Math.round(saved.y)}`;
         if (!reservedCoords.has(key)) {
-          final[app.id] = { x: Math.round(saved.x), y: Math.round(saved.y) };
+          final[appId] = { x: Math.round(saved.x), y: Math.round(saved.y) };
           reservedCoords.add(key);
         }
       }
@@ -359,16 +386,21 @@ export default function App() {
     const snakeSlots = getNextAvailableSnakeSlot(reservedCoords, gridSize.cols, gridSize.rows);
     let snakeIndex = 0;
 
-    APPS.forEach((app) => {
-      if (theme.desktopIcons?.[app.id] === false || final[app.id]) return;
+    allIcons.forEach((app) => {
+      const isShortcut = !('icon' in app);
+      const appId = isShortcut ? `shortcut-${app.id}` : app.id;
+
+      if (!isShortcut && theme.desktopIcons?.[app.id] === false) return;
+      if (final[appId]) return;
+
       const pos = snakeSlots[snakeIndex] || { x: 0, y: 0 };
-      final[app.id] = pos;
+      final[appId] = pos;
       snakeIndex++;
     });
     
     renderedPositionsRef.current = final;
     return final;
-  }, [theme.iconPositions, theme.desktopIcons, gridSize, theme.widgets]);
+  }, [theme.iconPositions, theme.desktopIcons, gridSize, theme.widgets, theme.shortcuts]);
 
   const handleIconDrop = useCallback((appId: string, targetCol: number, targetRow: number) => {
     const col = Math.max(0, Math.min(targetCol, gridSize.cols - 1));
@@ -853,6 +885,19 @@ export default function App() {
   }, [handleStartApp]);
 
   useEffect(() => {
+    const handleOpenTutorial = (e: any) => {
+      const { tutorialId } = e.detail;
+      const tut = tutorials.find(t => t.id === tutorialId);
+      if (tut) {
+        setSelectedTutorial(tut);
+        handleStartApp('tutorials');
+      }
+    };
+    window.addEventListener('hw_os_open_tutorial', handleOpenTutorial);
+    return () => window.removeEventListener('hw_os_open_tutorial', handleOpenTutorial);
+  }, [tutorials, handleStartApp]);
+
+  useEffect(() => {
     const handleTriggerSaveDialog = (e: any) => {
       const { fileName, onSaveToDB, onSaveToLocal } = e.detail;
       setSaveDialog({
@@ -865,6 +910,27 @@ export default function App() {
     window.addEventListener('hw_os_trigger_save_dialog', handleTriggerSaveDialog);
     return () => window.removeEventListener('hw_os_trigger_save_dialog', handleTriggerSaveDialog);
   }, []);
+
+  useEffect(() => {
+    const handleOpenShortcut = (e: any) => {
+      const { shortcut } = e.detail;
+      if (shortcut.category === 'note') {
+        const noteId = shortcut.targetId.replace('note-', '');
+        handleStartApp('notes', undefined, { initialNoteId: noteId });
+      } else if (shortcut.category === 'tutorial') {
+        const tutorialId = shortcut.targetId.replace('tutorial-', '');
+        const tut = tutorials.find(t => t.id === tutorialId);
+        if (tut) {
+          setSelectedTutorial(tut);
+          handleStartApp('tutorials');
+        }
+      } else if (shortcut.type === 'folder') {
+        handleStartApp('my_files'); // Future: open specific folder
+      }
+    };
+    window.addEventListener('hw_os_open_shortcut', handleOpenShortcut);
+    return () => window.removeEventListener('hw_os_open_shortcut', handleOpenShortcut);
+  }, [tutorials, handleStartApp]);
 
   if (isLocked) {
     return (
@@ -933,63 +999,84 @@ export default function App() {
             exit={{ opacity: 0, scale: 0.95, y: contextMenu.y > window.innerHeight - 300 ? 10 : -10 }}
             transition={{ duration: 0.1 }}
             className={cn(
-              "absolute z-[99999] bg-hw-black border border-hw-blue/30 shadow-[0_0_25px_rgba(0,0,0,0.5)] rounded-sm py-1 min-w-[200px] origin-top-left",
-              contextMenu.y > window.innerHeight - 300 && "origin-bottom-left"
+              "absolute z-[99999] shadow-[0_0_25px_rgba(0,0,0,0.5)] py-1 min-w-[200px] origin-top-left overflow-hidden",
+              contextMenu.y > window.innerHeight - 300 && "origin-bottom-left",
+              isGlassy ? "rounded-2xl backdrop-blur-md bg-black/40 border border-white/10" : "rounded-sm bg-hw-black border border-hw-blue/30"
             )}
             style={{ 
               left: Math.min(contextMenu.x, window.innerWidth - 210), 
-              top: contextMenu.y > window.innerHeight - 300 ? contextMenu.y - 280 : contextMenu.y,
+              ...(contextMenu.y > window.innerHeight - 300 
+                ? { bottom: window.innerHeight - contextMenu.y } 
+                : { top: contextMenu.y }),
               backdropFilter: 'var(--theme-backdrop-filter)' 
             }}
           >
-            {contextMenu.type === 'icon' ? (
+            {contextMenu.type === 'icon' || contextMenu.type === 'shortcut' ? (
               <>
                 <div className="px-3 py-1 text-[8px] uppercase tracking-[0.2em] text-hw-blue/40 border-b border-hw-blue/10 mb-1">
-                  {APPS.find(a => a.id === contextMenu.appId)?.label || 'App'}
+                  {contextMenu.type === 'shortcut' 
+                    ? theme.shortcuts.find(s => `shortcut-${s.id}` === contextMenu.appId)?.label 
+                    : APPS.find(a => a.id === contextMenu.appId)?.label || 'App'}
                 </div>
                 <button
                   onClick={() => {
-                    handleStartApp(contextMenu.appId as AppView);
+                    if (contextMenu.type === 'shortcut') {
+                      const shortcut = theme.shortcuts.find(s => `shortcut-${s.id}` === contextMenu.appId);
+                      if (shortcut) window.dispatchEvent(new CustomEvent('hw_os_open_shortcut', { detail: { shortcut } }));
+                    } else {
+                      handleStartApp(contextMenu.appId as AppView);
+                    }
                     setContextMenu(null);
                   }}
                   className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 transition-colors"
                 >
                   <Zap size={12} className="text-hw-blue/60" />
-                  <span className="tracking-widest uppercase">Open App</span>
+                  <span className="tracking-widest uppercase">Open {contextMenu.type === 'shortcut' ? 'File' : 'App'}</span>
                 </button>
-                <button
-                  onClick={() => {
-                    handleStartApp('settings', undefined, { initialTab: 'desktop' });
-                    setContextMenu(null);
-                  }}
-                  className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 transition-colors"
-                >
-                  <Monitor size={12} className="text-hw-blue/60" />
-                  <span className="tracking-widest uppercase">Desktop Settings</span>
-                </button>
-                <button
-                  onClick={() => {
-                    handleStartApp('properties', undefined, { appId: contextMenu.appId });
-                    setContextMenu(null);
-                  }}
-                  className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 transition-colors"
-                >
-                  <Info size={12} className="text-hw-blue/60" />
-                  <span className="tracking-widest uppercase">Properties</span>
-                </button>
+                {contextMenu.type === 'icon' && (
+                  <>
+                    <button
+                      onClick={() => {
+                        handleStartApp('settings', undefined, { initialTab: 'desktop' });
+                        setContextMenu(null);
+                      }}
+                      className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 transition-colors"
+                    >
+                      <Monitor size={12} className="text-hw-blue/60" />
+                      <span className="tracking-widest uppercase">Desktop Settings</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleStartApp('properties', undefined, { appId: contextMenu.appId });
+                        setContextMenu(null);
+                      }}
+                      className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 transition-colors"
+                    >
+                      <Info size={12} className="text-hw-blue/60" />
+                      <span className="tracking-widest uppercase">Properties</span>
+                    </button>
+                  </>
+                )}
                 <div className="h-[1px] bg-hw-blue/10 my-1" />
                 <button
                   onClick={() => {
-                    updateTheme(prev => ({
-                      ...prev,
-                      desktopIcons: { ...prev.desktopIcons, [contextMenu.appId!]: false }
-                    }));
+                    if (contextMenu.type === 'shortcut') {
+                      updateTheme(prev => ({
+                        ...prev,
+                        shortcuts: prev.shortcuts.filter(s => `shortcut-${s.id}` !== contextMenu.appId)
+                      }));
+                    } else {
+                      updateTheme(prev => ({
+                        ...prev,
+                        desktopIcons: { ...prev.desktopIcons, [contextMenu.appId!]: false }
+                      }));
+                    }
                     setContextMenu(null);
                   }}
                   className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-red-500/10 flex items-center gap-2 transition-colors group"
                 >
                   <Trash2 size={12} className="text-red-500/60 group-hover:text-red-500" />
-                  <span className="tracking-widest uppercase text-red-500/80 group-hover:text-red-500">Delete Icon</span>
+                  <span className="tracking-widest uppercase text-red-500/80 group-hover:text-red-500">Delete {contextMenu.type === 'shortcut' ? 'Shortcut' : 'Icon'}</span>
                 </button>
               </>
             ) : contextMenu.type === 'desktop' ? (
@@ -1134,6 +1221,29 @@ export default function App() {
               onMouseDown={handleMouseDown}
               handleContextMenu={handleContextMenu}
               isDragging={draggingId === app.id}
+              currentMousePos={currentMousePos}
+              dragOffset={dragOffset}
+            />
+          );
+        })}
+
+        {theme.shortcuts?.map(shortcut => {
+          const gridPos = renderedPositions[`shortcut-${shortcut.id}`];
+          if (!gridPos) return null;
+          
+          return (
+            <DesktopIcon
+              key={`shortcut-${shortcut.id}`}
+              app={shortcut}
+              isShortcut={true}
+              gridPos={gridPos}
+              theme={theme}
+              handleStartApp={handleStartApp}
+              desktopRef={desktopRef}
+              gridSize={gridSize}
+              onMouseDown={handleMouseDown}
+              handleContextMenu={handleContextMenu}
+              isDragging={draggingId === `shortcut-${shortcut.id}`}
               currentMousePos={currentMousePos}
               dragOffset={dragOffset}
             />

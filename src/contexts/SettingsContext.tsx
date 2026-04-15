@@ -64,6 +64,15 @@ export interface ThemeConfig {
   animateIcons: boolean;
   iconScale: number;
   labelScale: number;
+  shortcuts: Shortcut[];
+}
+
+export interface Shortcut {
+  id: string;
+  label: string;
+  type: 'file' | 'folder';
+  targetId: string;
+  category?: string;
 }
 
 interface SettingsContextType {
@@ -184,7 +193,8 @@ const defaultTheme: ThemeConfig = {
   customCss: '',
   animateIcons: true,
   iconScale: 1,
-  labelScale: 1
+  labelScale: 1,
+  shortcuts: []
 };
 
 const SettingsContext = createContext<SettingsContextType | null>(null);
