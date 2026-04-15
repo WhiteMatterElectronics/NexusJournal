@@ -91,33 +91,22 @@ export const NotesWidget: React.FC<WidgetProps> = ({ instanceId, mainColor, isDa
     }
   };
 
-  const openInNotes = () => {
-    // We can't directly launch the app from here easily without passing handleStartApp,
-    // but we can dispatch a custom event that App.tsx listens to.
-    window.dispatchEvent(new CustomEvent('hw_os_open_app', { 
-      detail: { appId: 'notes', morphFromId: instanceId } 
-    }));
-  };
-
   return (
     <div className={cn(
       "w-full h-full flex flex-col overflow-hidden group/widget",
       isGlassy ? "bg-white/5 backdrop-blur-md" : "bg-hw-blue/5"
     )}>
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-hw-blue/10 bg-hw-blue/5">
-        <div className="flex items-center gap-2">
-          <StickyNote className="w-3 h-3 text-hw-blue" />
-          <span className="text-[9px] font-bold uppercase tracking-widest text-hw-blue truncate max-w-[80px]">
+      <div className="flex items-center justify-between border-b border-hw-blue/10 bg-hw-blue/5" style={{ padding: 'max(4px, 2cqmin) max(8px, 4cqmin)' }}>
+        <div className="flex items-center gap-1">
+          <StickyNote className="text-hw-blue" style={{ width: 'max(8px, 6cqmin)', height: 'max(8px, 6cqmin)' }} />
+          <span className="font-bold uppercase tracking-widest text-hw-blue truncate max-w-[80px]" style={{ fontSize: 'max(6px, 5cqmin)' }}>
             {note.title}
           </span>
         </div>
         <div className="flex items-center gap-1 opacity-0 group-hover/widget:opacity-100 transition-opacity">
-          <button onClick={openInNotes} className="p-1 hover:bg-hw-blue/20 rounded text-hw-blue" title="Open in Notes">
-            <ExternalLink size={10} />
-          </button>
           <button onClick={deleteNote} className="p-1 hover:bg-red-500/20 rounded text-red-500/60 hover:text-red-500" title="Delete Note">
-            <Trash2 size={10} />
+            <Trash2 style={{ width: 'max(8px, 6cqmin)', height: 'max(8px, 6cqmin)' }} />
           </button>
         </div>
       </div>
@@ -130,33 +119,22 @@ export const NotesWidget: React.FC<WidgetProps> = ({ instanceId, mainColor, isDa
           suppressContentEditableWarning
           onInput={(e) => handleChange(e.currentTarget.innerHTML)}
           className={cn(
-            "flex-1 p-3 outline-none text-[11px] leading-relaxed custom-scrollbar overflow-y-auto",
+            "flex-1 outline-none leading-relaxed custom-scrollbar overflow-y-auto",
             isGlassy ? "text-white/80" : ""
           )}
-          style={{ color: isGlassy ? undefined : mainColor }}
+          style={{ color: isGlassy ? undefined : mainColor, padding: 'max(8px, 4cqmin)', fontSize: 'max(8px, 6cqmin)' }}
           dangerouslySetInnerHTML={{ __html: note.content }}
         />
-        
-        {/* Big Action Button - Improved positioning and visibility */}
-        <div className="absolute bottom-0 left-0 w-full p-2 translate-y-full group-hover/widget:translate-y-0 transition-all duration-300 z-20 bg-gradient-to-t from-hw-black/80 to-transparent pt-8">
-          <button 
-            onClick={openInNotes}
-            className="w-full bg-hw-blue text-hw-black py-2 rounded shadow-[0_0_20px_rgba(0,242,255,0.3)] flex items-center justify-center gap-2 text-[9px] font-bold uppercase tracking-widest hover:bg-white transition-colors border border-hw-blue/50"
-          >
-            <ExternalLink size={12} />
-            Open in Full Editor
-          </button>
-        </div>
       </div>
 
       {/* Footer */}
-      <div className="px-3 py-1 flex justify-between items-center bg-black/20 border-t border-hw-blue/5">
-        <span className="text-[7px] opacity-30 uppercase font-mono">
+      <div className="flex justify-between items-center bg-black/20 border-t border-hw-blue/5" style={{ padding: 'max(2px, 1cqmin) max(8px, 4cqmin)' }}>
+        <span className="opacity-30 uppercase font-mono" style={{ fontSize: 'max(5px, 4cqmin)' }}>
           Last Sync: {new Date(note.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </span>
         <div className="flex gap-1">
-           <div className="w-1 h-1 rounded-full bg-hw-blue/40" />
-           <div className="w-1 h-1 rounded-full bg-hw-blue/20" />
+           <div className="rounded-full bg-hw-blue/40" style={{ width: 'max(2px, 1cqmin)', height: 'max(2px, 1cqmin)' }} />
+           <div className="rounded-full bg-hw-blue/20" style={{ width: 'max(2px, 1cqmin)', height: 'max(2px, 1cqmin)' }} />
         </div>
       </div>
 

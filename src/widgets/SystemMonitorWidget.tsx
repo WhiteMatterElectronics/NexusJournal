@@ -18,57 +18,48 @@ export const SystemMonitorWidget: React.FC<WidgetProps> = ({ instanceId, mainCol
     return () => clearInterval(interval);
   }, []);
 
-  const openApp = () => {
-    window.dispatchEvent(new CustomEvent('hw_os_open_app', { 
-      detail: { appId: 'sys_monitor', morphFromId: instanceId } 
-    }));
-  };
-
   return (
     <div className={cn(
-      "w-full h-full flex flex-col p-4 group/widget relative overflow-hidden",
+      "w-full h-full flex flex-col group/widget relative overflow-hidden",
       isGlassy ? "bg-white/5 backdrop-blur-md" : "bg-hw-blue/5"
-    )}>
-      <div className="flex justify-between items-center mb-4">
-        <div className="flex items-center gap-2">
-          <Activity size={12} className="text-hw-blue" />
-          <span className="text-[9px] font-bold uppercase tracking-widest text-hw-blue">System Monitor</span>
+    )} style={{ padding: 'max(8px, 5cqmin)' }}>
+      <div className="flex justify-between items-center mb-2">
+        <div className="flex items-center gap-1">
+          <Activity className="text-hw-blue" style={{ width: 'max(10px, 8cqmin)', height: 'max(10px, 8cqmin)' }} />
+          <span className="font-bold uppercase tracking-widest text-hw-blue" style={{ fontSize: 'max(6px, 6cqmin)' }}>System Monitor</span>
         </div>
-        <button onClick={openApp} className="p-1 hover:bg-hw-blue/20 rounded opacity-0 group-hover/widget:opacity-100 transition-opacity">
-          <ExternalLink size={10} className="text-hw-blue" />
-        </button>
       </div>
 
-      <div className="space-y-4 flex-1 justify-center flex flex-col">
+      <div className="flex-1 justify-center flex flex-col" style={{ gap: 'max(4px, 3cqmin)' }}>
         {/* CPU */}
         <div className="space-y-1">
-          <div className="flex justify-between text-[8px] font-bold uppercase tracking-widest opacity-60">
-            <div className="flex items-center gap-1"><Cpu size={8} /> CPU</div>
+          <div className="flex justify-between font-bold uppercase tracking-widest opacity-60" style={{ fontSize: 'max(6px, 5cqmin)' }}>
+            <div className="flex items-center gap-1"><Cpu style={{ width: 'max(6px, 5cqmin)', height: 'max(6px, 5cqmin)' }} /> CPU</div>
             <span>{stats.cpu}%</span>
           </div>
-          <div className="h-1 bg-hw-blue/10 rounded-full overflow-hidden">
+          <div className="bg-hw-blue/10 rounded-full overflow-hidden" style={{ height: 'max(2px, 1.5cqmin)' }}>
             <div className="h-full bg-hw-blue transition-all duration-500" style={{ width: `${stats.cpu}%` }} />
           </div>
         </div>
 
         {/* RAM */}
         <div className="space-y-1">
-          <div className="flex justify-between text-[8px] font-bold uppercase tracking-widest opacity-60">
-            <div className="flex items-center gap-1"><Database size={8} /> RAM</div>
+          <div className="flex justify-between font-bold uppercase tracking-widest opacity-60" style={{ fontSize: 'max(6px, 5cqmin)' }}>
+            <div className="flex items-center gap-1"><Database style={{ width: 'max(6px, 5cqmin)', height: 'max(6px, 5cqmin)' }} /> RAM</div>
             <span>{stats.ram}%</span>
           </div>
-          <div className="h-1 bg-hw-blue/10 rounded-full overflow-hidden">
+          <div className="bg-hw-blue/10 rounded-full overflow-hidden" style={{ height: 'max(2px, 1.5cqmin)' }}>
             <div className="h-full bg-hw-blue transition-all duration-500" style={{ width: `${stats.ram}%` }} />
           </div>
         </div>
 
         {/* Network */}
         <div className="space-y-1">
-          <div className="flex justify-between text-[8px] font-bold uppercase tracking-widest opacity-60">
-            <div className="flex items-center gap-1"><Network size={8} /> NET</div>
+          <div className="flex justify-between font-bold uppercase tracking-widest opacity-60" style={{ fontSize: 'max(6px, 5cqmin)' }}>
+            <div className="flex items-center gap-1"><Network style={{ width: 'max(6px, 5cqmin)', height: 'max(6px, 5cqmin)' }} /> NET</div>
             <span>{stats.net} MB/S</span>
           </div>
-          <div className="h-1 bg-hw-blue/10 rounded-full overflow-hidden">
+          <div className="bg-hw-blue/10 rounded-full overflow-hidden" style={{ height: 'max(2px, 1.5cqmin)' }}>
             <div className="h-full bg-hw-blue transition-all duration-500" style={{ width: `${(stats.net / 10) * 100}%` }} />
           </div>
         </div>

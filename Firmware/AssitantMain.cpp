@@ -1,9 +1,10 @@
-
-
 #include <SPI.h>
 #include <MFRC522.h>
 #include <Wire.h>
 #include <NimBLEDevice.h>
+#include <Preferences.h> 
+#include <WiFi.h>
+#include <ping/ping_sock.h> // ESP-IDF Ping API
 #include "esp_system.h"
 #include "esp_heap_caps.h"
 #include "esp_chip_info.h"
@@ -28,6 +29,9 @@
 
 // --- GLOBAL STATE & HANDLES ---
 
+Preferences preferences; 
+String customBleName;
+
 SemaphoreHandle_t i2cMutex;
 MFRC522 mfrc522(SS_PIN, RST_PIN);
 MFRC522::MIFARE_Key key;
@@ -41,6 +45,10 @@ NimBLEClient* pClient = nullptr;
 NimBLEScan* pScan   = nullptr;
 bool bleInitialized = false;
 
+// WiFi State
+String grepPattern = "";
+bool useGrep = false;
+
 // Bridge State
 bool bridgeActive = false;
 uint32_t bridgeBaud = 115200;
@@ -49,6 +57,10 @@ uint32_t bridgeBaud = 115200;
 
 void taskUartBridge(void *pvParameters);
 void taskCommandProcessor(void *pvParameters);
+
+// Output Helpers
+void assistantPrintf(const char* format, ...);
+void assistantPrintln(String msg);
 
 // RFID Functions
 void runDump();
@@ -68,6 +80,10 @@ void handleBLE(String input);
 void printHelp(String target);
 void printMan(String cmd);
 
+// WiFi Functions
+void handleWiFi(String input);
+void runPing(String host, int count);
+
 // Bridge Function
 void handleBridge(String input);
 
@@ -78,31 +94,71 @@ void reportSystemStatus();
 
 class ScanCallbacks : public NimBLEScanCallbacks {
     void onResult(const NimBLEAdvertisedDevice* device) override {
-        Serial.print(F("[BLE] "));
-        Serial.printf("Device: %s\n", device->toString().c_str());
+        String name = device->getName().c_str();
+        if (name.length() == 0) name = "<Unknown>";
+        
+        char buf[256];
+        snprintf(buf, sizeof(buf), "[BLE] DEV: [%s] | RSSI: %d dBm | ADDR: %s | TYPE: %d", 
+                      name.c_str(), 
+                      device->getRSSI(), 
+                      device->getAddress().toString().c_str(),
+                      (int)device->getAddressType());
+        assistantPrintln(buf);
+        
+        if (device->haveServiceUUID()) {
+            snprintf(buf, sizeof(buf), "      UUID: %s", device->getServiceUUID().toString().c_str());
+            assistantPrintln(buf);
+        }
     }
 
     void onScanEnd(const NimBLEScanResults& results, int reason) override {
-        Serial.print(F("[BLE] "));
-        Serial.printf("Scan Ended. Found %d devices.\n", results.getCount());
+        char buf[64];
+        snprintf(buf, sizeof(buf), "[BLE] Scan Ended. Found %d devices.", results.getCount());
+        assistantPrintln(buf);
     }
 } scanCallbacks;
 
 class ClientCallbacks : public NimBLEClientCallbacks {
     void onConnect(NimBLEClient* pClient) override {
-        Serial.println(F("[BLE] Status: Connected to Server"));
+        assistantPrintln("[BLE] Status: Connected to Server");
+        assistantPrintf("[BLE] MTU: %d\n", pClient->getMTU());
     }
     void onDisconnect(NimBLEClient* pClient, int reason) override {
-        Serial.print(F("[BLE] "));
-        Serial.printf("Status: Disconnected (Reason: %d)\n", reason);
+        assistantPrintf("[BLE] Status: Disconnected (Reason: %d)\n", reason);
     }
 } clientCallbacks;
 
 void notifyCB(NimBLERemoteCharacteristic* pRemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
-    Serial.print(F("[BLE-NOTIFY] "));
-    Serial.printf("%s: ", pRemoteCharacteristic->getUUID().toString().c_str());
-    for(size_t i = 0; i < length; i++) Serial.printf("%02X", pData[i]);
-    Serial.println();
+    assistantPrintf("[BLE-NOTIFY] %s: ", pRemoteCharacteristic->getUUID().toString().c_str());
+    for(size_t i = 0; i < length; i++) assistantPrintf("%02X", pData[i]);
+    assistantPrintf(" (ASCII: ");
+    for(size_t i = 0; i < length; i++) {
+        char c = (char)pData[i];
+        assistantPrintf("%c", isprint(c) ? c : '.');
+    }
+    assistantPrintln(")");
+}
+
+// --- UTILITIES ---
+
+// Integrated Grep filter for all serial output
+void assistantPrintf(const char* format, ...) {
+    char loc_buf[256];
+    va_list arg;
+    va_start(arg, format);
+    vsnprintf(loc_buf, sizeof(loc_buf), format, arg);
+    va_end(arg);
+    
+    String output = String(loc_buf);
+    if (!useGrep || output.indexOf(grepPattern) != -1 || output.indexOf("[") == 0) {
+        Serial.print(output);
+    }
+}
+
+void assistantPrintln(String msg) {
+    if (!useGrep || msg.indexOf(grepPattern) != -1 || msg.indexOf("[") == 0) {
+        Serial.println(msg);
+    }
 }
 
 // --- INITIALIZATION ---
@@ -111,6 +167,10 @@ void setup() {
   Serial.begin(921600);
   Serial1.begin(bridgeBaud, SERIAL_8N1, RX1_PIN, TX1_PIN);
   Serial.setTimeout(50); 
+
+  // Initialize Preferences
+  preferences.begin("ble_cfg", false);
+  customBleName = preferences.getString("dev_name", "ESP32_CTF_TOOL");
 
   // SPI / RFID Setup
   SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN, SS_PIN); 
@@ -122,8 +182,8 @@ void setup() {
   Wire.setClock(400000);
   i2cMutex = xSemaphoreCreateMutex();
 
-  // Initialize NimBLE
-  NimBLEDevice::init("ESP32_CTF_TOOL");
+  // Initialize NimBLE with stored name
+  NimBLEDevice::init(customBleName.c_str());
   bleInitialized = true;
   pScan = NimBLEDevice::getScan();
   
@@ -132,15 +192,15 @@ void setup() {
   pScan->setInterval(100);
   pScan->setWindow(100);
 
-  // RTOS Tasks - Store handles for status reporting
+  // RTOS Tasks
   xTaskCreate(taskUartBridge, "Bridge", 8192, NULL, 3, &hBridge);
   xTaskCreate(taskCommandProcessor, "CmdProc", 16384, NULL, 1, &hCmdProc);
 
-  Serial.print(F("[SYSTEM] ")); Serial.println(F("\n========================================"));
-  Serial.print(F("[SYSTEM] ")); Serial.println(F("       ESP32 CTF ASSISTANT v4.2       "));
-  Serial.print(F("[SYSTEM] ")); Serial.println(F("========================================"));
-  Serial.print(F("[SYSTEM] ")); Serial.println(F("Ready. Type 'HELP' for a list of modules."));
-  Serial.print(F("[SYSTEM] ")); Serial.println(F("----------------------------------------"));
+  Serial.println(F("\n[SYSTEM] ========================================"));
+  Serial.println(F("[SYSTEM]        ESP32 CTF ASSISTANT v5.0        "));
+  Serial.printf( "[SYSTEM]        IDENTITY: %s\n", customBleName.c_str());
+  Serial.println(F("[SYSTEM] ========================================"));
+  Serial.println(F("[SYSTEM] Ready. Type 'HELP' for a list of modules."));
 }
 
 void loop() { vTaskDelete(NULL); }
@@ -172,6 +232,22 @@ void taskCommandProcessor(void *pvParameters) {
       input.trim();
       if (input.length() == 0) continue;
 
+      // Handle Grep Pipe: "COMMAND | grep pattern"
+      int pipeIdx = input.indexOf('|');
+      if (pipeIdx != -1) {
+        String grepPart = input.substring(pipeIdx + 1);
+        grepPart.trim();
+        if (grepPart.startsWith("grep ")) {
+            grepPattern = grepPart.substring(5);
+            grepPattern.trim();
+            useGrep = true;
+        }
+        input = input.substring(0, pipeIdx);
+        input.trim();
+      } else {
+          useGrep = false;
+      }
+
       String cmdUpper = input;
       cmdUpper.toUpperCase();
 
@@ -185,7 +261,7 @@ void taskCommandProcessor(void *pvParameters) {
         reportSystemStatus();
       }
       else if (cmdUpper.equalsIgnoreCase("RESET")){
-        Serial.print(F("[SYSTEM] ")); Serial.println(F("System restarting..."));
+        assistantPrintln("[SYSTEM] System restarting...");
         vTaskDelay(pdMS_TO_TICKS(100));
         esp_restart();
       }
@@ -197,6 +273,12 @@ void taskCommandProcessor(void *pvParameters) {
       }
       else if (cmdUpper.startsWith("BLE")) {
         handleBLE(input);
+      }
+      else if (cmdUpper.startsWith("WIFI")) {
+        handleWiFi(input);
+      }
+      else if (cmdUpper.startsWith("PING ")) {
+        runPing(input.substring(5), 4);
       }
       else if (cmdUpper.startsWith("EEPROM DUMP 0X") || cmdUpper.startsWith("DUMP 0X")) {
         int hexIndex = cmdUpper.indexOf("0X");
@@ -232,12 +314,111 @@ void taskCommandProcessor(void *pvParameters) {
         if (bridgeActive) {
           Serial1.println(input);
         } else {
-          Serial.print(F("[SYSTEM] ")); Serial.println(F("ERR: Unknown command. Activate BRIDGE mode to talk to UART1."));
+          assistantPrintln("[SYSTEM] ERR: Unknown command. Activate BRIDGE mode to talk to UART1.");
         }
       }
+      
+      // Reset grep after command
+      useGrep = false;
     }
     vTaskDelay(pdMS_TO_TICKS(10));
   }
+}
+
+// --- WIFI HANDLER ---
+
+void handleWiFi(String input) {
+    String sub = input.substring(4);
+    sub.trim();
+    String subUpper = sub;
+    subUpper.toUpperCase();
+
+    if (subUpper == "SCAN") {
+        assistantPrintln("[WIFI] Scanning networks...");
+        int n = WiFi.scanNetworks();
+        assistantPrintf("[WIFI] Found %d networks:\n", n);
+        for (int i = 0; i < n; ++i) {
+            assistantPrintf("  %2d: %s (%d dBm) [CH: %d] [%s]\n", 
+                            i + 1, WiFi.SSID(i).c_str(), WiFi.RSSI(i), 
+                            WiFi.channel(i), (WiFi.encryptionType(i) == WIFI_AUTH_OPEN) ? "OPEN" : "SECURED");
+        }
+        WiFi.scanDelete();
+    }
+    else if (subUpper.startsWith("CONNECT ")) {
+        String params = sub.substring(8);
+        int space = params.indexOf(' ');
+        String ssid = (space == -1) ? params : params.substring(0, space);
+        String pass = (space == -1) ? "" : params.substring(space + 1);
+        
+        assistantPrintf("[WIFI] Connecting to %s...\n", ssid.c_str());
+        WiFi.mode(WIFI_STA);
+        WiFi.begin(ssid.c_str(), pass.c_str());
+        
+        int timeout = 0;
+        while (WiFi.status() != WL_CONNECTED && timeout < 20) {
+            vTaskDelay(pdMS_TO_TICKS(500));
+            timeout++;
+        }
+        
+        if (WiFi.status() == WL_CONNECTED) {
+            assistantPrintf("[WIFI] Connected! IP: %s\n", WiFi.localIP().toString().c_str());
+        } else {
+            assistantPrintln("[WIFI] Connection Failed.");
+        }
+    }
+    else if (subUpper.startsWith("AP ")) {
+        String params = sub.substring(3);
+        int space = params.indexOf(' ');
+        String ssid = (space == -1) ? params : params.substring(0, space);
+        String pass = (space == -1) ? "12345678" : params.substring(space + 1);
+        
+        WiFi.mode(WIFI_AP);
+        if(WiFi.softAP(ssid.c_str(), pass.c_str())) {
+            assistantPrintf("[WIFI] AP '%s' active at %s\n", ssid.c_str(), WiFi.softAPIP().toString().c_str());
+        }
+    }
+    else if (subUpper == "OFF") {
+        WiFi.disconnect(true);
+        WiFi.mode(WIFI_OFF);
+        assistantPrintln("[WIFI] Radios powered down.");
+    }
+    else if (subUpper == "STA") {
+        if (WiFi.status() == WL_CONNECTED) {
+            assistantPrintf("[WIFI] SSID: %s | IP: %s | RSSI: %d\n", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str(), WiFi.RSSI());
+        } else {
+            assistantPrintln("[WIFI] Station not connected.");
+        }
+    }
+    else {
+        assistantPrintln("[WIFI] Usage: WIFI [SCAN|CONNECT <ssid> <pass>|AP <ssid> <pass>|STA|OFF]");
+    }
+}
+
+// --- PING UTILITY ---
+
+static void ping_success(void* arg, void* pdata) { assistantPrintln("[PING] Reply received."); }
+static void ping_timeout(void* arg, void* pdata) { assistantPrintln("[PING] Timeout."); }
+
+void runPing(String host, int count) {
+    assistantPrintf("[PING] Pinging %s %d times...\n", host.c_str(), count);
+    esp_ping_config_t config = ESP_PING_DEFAULT_CONFIG();
+    
+    ip_addr_t target_addr;
+    struct hostent *hptr = gethostbyname(host.c_str());
+    if (hptr == NULL) {
+        assistantPrintln("[PING] ERR: Could not resolve host");
+        return;
+    }
+    memcpy(&target_addr.u_addr.ip4, hptr->h_addr, 4);
+    target_addr.type = IPADDR_TYPE_V4;
+    
+    config.target_addr = target_addr;
+    config.count = count;
+
+    esp_ping_callbacks_t cbs = { .on_ping_success = ping_success, .on_ping_timeout = ping_timeout, .on_ping_end = NULL, .cb_args = NULL };
+    esp_ping_handle_t ping;
+    esp_ping_new_session(&config, &cbs, &ping);
+    esp_ping_start(ping);
 }
 
 // --- BRIDGE HANDLER ---
@@ -250,11 +431,11 @@ void handleBridge(String input) {
 
     if (subUpper == "ON") {
         bridgeActive = true;
-        Serial.print(F("[BRIDGE] ")); Serial.println(F("UART Bridge ACTIVATED"));
+        assistantPrintln("[BRIDGE] UART Bridge ACTIVATED");
     }
     else if (subUpper == "OFF") {
         bridgeActive = false;
-        Serial.print(F("[BRIDGE] ")); Serial.println(F("UART Bridge DEACTIVATED"));
+        assistantPrintln("[BRIDGE] UART Bridge DEACTIVATED");
     }
     else if (subUpper.startsWith("BAUD ")) {
         String val = sub.substring(5);
@@ -263,14 +444,14 @@ void handleBridge(String input) {
         if (newBaud > 0) {
             bridgeBaud = newBaud;
             Serial1.begin(bridgeBaud, SERIAL_8N1, RX1_PIN, TX1_PIN);
-            Serial.print(F("[BRIDGE] ")); Serial.printf("Baud rate set to %d\n", bridgeBaud);
+            assistantPrintf("[BRIDGE] Baud rate set to %d\n", bridgeBaud);
         } else {
-            Serial.print(F("[BRIDGE] ")); Serial.println(F("ERR: Invalid Baud Rate"));
+            assistantPrintln("[BRIDGE] ERR: Invalid Baud Rate");
         }
     }
     else {
-        Serial.print(F("[BRIDGE] ")); Serial.printf("Status: %s | Baud: %d\n", bridgeActive ? "ON" : "OFF", bridgeBaud);
-        Serial.print(F("[BRIDGE] ")); Serial.println(F("Usage: BRIDGE [ON|OFF|BAUD <value>]"));
+        assistantPrintf("[BRIDGE] Status: %s | Baud: %d\n", bridgeActive ? "ON" : "OFF", bridgeBaud);
+        assistantPrintln("[BRIDGE] Usage: BRIDGE [ON|OFF|BAUD <value>]");
     }
 }
 
@@ -280,43 +461,26 @@ void reportSystemStatus() {
     esp_chip_info_t chip_info;
     esp_chip_info(&chip_info);
 
-    Serial.print(F("[STATUS] ")); Serial.println(F("\n[ SYSTEM STATUS REPORT ]"));
-    Serial.print(F("[STATUS] ")); Serial.println(F("----------------------------------------"));
+    assistantPrintln("\n[ SYSTEM STATUS REPORT ]");
+    assistantPrintln("----------------------------------------");
     
-    Serial.print(F("[STATUS] ")); Serial.printf("Chip Model:   %s (Rev %d)\n", ESP.getChipModel(), chip_info.revision);
-    Serial.print(F("[STATUS] ")); Serial.printf("Cores:        %d\n", chip_info.cores);
-    Serial.print(F("[STATUS] ")); Serial.printf("CPU Freq:     %d MHz\n", ESP.getCpuFreqMHz());
-    Serial.print(F("[STATUS] ")); Serial.printf("Flash Size:   %d MB\n", ESP.getFlashChipSize() / (1024 * 1024));
+    assistantPrintf("Chip Model:   %s (Rev %d)\n", ESP.getChipModel(), chip_info.revision);
+    assistantPrintf("Cores:        %d\n", chip_info.cores);
+    assistantPrintf("CPU Freq:     %d MHz\n", ESP.getCpuFreqMHz());
+    assistantPrintf("Flash Size:   %d MB\n", ESP.getFlashChipSize() / (1024 * 1024));
     
-    Serial.print(F("[STATUS] ")); Serial.println(F("\n[ MEMORY USAGE ]"));
-    Serial.print(F("[STATUS] ")); Serial.printf("Total Heap:   %d bytes\n", ESP.getHeapSize());
-    Serial.print(F("[STATUS] ")); Serial.printf("Free Heap:    %d bytes\n", ESP.getFreeHeap());
-    Serial.print(F("[STATUS] ")); Serial.printf("Min Free:     %d bytes\n", ESP.getMinFreeHeap());
-    Serial.print(F("[STATUS] ")); Serial.printf("Max Alloc:    %d bytes\n", ESP.getMaxAllocHeap());
+    assistantPrintln("\n[ MEMORY USAGE ]");
+    assistantPrintf("Total Heap:   %d bytes\n", ESP.getHeapSize());
+    assistantPrintf("Free Heap:    %d bytes\n", ESP.getFreeHeap());
+    assistantPrintf("Min Free:     %d bytes\n", ESP.getMinFreeHeap());
     
-    Serial.print(F("[STATUS] ")); Serial.println(F("\n[ TASK MONITOR ]"));
-    Serial.print(F("[STATUS] ")); Serial.println(F("TASK NAME    | STATE | PRIO | STACK HIGH WATER"));
-    Serial.print(F("[STATUS] ")); Serial.println(F("----------------------------------------------"));
+    assistantPrintln("\n[ CONNECTIVITY ]");
+    assistantPrintf("BLE Active:   %s (%s)\n", bleInitialized ? "YES" : "NO", customBleName.c_str());
+    assistantPrintf("WiFi Mode:    %d\n", (int)WiFi.getMode());
+    if(WiFi.status() == WL_CONNECTED) assistantPrintf("WiFi IP:      %s\n", WiFi.localIP().toString().c_str());
+    assistantPrintf("UART Bridge:  %s (%d baud)\n", bridgeActive ? "ON" : "OFF", bridgeBaud);
     
-    TaskHandle_t tasks[] = {hBridge, hCmdProc, xTaskGetCurrentTaskHandle()};
-    const char* names[] = {"Bridge", "CmdProc", "Status"};
-    
-    for(int i = 0; i < 3; i++) {
-        if(tasks[i] != NULL) {
-            UBaseType_t stackHighWaterMark = uxTaskGetStackHighWaterMark(tasks[i]);
-            eTaskState state = eTaskGetState(tasks[i]);
-            const char* stateStr = (state == eRunning) ? "RUN" : (state == eReady) ? "RDY" : (state == eBlocked) ? "BLK" : "SUS";
-            Serial.print(F("[STATUS] ")); Serial.printf("%-12s | %-5s | %-4d | %d bytes remaining\n", 
-                          names[i], stateStr, uxTaskPriorityGet(tasks[i]), stackHighWaterMark * sizeof(StackType_t));
-        }
-    }
-    
-    Serial.print(F("[STATUS] ")); Serial.println(F("\n[ CONNECTIVITY ]"));
-    Serial.print(F("[STATUS] ")); Serial.printf("BLE Active:   %s\n", bleInitialized ? "YES" : "NO");
-    Serial.print(F("[STATUS] ")); Serial.printf("BLE Client:   %s\n", (pClient && pClient->isConnected()) ? "CONNECTED" : "IDLE");
-    Serial.print(F("[STATUS] ")); Serial.printf("UART Bridge:  %s (%d baud)\n", bridgeActive ? "ON" : "OFF", bridgeBaud);
-    
-    Serial.print(F("[STATUS] ")); Serial.println(F("----------------------------------------"));
+    assistantPrintln("----------------------------------------");
 }
 
 // --- BLE HANDLER ---
@@ -328,66 +492,94 @@ void handleBLE(String input) {
     subUpper.toUpperCase();
 
     if (subUpper.startsWith("SCAN")) {
-        Serial.print(F("[BLE] ")); Serial.println(F("Starting 5s scan..."));
+        assistantPrintln("[BLE] Starting 5s scan...");
         pScan->start(5000, false); 
-        Serial.print(F("[BLE] ")); Serial.println(F("Scan routine finished."));
+        assistantPrintln("[BLE] Scan routine finished.");
+    }
+    else if (subUpper.startsWith("NAME ")) {
+        String newName = sub.substring(5);
+        newName.trim();
+        if (newName.length() > 0) {
+            preferences.putString("dev_name", newName);
+            customBleName = newName;
+            assistantPrintf("[BLE] Name updated to: %s. Restarting system...\n", newName.c_str());
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            esp_restart();
+        }
+    }
+    else if (subUpper.equalsIgnoreCase("RSSI")) {
+        if (pClient && pClient->isConnected()) {
+            assistantPrintf("[BLE] Current Link RSSI: %d dBm\n", pClient->getRssi());
+        } else {
+            assistantPrintln("[BLE] ERR: Must be connected to measure RSSI");
+        }
     }
     else if (subUpper.startsWith("CONNECT ")) {
         String addrStr = sub.substring(8);
         addrStr.trim();
         
-        if (pClient) {
-            NimBLEDevice::deleteClient(pClient);
-            pClient = nullptr;
-        }
-
+        if (pClient) { NimBLEDevice::deleteClient(pClient); pClient = nullptr; }
         pClient = NimBLEDevice::createClient();
         pClient->setClientCallbacks(&clientCallbacks, false);
         pClient->setConnectTimeout(5000);
         
-        Serial.print(F("[BLE] ")); Serial.printf("Connecting to %s...\n", addrStr.c_str());
-        
+        assistantPrintf("[BLE] Connecting to %s...\n", addrStr.c_str());
         if (pClient->connect(NimBLEAddress(std::string(addrStr.c_str()), 0))) {
-            Serial.print(F("[BLE] ")); Serial.println(F("Success! Exploring services..."));
+            assistantPrintln("[BLE] Success! Exploring services...");
             auto services = pClient->getServices(true);
             for (auto* service : services) {
-                Serial.print(F("[BLE] ")); Serial.printf("  Service: %s\n", service->getUUID().toString().c_str());
+                assistantPrintf("  Service: %s\n", service->getUUID().toString().c_str());
                 auto chars = service->getCharacteristics(true);
                 for (auto* chr : chars) {
-                    Serial.print(F("[BLE] ")); Serial.printf("    - Char: %s [", chr->getUUID().toString().c_str());
-                    if (chr->canRead()) Serial.print("R ");
-                    if (chr->canWrite()) Serial.print("W ");
-                    if (chr->canNotify()) {
-                        Serial.print("N ");
-                        chr->subscribe(true, notifyCB);
-                    }
-                    Serial.println("]");
+                    assistantPrintf("    - Char: %s [", chr->getUUID().toString().c_str());
+                    if (chr->canRead()) assistantPrintf("R ");
+                    if (chr->canWrite()) assistantPrintf("W ");
+                    if (chr->canNotify()) { assistantPrintf("N "); chr->subscribe(true, notifyCB); }
+                    assistantPrintln("]");
                 }
             }
         } else {
-            Serial.print(F("[BLE] ")); Serial.println(F("Connection Failed"));
-            NimBLEDevice::deleteClient(pClient);
-            pClient = nullptr;
+            assistantPrintln("[BLE] Connection Failed");
+            NimBLEDevice::deleteClient(pClient); pClient = nullptr;
         }
     }
     else if (subUpper.startsWith("READ ")) {
-        if (!pClient || !pClient->isConnected()) { Serial.print(F("[BLE] ")); Serial.println(F("ERR: Not connected")); return; }
+        if (!pClient || !pClient->isConnected()) { assistantPrintln("[BLE] ERR: Not connected"); return; }
         String uuidStr = sub.substring(5); uuidStr.trim();
         bool found = false;
         for (auto* service : pClient->getServices(false)) {
             auto pChr = service->getCharacteristic(NimBLEUUID(uuidStr.c_str()));
             if (pChr && pChr->canRead()) {
                 std::string val = pChr->readValue();
-                Serial.print(F("[BLE] ")); Serial.printf("[BLE-READ] Hex: ");
-                for(size_t i=0; i<val.length(); i++) Serial.printf("%02X", (uint8_t)val[i]);
-                Serial.printf(" | ASCII: %s\n", val.c_str());
+                assistantPrintf("[BLE-READ] Hex: ");
+                for(size_t i=0; i<val.length(); i++) assistantPrintf("%02X", (uint8_t)val[i]);
+                assistantPrintf(" | ASCII: %s\n", val.c_str());
                 found = true; break;
             }
         }
-        if (!found) { Serial.print(F("[BLE] ")); Serial.println(F("ERR: UUID not found/readable")); }
+        if (!found) assistantPrintln("[BLE] ERR: UUID not found/readable");
+    }
+    else if (subUpper.startsWith("WRITEHEX ")) {
+        if (!pClient || !pClient->isConnected()) { assistantPrintln("[BLE] ERR: Not connected"); return; }
+        String params = sub.substring(9); params.trim();
+        int space = params.indexOf(' ');
+        if (space != -1) {
+            String uuidStr = params.substring(0, space);
+            String hexData = params.substring(space + 1); hexData.trim();
+            size_t len = hexData.length() / 2;
+            uint8_t* payload = new uint8_t[len];
+            for (size_t i = 0; i < len; i++) payload[i] = (uint8_t)strtol(hexData.substring(i * 2, i * 2 + 2).c_str(), NULL, 16);
+            bool found = false;
+            for (auto* service : pClient->getServices(false)) {
+                auto pChr = service->getCharacteristic(NimBLEUUID(uuidStr.c_str()));
+                if (pChr && pChr->canWrite()) { pChr->writeValue(payload, len, true); assistantPrintln("[BLE] Hex Write sent."); found = true; break; }
+            }
+            delete[] payload;
+            if (!found) assistantPrintln("[BLE] ERR: UUID not found/writable");
+        }
     }
     else if (subUpper.startsWith("WRITE ")) {
-        if (!pClient || !pClient->isConnected()) { Serial.print(F("[BLE] ")); Serial.println(F("ERR: Not connected")); return; }
+        if (!pClient || !pClient->isConnected()) { assistantPrintln("[BLE] ERR: Not connected"); return; }
         String params = sub.substring(6); params.trim();
         int space = params.indexOf(' ');
         if (space != -1) {
@@ -396,18 +588,12 @@ void handleBLE(String input) {
             bool found = false;
             for (auto* service : pClient->getServices(false)) {
                 auto pChr = service->getCharacteristic(NimBLEUUID(uuidStr.c_str()));
-                if (pChr && pChr->canWrite()) {
-                    pChr->writeValue(data.c_str(), data.length(), true);
-                    Serial.print(F("[BLE] ")); Serial.println(F("Write sent."));
-                    found = true; break;
-                }
+                if (pChr && pChr->canWrite()) { pChr->writeValue(data.c_str(), data.length(), true); assistantPrintln("[BLE] Write sent."); found = true; break; }
             }
-            if (!found) { Serial.print(F("[BLE] ")); Serial.println(F("ERR: UUID not found/writable")); }
+            if (!found) assistantPrintln("[BLE] ERR: UUID not found/writable");
         }
     }
-    else if (subUpper.equalsIgnoreCase("DISCONNECT")) {
-        if (pClient) pClient->disconnect();
-    }
+    else if (subUpper.equalsIgnoreCase("DISCONNECT")) { if (pClient) pClient->disconnect(); }
 }
 
 // --- CONSOLIDATED I2C HANDLER ---
@@ -418,54 +604,40 @@ void handleI2C(String input) {
   input.toCharArray(buf, 128);
   char *p = strtok(buf, " "); 
   if (p == NULL) { xSemaphoreGive(i2cMutex); return; }
-  String firstToken = String(p);
-  firstToken.toUpperCase();
+  String firstToken = String(p); firstToken.toUpperCase();
   char *cmd = (firstToken == "I2C") ? strtok(NULL, " ") : (char*)firstToken.c_str();
   if (cmd == NULL) { xSemaphoreGive(i2cMutex); return; }
-  String subCmd = String(cmd);
-  subCmd.toUpperCase();
+  String subCmd = String(cmd); subCmd.toUpperCase();
   if (subCmd == "SCAN") {
-    Serial.print(F("[I2C] ")); Serial.println(F("\n--- I2C BUS SCAN ---"));
+    assistantPrintln("\n--- I2C BUS SCAN ---");
     int devices = 0;
     for (byte address = 1; address < 127; address++) {
       Wire.beginTransmission(address);
-      if (Wire.endTransmission() == 0) {
-        Serial.print(F("[I2C] ")); Serial.printf("Found: 0x%02X\n", address);
-        devices++;
-      }
+      if (Wire.endTransmission() == 0) { assistantPrintf("Found: 0x%02X\n", address); devices++; }
     }
-    if (devices == 0) { Serial.print(F("[I2C] ")); Serial.println(F("No devices found.")); }
+    if (devices == 0) assistantPrintln("No devices found.");
   } 
   else if (subCmd == "WRITE") {
-    char *addrStr = strtok(NULL, " ");
-    char *regStr = strtok(NULL, " ");
+    char *addrStr = strtok(NULL, " "); char *regStr = strtok(NULL, " ");
     if (addrStr && regStr) {
       uint8_t devAddr = (uint8_t)strtol(addrStr, NULL, 0);
       uint8_t devReg = (uint8_t)strtol(regStr, NULL, 0);
-      Wire.beginTransmission(devAddr);
-      Wire.write(devReg);
-      while (char *val = strtok(NULL, " ")) {
-        Wire.write((uint8_t)strtol(val, NULL, 0));
-      }
-      Wire.endTransmission();
-      Serial.print(F("[I2C] ")); Serial.println(F("I2C Write finished."));
+      Wire.beginTransmission(devAddr); Wire.write(devReg);
+      while (char *val = strtok(NULL, " ")) Wire.write((uint8_t)strtol(val, NULL, 0));
+      Wire.endTransmission(); assistantPrintln("I2C Write finished.");
     }
   } 
   else if (subCmd == "READ") {
-    char *addrStr = strtok(NULL, " ");
-    char *regStr = strtok(NULL, " ");
-    char *countStr = strtok(NULL, " ");
+    char *addrStr = strtok(NULL, " "); char *regStr = strtok(NULL, " "); char *countStr = strtok(NULL, " ");
     if (addrStr && regStr && countStr) {
       uint8_t devAddr = (uint8_t)strtol(addrStr, NULL, 0);
       uint8_t devReg = (uint8_t)strtol(regStr, NULL, 0);
       int count = atoi(countStr);
-      Wire.beginTransmission(devAddr);
-      Wire.write(devReg);
-      Wire.endTransmission(false); 
+      Wire.beginTransmission(devAddr); Wire.write(devReg); Wire.endTransmission(false); 
       uint8_t readLen = Wire.requestFrom(devAddr, (uint8_t)count);
-      Serial.print(F("[I2C] ")); Serial.printf("Data: ");
-      for (int i = 0; i < readLen; i++) Serial.printf("%02X", Wire.read());
-      Serial.println();
+      assistantPrintf("Data: ");
+      for (int i = 0; i < readLen; i++) assistantPrintf("%02X", Wire.read());
+      assistantPrintln("");
     }
   }
   xSemaphoreGive(i2cMutex);
@@ -487,22 +659,15 @@ void writeByte(uint8_t i2cAddr, uint16_t memAddr, uint8_t data) {
 
 void dumpEEPROM(uint8_t i2cAddr) {
   if (xSemaphoreTake(i2cMutex, pdMS_TO_TICKS(1000))) {
-    Serial.print(F("[EEPROM] ")); Serial.printf("\n--- EEPROM DUMP (0x%02X) ---\n", i2cAddr);
+    assistantPrintf("\n--- EEPROM DUMP (0x%02X) ---\n", i2cAddr);
     for (uint32_t addr = 0; addr < EEPROM_SIZE; addr += 16) {
-      Serial.print(F("[EEPROM] ")); Serial.printf("0x%04X: ", addr);
+      assistantPrintf("0x%04X: ", addr);
       Wire.beginTransmission(i2cAddr);
-      Wire.write((uint8_t)(addr >> 8));
-      Wire.write((uint8_t)(addr & 0xFF));
-      if (Wire.endTransmission() != 0) {
-        Serial.print(F("[EEPROM] ")); Serial.println(F("\nERR: Connection lost."));
-        xSemaphoreGive(i2cMutex);
-        return;
-      }
+      Wire.write((uint8_t)(addr >> 8)); Wire.write((uint8_t)(addr & 0xFF));
+      if (Wire.endTransmission() != 0) { assistantPrintln("\nERR: Connection lost."); xSemaphoreGive(i2cMutex); return; }
       Wire.requestFrom(i2cAddr, (uint8_t)16);
-      for (int i = 0; i < 16; i++) {
-        if (Wire.available()) Serial.printf("%02X ", Wire.read());
-      }
-      Serial.println();
+      for (int i = 0; i < 16; i++) { if (Wire.available()) assistantPrintf("%02X ", Wire.read()); }
+      assistantPrintln("");
       vTaskDelay(pdMS_TO_TICKS(2));
     }
     xSemaphoreGive(i2cMutex);
@@ -511,23 +676,15 @@ void dumpEEPROM(uint8_t i2cAddr) {
 
 void handleEEPROMWrite(String input) {
   input.trim();
-  int space1 = input.indexOf(' ');
-  if (space1 == -1) return;
-  String cmdPart = input.substring(0, space1);
-  cmdPart.toUpperCase();
-  if (cmdPart == "WRITE") {
-      input = input.substring(space1 + 1);
-      input.trim();
-      space1 = input.indexOf(' ');
-  }
+  int space1 = input.indexOf(' '); if (space1 == -1) return;
+  String cmdPart = input.substring(0, space1); cmdPart.toUpperCase();
+  if (cmdPart == "WRITE") { input = input.substring(space1 + 1); input.trim(); space1 = input.indexOf(' '); }
   if (space1 == -1) return;
   uint8_t i2cAddr = (uint8_t)strtol(input.substring(0, space1).c_str(), NULL, 16);
   input = input.substring(space1 + 1);
-  int space2 = input.indexOf(' ');
-  if (space2 == -1) return;
+  int space2 = input.indexOf(' '); if (space2 == -1) return;
   uint16_t memAddr = (uint16_t)strtol(input.substring(0, space2).c_str(), NULL, 16);
-  String dataPart = input.substring(space2 + 1);
-  dataPart.trim();
+  String dataPart = input.substring(space2 + 1); dataPart.trim();
   if (dataPart.startsWith("\"")) {
     int lastQuote = dataPart.lastIndexOf("\"");
     String text = dataPart.substring(1, lastQuote);
@@ -535,12 +692,9 @@ void handleEEPROMWrite(String input) {
   } else {
     char *ptr = strtok((char*)dataPart.c_str(), " ");
     int byteCount = 0;
-    while (ptr != NULL) {
-      writeByte(i2cAddr, memAddr + byteCount++, (uint8_t)strtol(ptr, NULL, 0));
-      ptr = strtok(NULL, " ");
-    }
+    while (ptr != NULL) { writeByte(i2cAddr, memAddr + byteCount++, (uint8_t)strtol(ptr, NULL, 0)); ptr = strtok(NULL, " "); }
   }
-  Serial.print(F("[EEPROM] ")); Serial.println(F("EEPROM Write Finished."));
+  assistantPrintln("EEPROM Write Finished.");
 }
 
 // --- RFID HELPERS ---
@@ -554,56 +708,55 @@ bool authenticateCard(int block) {
 }
 
 void runDump() {
-  Serial.print(F("[RFID] ")); Serial.println(F("SCAN_CARD_NOW"));
+  assistantPrintln("SCAN_CARD_NOW");
   unsigned long start = millis();
   while (!authenticateCard(0)) {
-    if (millis() - start > 5000) { Serial.print(F("[RFID] ")); Serial.println(F("TIMEOUT")); return; }
+    if (millis() - start > 5000) { assistantPrintln("TIMEOUT"); return; }
     vTaskDelay(pdMS_TO_TICKS(100));
   }
-  byte buffer[18];
-  byte size = sizeof(buffer);
+  byte buffer[18]; byte size = sizeof(buffer);
   for (int b = 0; b < 64; b++) {
     if (b % 4 == 0) mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, b, &key, &(mfrc522.uid));
     if (mfrc522.MIFARE_Read(b, buffer, &size) == MFRC522::STATUS_OK) {
-      Serial.print(F("[RFID] ")); Serial.printf("BLOCK:%d:DATA:", b);
-      for (byte i = 0; i < 16; i++) Serial.printf("%02X", buffer[i]);
-      Serial.println();
+      assistantPrintf("BLOCK:%d:DATA:", b);
+      for (byte i = 0; i < 16; i++) assistantPrintf("%02X", buffer[i]);
+      assistantPrintln("");
     }
   }
   closeOut();
 }
 
 void runRead(int sector) {
-  Serial.print(F("[RFID] ")); Serial.println(F("SCAN_CARD_NOW"));
+  assistantPrintln("SCAN_CARD_NOW");
   unsigned long start = millis();
   while (!authenticateCard(sector * 4)) {
-    if (millis() - start > 5000) { Serial.print(F("[RFID] ")); Serial.println(F("TIMEOUT")); return; }
+    if (millis() - start > 5000) { assistantPrintln("TIMEOUT"); return; }
     vTaskDelay(pdMS_TO_TICKS(100));
   }
   byte buffer[18]; byte size = sizeof(buffer);
   for (int i = 0; i < 4; i++) {
     int block = (sector * 4) + i;
     if (mfrc522.MIFARE_Read(block, buffer, &size) == MFRC522::STATUS_OK) {
-      Serial.print(F("[RFID] ")); Serial.printf("BLOCK:%d:DATA:", block);
-      for (byte b = 0; b < 16; b++) Serial.printf("%02X", buffer[b]);
-      Serial.println();
+      assistantPrintf("BLOCK:%d:DATA:", block);
+      for (byte b = 0; b < 16; b++) assistantPrintf("%02X", buffer[b]);
+      assistantPrintln("");
     }
   }
   closeOut();
 }
 
 void runWrite(int block, String hex) {
-  if (hex.length() != 32) { Serial.print(F("[RFID] ")); Serial.println(F("ERR:HEX_LEN_32_REQ")); return; }
-  Serial.print(F("[RFID] ")); Serial.println(F("SCAN_CARD_NOW"));
+  if (hex.length() != 32) { assistantPrintln("ERR:HEX_LEN_32_REQ"); return; }
+  assistantPrintln("SCAN_CARD_NOW");
   unsigned long start = millis();
   while (!authenticateCard(block)) {
-    if (millis() - start > 5000) { Serial.print(F("[RFID] ")); Serial.println(F("TIMEOUT")); return; }
+    if (millis() - start > 5000) { assistantPrintln("TIMEOUT"); return; }
     vTaskDelay(pdMS_TO_TICKS(100));
   }
   byte data[16];
   for (int i = 0; i < 16; i++) data[i] = strtol(hex.substring(i * 2, i * 2 + 2).c_str(), NULL, 16);
-  if (mfrc522.MIFARE_Write(block, data, 16) == MFRC522::STATUS_OK) { Serial.print(F("[RFID] ")); Serial.println(F("WRITE_SUCCESS")); }
-  else { Serial.print(F("[RFID] ")); Serial.println(F("WRITE_FAILED")); }
+  if (mfrc522.MIFARE_Write(block, data, 16) == MFRC522::STATUS_OK) { assistantPrintln("WRITE_SUCCESS"); }
+  else { assistantPrintln("WRITE_FAILED"); }
   closeOut();
 }
 
@@ -612,59 +765,44 @@ void runWrite(int block, String hex) {
 void printHelp(String target) {
   target.toUpperCase(); target.trim();
   if (target == "" || target == "HELP") {
-    Serial.print(F("[HELP] ")); Serial.println(F("\n[ MODULE LIST ]"));
-    Serial.print(F("[HELP] ")); Serial.println(F("  HELP, MAN, I2C, BLE, RFID, EEPROM, BRIDGE, STATUS, RESET"));
-    Serial.print(F("[HELP] ")); Serial.println(F("Use 'HELP [MODULE]' for subcommands or 'MAN [COMMAND]' for full docs."));
+    assistantPrintln("\n[ MODULE LIST ]");
+    assistantPrintln("  HELP, MAN, I2C, BLE, WIFI, RFID, EEPROM, BRIDGE, STATUS, PING, RESET");
+    assistantPrintln("Use 'HELP [MODULE]' or pipe output: 'WIFI SCAN | grep SSID'");
   }
-  else if (target == "MAN") {
-    Serial.print(F("[HELP] ")); Serial.println(F("MAN [COMMAND] - Displays the reference manual for the specified command."));
+  else if (target == "WIFI") {
+    assistantPrintln("\n[ WIFI SUBCOMMANDS ]");
+    assistantPrintln("  WIFI SCAN         - Scan APs");
+    assistantPrintln("  WIFI CONNECT [S] [P] - Join Network");
+    assistantPrintln("  WIFI AP [S] [P]   - Create AP");
+    assistantPrintln("  WIFI STA          - Show Connection");
+    assistantPrintln("  WIFI OFF          - Kill Radio");
   }
   else if (target == "BLE") {
-    Serial.print(F("[HELP] ")); Serial.println(F("\n[ BLE SUBCOMMANDS ]"));
-    Serial.print(F("[HELP] ")); Serial.println(F("  BLE SCAN         - Scan 5s"));
-    Serial.print(F("[HELP] ")); Serial.println(F("  BLE CONNECT [MAC]- Connect and explore"));
-    Serial.print(F("[HELP] ")); Serial.println(F("  BLE READ [UUID]  - Read characteristic"));
-    Serial.print(F("[HELP] ")); Serial.println(F("  BLE WRITE [UUID] [DATA] - Write characteristic"));
-    Serial.print(F("[HELP] ")); Serial.println(F("  BLE DISCONNECT   - Close link"));
-  }
-  else if (target == "BRIDGE") {
-    Serial.print(F("[HELP] ")); Serial.println(F("\n[ BRIDGE SUBCOMMANDS ]"));
-    Serial.print(F("[HELP] ")); Serial.println(F("  BRIDGE ON        - Activate UART throughput"));
-    Serial.print(F("[HELP] ")); Serial.println(F("  BRIDGE OFF       - Deactivate UART throughput"));
-    Serial.print(F("[HELP] ")); Serial.println(F("  BRIDGE BAUD [val]- Set UART1 speed (e.g. 9600)"));
+    assistantPrintln("\n[ BLE SUBCOMMANDS ]");
+    assistantPrintln("  BLE SCAN, CONNECT, RSSI, READ, WRITE, WRITEHEX, NAME, DISCONNECT");
   }
 }
 
 void printMan(String cmd) {
   cmd.toUpperCase(); cmd.trim();
-  if (cmd == "" || cmd == "MAN") {
-    Serial.print(F("[MAN] ")); Serial.println(F("\n[ MAN REFERENCE ]"));
-    Serial.print(F("[MAN] ")); Serial.println(F("USAGE: MAN [COMMAND]"));
-    Serial.print(F("[MAN] ")); Serial.println(F("PURPOSE: Displays detailed usage, parameters, and behavior for a tool."));
+  if (cmd == "WIFI") {
+    assistantPrintln("\n[ WIFI MANUAL ]");
+    assistantPrintln("SCAN: Lists SSID, RSSI, and Channel info for nearby networks.");
+    assistantPrintln("CONNECT: Joins a network. Usage: WIFI CONNECT HomeSSID Password123");
+    assistantPrintln("AP: Starts an Access Point. Default pass is 12345678 if omitted.");
   }
-  else if (cmd == "HELP") {
-    Serial.print(F("[MAN] ")); Serial.println(F("\n[ HELP REFERENCE ]"));
-    Serial.print(F("[MAN] ")); Serial.println(F("USAGE: HELP [MODULE]"));
-    Serial.print(F("[MAN] ")); Serial.println(F("PURPOSE: Provides a quick-reference list of available sub-commands."));
+  else if (cmd == "PING") {
+    assistantPrintln("\n[ PING MANUAL ]");
+    assistantPrintln("USAGE: PING <host/ip>");
+    assistantPrintln("PURPOSE: Tests network connectivity to a remote host.");
   }
-  else if (cmd == "BLE") {
-    Serial.print(F("[MAN] ")); Serial.println(F("\n[ BLE MANUAL ]"));
-    Serial.print(F("[MAN] ")); Serial.println(F("DESCRIPTION: Utility using NimBLE Client logic."));
-    Serial.print(F("[MAN] ")); Serial.println(F("SCAN: Performs active scanning with real-time feedback."));
-    Serial.print(F("[MAN] ")); Serial.println(F("CONNECT: Discovers all attributes and auto-subscribes to NOTIFY."));
-  }
-  else if (cmd == "STATUS") {
-    Serial.print(F("[MAN] ")); Serial.println(F("\n[ STATUS MANUAL ]"));
-    Serial.print(F("[MAN] ")); Serial.println(F("DESCRIPTION: Reports internal system health and resources."));
-    Serial.print(F("[MAN] ")); Serial.println(F("OUTPUT: Hardware revision, Memory (Heap) usage, and FreeRTOS task stack safety levels."));
-  }
-  else if (cmd == "BRIDGE") {
-    Serial.print(F("[MAN] ")); Serial.println(F("\n[ BRIDGE MANUAL ]"));
-    Serial.print(F("[MAN] ")); Serial.println(F("DESCRIPTION: Serial UART Bridge between Serial0 and Serial1 (UART1)."));
-    Serial.print(F("[MAN] ")); Serial.println(F("ON/OFF: Toggle bidirectional flow."));
-    Serial.print(F("[MAN] ")); Serial.println(F("BAUD: Dynamically reconfigures the hardware baud rate of UART1."));
+  else if (cmd == "GREP") {
+    assistantPrintln("\n[ GREP MANUAL ]");
+    assistantPrintln("USAGE: <CMD> | grep <pattern>");
+    assistantPrintln("EXAMPLE: BLE SCAN | grep iPhone");
+    assistantPrintln("PURPOSE: Filters any command output to lines containing the pattern.");
   }
   else {
-    Serial.print(F("[MAN] ")); Serial.println(F("Manual page not found."));
+    assistantPrintln("Manual page not found.");
   }
 }

@@ -89,8 +89,8 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({
       const cellW = desktopRect.width / gridSize.cols;
       const cellH = desktopRect.height / gridSize.rows;
 
-      const newW = Math.max(definition.minSize.w, Math.round(startW + deltaX / cellW));
-      const newH = Math.max(definition.minSize.h, Math.round(startH + deltaY / cellH));
+      const newW = Math.max(1, Math.round(startW + deltaX / cellW));
+      const newH = Math.max(1, Math.round(startH + deltaY / cellH));
 
       if (newW !== widget.w || newH !== widget.h) {
         onUpdate({ w: newW, h: newH });
@@ -111,8 +111,8 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({
     <motion.div
       ref={containerRef}
       style={style}
-      layoutId={widget.instanceId}
-      transition={{ 
+      layoutId={isDragging ? undefined : widget.instanceId}
+      transition={isDragging ? { duration: 0 } : { 
         type: "spring",
         stiffness: 400,
         damping: 40,
@@ -137,7 +137,7 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({
         borderRadius: isGlassy ? '1rem' : '0'
       }}>
         {/* Widget Content */}
-        <div className="w-full h-full relative z-0">
+        <div className="w-full h-full relative z-0" style={{ containerType: 'size' }}>
           <definition.component 
             instanceId={widget.instanceId}
             mainColor={mainColor}
@@ -151,7 +151,7 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({
         {/* Drag Handle (Behind buttons) */}
         <div 
           className={cn(
-            "absolute top-0 left-0 w-full h-10 cursor-move flex items-center px-3 transition-opacity z-10",
+            "absolute top-0 left-0 w-[calc(100%-80px)] h-10 cursor-move flex items-center px-3 transition-opacity z-10",
             isHovered && !isDraggingAny ? "opacity-100" : "opacity-0 md:opacity-0"
           )}
           style={{ opacity: isHovered && !isDraggingAny ? 1 : 0.4 }}

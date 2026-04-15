@@ -548,11 +548,35 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile'
                       <button 
                         onClick={() => {
                           const instanceId = `widget-${Date.now()}`;
+                          const activeWidgets = theme.widgets || [];
+                          
+                          // Find free space (simple heuristic: find first non-overlapping spot)
+                          let spawnX = 0;
+                          let spawnY = 0;
+                          let found = false;
+                          
+                          for (let y = 0; y < 10; y++) {
+                            for (let x = 0; x < 16; x++) {
+                              const overlaps = activeWidgets.some(w => 
+                                x < w.x + w.w && x + widget.defaultSize.w > w.x &&
+                                y < w.y + w.h && y + widget.defaultSize.h > w.y
+                              );
+                              // Also avoid left edge if possible (where icons usually are)
+                              if (!overlaps && x > 2) {
+                                spawnX = x;
+                                spawnY = y;
+                                found = true;
+                                break;
+                              }
+                            }
+                            if (found) break;
+                          }
+
                           const newWidget: ActiveWidget = {
                             instanceId,
                             widgetId: widget.id,
-                            x: 0,
-                            y: 0,
+                            x: spawnX,
+                            y: spawnY,
                             w: widget.defaultSize.w,
                             h: widget.defaultSize.h,
                             isFloating: false

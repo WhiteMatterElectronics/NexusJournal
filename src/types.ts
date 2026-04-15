@@ -27,4 +27,4 @@ export interface Firmware {
   uploadedAt: string;
 }
 
-export type AppView = 'tutorials' | 'flasher' | 'admin' | 'console' | 'eeprom' | 'rfid' | 'binary' | 'cyphonator' | 'settings' | 'notes' | 'sys_monitor' | 'weather' | 'clock' | 'bluetooth';
+export type AppView = 'tutorials' | 'flasher' | 'admin' | 'console' | 'eeprom' | 'rfid' | 'binary' | 'cyphonator' | 'settings' | 'notes' | 'sys_monitor' | 'weather' | 'clock' | 'bluetooth' | 'wifi';

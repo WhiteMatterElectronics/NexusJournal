@@ -98,7 +98,7 @@ export const BluetoothApp: React.FC = () => {
       const customEvent = e as CustomEvent<string>;
       const text = customEvent.detail;
 
-      if (text.includes("[BLE]") || text.includes("[BLE-NOTIFY]")) {
+      if (text.includes("[BLE]") || text.includes("[BLE-NOTIFY]") || text.includes("Service: ") || text.includes("- Char: ") || text.includes("[BLE-READ]")) {
         if (text.includes("Starting 5s scan")) {
           setIsScanning(true);
           setDevices([]);
@@ -106,11 +106,11 @@ export const BluetoothApp: React.FC = () => {
         } else if (text.includes("Scan Ended") || text.includes("Scan routine finished")) {
           setIsScanning(false);
           addLog('info', 'BLE scan stopped.');
-        } else if (text.includes("Device: ")) {
-          // Extract address, name, rssi from NimBLE toString() format
-          const addressMatch = text.match(/Address:\s*([0-9a-fA-F:]+)/i);
-          const nameMatch = text.match(/Name:\s*([^,]+)/i);
-          const rssiMatch = text.match(/RSSI:\s*(-?\d+)/i) || text.match(/rssi:\s*(-?\d+)/i);
+        } else if (text.includes("DEV: [")) {
+          // Extract address, name, rssi from new format: [BLE] DEV: [Name] | RSSI: -45 dBm | ADDR: 00:11:22:33:44:55 | TYPE: 0
+          const nameMatch = text.match(/DEV:\s*\[([^\]]+)\]/i);
+          const rssiMatch = text.match(/RSSI:\s*(-?\d+)/i);
+          const addressMatch = text.match(/ADDR:\s*([0-9a-fA-F:]+)/i);
           
           if (addressMatch) {
             const address = addressMatch[1];
@@ -120,9 +120,9 @@ export const BluetoothApp: React.FC = () => {
             setDevices(prev => {
               const existing = prev.find(d => d.address === address);
               if (existing) {
-                return prev.map(d => d.address === address ? { ...d, rssi, lastSeen: Date.now(), name: name !== "Unknown Device" ? name : d.name } : d);
+                return prev.map(d => d.address === address ? { ...d, rssi, lastSeen: Date.now(), name: name !== "<Unknown>" ? name : d.name } : d);
               }
-              return [...prev, { address, name, rssi, lastSeen: Date.now() }];
+              return [...prev, { address, name: name === "<Unknown>" ? "Unknown Device" : name, rssi, lastSeen: Date.now() }];
             });
           }
         } else if (text.includes("Success! Exploring services") || text.includes("Connected to Server")) {
@@ -206,10 +206,13 @@ export const BluetoothApp: React.FC = () => {
             }
           }
         } else if (text.includes("[BLE-NOTIFY]")) {
-          const parts = text.replace("[BLE-NOTIFY]", "").trim().split(":");
-          if (parts.length >= 2) {
-            const charUuid = parts[0].trim();
-            const hexData = parts[1].trim();
+          // New format: [BLE-NOTIFY] uuid: hex (ASCII: chars)
+          const notifyMatch = text.match(/\[BLE-NOTIFY\]\s*([a-zA-Z0-9-]+):\s*([0-9A-Fa-f]+)\s*\(ASCII:\s*(.*?)\)$/);
+          if (notifyMatch) {
+            const charUuid = notifyMatch[1].trim();
+            const hexData = notifyMatch[2].trim();
+            const asciiData = notifyMatch[3];
+            
             addLog('data', `[${charUuid}] NOTIFY: ${hexData}`);
             setServices(prev => prev.map(s => ({
               ...s,
@@ -217,14 +220,29 @@ export const BluetoothApp: React.FC = () => {
             })));
             
             if (charUuid === rxCharRef.current) {
-              // Try to convert hex to ascii for terminal
-              let asciiStr = '';
-              for (let i = 0; i < hexData.length; i += 2) {
-                const code = parseInt(hexData.substr(i, 2), 16);
-                if (code >= 32 && code <= 126) asciiStr += String.fromCharCode(code);
-                else asciiStr += '.';
+              setTerminalLogs(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), timestamp: Date.now(), type: 'rx', data: asciiData }]);
+            }
+          } else {
+            // Fallback for older format if needed
+            const parts = text.replace("[BLE-NOTIFY]", "").trim().split(":");
+            if (parts.length >= 2 && !text.includes("(ASCII:")) {
+              const charUuid = parts[0].trim();
+              const hexData = parts[1].trim();
+              addLog('data', `[${charUuid}] NOTIFY: ${hexData}`);
+              setServices(prev => prev.map(s => ({
+                ...s,
+                characteristics: s.characteristics.map(c => c.uuid === charUuid ? { ...c, value: hexData } : c)
+              })));
+              
+              if (charUuid === rxCharRef.current) {
+                let asciiStr = '';
+                for (let i = 0; i < hexData.length; i += 2) {
+                  const code = parseInt(hexData.substr(i, 2), 16);
+                  if (code >= 32 && code <= 126) asciiStr += String.fromCharCode(code);
+                  else asciiStr += '.';
+                }
+                setTerminalLogs(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), timestamp: Date.now(), type: 'rx', data: asciiStr }]);
               }
-              setTerminalLogs(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), timestamp: Date.now(), type: 'rx', data: asciiStr }]);
             }
           }
         }

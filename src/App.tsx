@@ -24,6 +24,7 @@ import { SystemMonitorApp } from './components/apps/SystemMonitorApp';
 import { WeatherApp } from './components/apps/WeatherApp';
 import { ClockApp } from './components/apps/ClockApp';
 import { BluetoothApp } from './components/apps/BluetoothApp';
+import { WifiApp } from './components/apps/WifiApp';
 import { WidgetContainer } from './components/os/WidgetContainer';
 import { useSettings } from './contexts/SettingsContext';
 import { cn, getContrastColor, adjustColor } from './lib/utils';
@@ -716,6 +717,8 @@ export default function App() {
         return <ClockApp />;
       case 'bluetooth':
         return <BluetoothApp />;
+      case 'wifi':
+        return <WifiApp />;
       default:
         return null;
     }
@@ -959,7 +962,7 @@ export default function App() {
             <div className="text-hw-blue text-2xl font-bold mb-12 tracking-[0.3em] uppercase opacity-60">Applications</div>
             
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-x-8 gap-y-12 w-full">
-              {APPS.filter(app => theme.desktopIcons?.[app.id] !== false).map(app => (
+              {APPS.map(app => (
                 <motion.div
                   key={`dash-${app.id}`}
                   transition={{ 
