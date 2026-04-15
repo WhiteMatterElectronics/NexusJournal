@@ -14,7 +14,8 @@ export const WIDGET_REGISTRY: WidgetDefinition[] = [
     icon: Cpu,
     component: EspStatusWidget,
     defaultSize: { w: 2, h: 2 },
-    minSize: { w: 2, h: 2 }
+    minSize: { w: 2, h: 2 },
+    type: 'standalone'
   },
   {
     id: 'clock',
@@ -23,7 +24,9 @@ export const WIDGET_REGISTRY: WidgetDefinition[] = [
     icon: Clock,
     component: ClockWidget,
     defaultSize: { w: 2, h: 1 },
-    minSize: { w: 1, h: 1 }
+    minSize: { w: 1, h: 1 },
+    type: 'app',
+    appId: 'clock'
   },
   {
     id: 'sys_monitor',
@@ -32,7 +35,9 @@ export const WIDGET_REGISTRY: WidgetDefinition[] = [
     icon: Activity,
     component: SystemMonitorWidget,
     defaultSize: { w: 2, h: 2 },
-    minSize: { w: 2, h: 2 }
+    minSize: { w: 2, h: 2 },
+    type: 'app',
+    appId: 'sys_monitor'
   },
   {
     id: 'notes',
@@ -41,7 +46,9 @@ export const WIDGET_REGISTRY: WidgetDefinition[] = [
     icon: StickyNote,
     component: NotesWidget,
     defaultSize: { w: 2, h: 2 },
-    minSize: { w: 2, h: 2 }
+    minSize: { w: 2, h: 2 },
+    type: 'app',
+    appId: 'notes'
   },
   {
     id: 'weather',
@@ -50,7 +57,9 @@ export const WIDGET_REGISTRY: WidgetDefinition[] = [
     icon: Cloud,
     component: WeatherWidget,
     defaultSize: { w: 2, h: 2 },
-    minSize: { w: 2, h: 2 }
+    minSize: { w: 2, h: 2 },
+    type: 'app',
+    appId: 'weather'
   }
 ];
 

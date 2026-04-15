@@ -18,6 +18,8 @@ export interface WidgetDefinition {
   defaultSize: { w: number, h: number };
   minSize: { w: number, h: number };
   maxSize?: { w: number, h: number };
+  type: 'standalone' | 'app';
+  appId?: string;
 }
 
 export interface ActiveWidget {
@@ -29,4 +31,5 @@ export interface ActiveWidget {
   h: number;
   isFloating: boolean;
   config?: any;
+  isHidden?: boolean;
 }

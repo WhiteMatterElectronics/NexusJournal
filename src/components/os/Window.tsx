@@ -215,6 +215,7 @@ export const Window: React.FC<WindowProps> = ({
   return (
     <motion.div
       id={`window-${id}`}
+      layoutId={morphFromId || layoutId}
       initial={{ opacity: 0, scale: 0.9 }}
       animate={windowState}
       exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.15 } }}

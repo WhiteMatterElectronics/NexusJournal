@@ -93,8 +93,7 @@ export const NotesWidget: React.FC<WidgetProps> = ({ instanceId, mainColor, isDa
 
   return (
     <div className={cn(
-      "w-full h-full flex flex-col overflow-hidden group/widget",
-      isGlassy ? "bg-white/5 backdrop-blur-md" : "bg-hw-blue/5"
+      "w-full h-full flex flex-col overflow-hidden group/widget"
     )}>
       {/* Header */}
       <div className="flex items-center justify-between border-b border-hw-blue/10 bg-hw-blue/5" style={{ padding: 'max(4px, 2cqmin) max(8px, 4cqmin)' }}>

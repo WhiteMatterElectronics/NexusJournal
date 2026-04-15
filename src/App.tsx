@@ -554,6 +554,13 @@ export default function App() {
       longPressTimer.current = null;
     }
 
+    if (morphFromId) {
+      updateTheme(prev => ({
+        ...prev,
+        widgets: prev.widgets.map(w => w.instanceId === morphFromId ? { ...w, isHidden: true } : w)
+      }));
+    }
+
     setWindows(prev => {
       const existing = prev.filter(w => w.appId === id);
       
@@ -624,6 +631,13 @@ export default function App() {
   const handleWindowAction = (instanceId: string, action: 'close' | 'minimize' | 'maximize' | 'focus') => {
     setWindows(prev => {
       if (action === 'close') {
+        const winToClose = prev.find(w => w.instanceId === instanceId);
+        if (winToClose?.morphFromId) {
+          updateTheme(prevTheme => ({
+            ...prevTheme,
+            widgets: prevTheme.widgets.map(w => w.instanceId === winToClose.morphFromId ? { ...w, isHidden: false } : w)
+          }));
+        }
         return prev.filter(w => w.instanceId !== instanceId);
       }
       return prev.map(w => {
@@ -917,21 +931,24 @@ export default function App() {
         })}
 
         {/* Widgets */}
-        {theme.widgets?.map(widget => (
-          <WidgetContainer 
-            key={widget.instanceId}
-            widget={widget}
-            gridSize={gridSize}
-            onUpdate={(updates) => handleUpdateWidget(widget.instanceId, updates)}
-            onRemove={() => handleRemoveWidget(widget.instanceId)}
-            onMouseDown={handleMouseDown}
-            isDragging={draggingId === widget.instanceId}
-            currentMousePos={currentMousePos}
-            dragOffset={dragOffset}
-            desktopRef={desktopRef}
-            isDraggingAny={!!draggingId}
-          />
-        ))}
+        {theme.widgets?.map(widget => {
+          if (widget.isHidden) return null;
+          return (
+            <WidgetContainer 
+              key={widget.instanceId}
+              widget={widget}
+              gridSize={gridSize}
+              onUpdate={(updates) => handleUpdateWidget(widget.instanceId, updates)}
+              onRemove={() => handleRemoveWidget(widget.instanceId)}
+              onMouseDown={handleMouseDown}
+              isDragging={draggingId === widget.instanceId}
+              currentMousePos={currentMousePos}
+              dragOffset={dragOffset}
+              desktopRef={desktopRef}
+              isDraggingAny={!!draggingId}
+            />
+          );
+        })}
       </motion.div>
 
       {/* Dash Panel (Ubuntu-style overflow) */}

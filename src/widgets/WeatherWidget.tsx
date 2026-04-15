@@ -8,8 +8,7 @@ export const WeatherWidget: React.FC<WidgetProps> = ({ instanceId, mainColor, is
   
   return (
     <div className={cn(
-      "w-full h-full flex flex-col group/widget relative overflow-hidden",
-      isGlassy ? "bg-white/5 backdrop-blur-md" : "bg-hw-blue/5"
+      "w-full h-full flex flex-col group/widget relative overflow-hidden"
     )} style={{ padding: 'max(8px, 5cqmin)' }}>
       <div className="flex justify-between items-start mb-2">
         <div className="flex items-center gap-2">

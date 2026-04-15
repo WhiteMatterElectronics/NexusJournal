@@ -175,20 +175,22 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({
           "absolute top-2 right-2 flex gap-1 transition-opacity duration-200 z-20"
         )}
         style={{ opacity: isHovered && !isDraggingAny ? 1 : 0.4 }}>
-          <button 
-            onMouseDown={(e) => e.stopPropagation()}
-            onTouchStart={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              window.dispatchEvent(new CustomEvent('hw_os_open_app', { 
-                detail: { appId: widget.widgetId, morphFromId: widget.instanceId } 
-              }));
-            }}
-            className="p-1.5 hover:bg-white/10 rounded-md transition-colors pointer-events-auto"
-            title="Expand to Window"
-          >
-            <Maximize2 className="w-3.5 h-3.5" style={{ color: mainColor }} />
-          </button>
+          {definition.type === 'app' && definition.appId && (
+            <button 
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                window.dispatchEvent(new CustomEvent('hw_os_open_app', { 
+                  detail: { appId: definition.appId, morphFromId: widget.instanceId } 
+                }));
+              }}
+              className="p-1.5 hover:bg-white/10 rounded-md transition-colors pointer-events-auto"
+              title="Expand to Window"
+            >
+              <Maximize2 className="w-3.5 h-3.5" style={{ color: mainColor }} />
+            </button>
+          )}
           <button 
             onMouseDown={(e) => e.stopPropagation()}
             onTouchStart={(e) => e.stopPropagation()}

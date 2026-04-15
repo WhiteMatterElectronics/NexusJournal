@@ -19,8 +19,7 @@ export const ClockWidget: React.FC<WidgetProps> = ({ instanceId, mainColor, isDa
 
   return (
     <div className={cn(
-      "w-full h-full flex flex-col items-center justify-center p-4 group/widget relative overflow-hidden",
-      isGlassy ? "bg-white/5 backdrop-blur-md" : "bg-hw-blue/5"
+      "w-full h-full flex flex-col items-center justify-center p-4 group/widget relative overflow-hidden"
     )}>
       <div className="font-bold tracking-tighter flex items-baseline gap-1" style={{ fontSize: 'max(16px, 25cqmin)' }}>
         <span>{hours}</span>
