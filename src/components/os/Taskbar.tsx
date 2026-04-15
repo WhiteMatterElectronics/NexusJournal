@@ -123,7 +123,7 @@ export const Taskbar: React.FC<TaskbarProps> = ({
                   <Cpu className="w-5 h-5 text-hw-blue" />
                 </div>
                 <div>
-                  <h1 className="font-black text-sm tracking-tighter leading-none text-hw-blue">ELECTRON_OS</h1>
+                  <h1 className="font-black text-sm tracking-tighter leading-none text-hw-blue">NEXUS_JOURNAL</h1>
                   <span className="text-[8px] text-hw-blue/40 uppercase tracking-widest">v1.0.0-arch</span>
                 </div>
               </div>

@@ -1,5 +1,5 @@
 {
-  "name": "ElectronAssistant",
+  "name": "NexusJournal",
   "description": "Hardware hackathon companion for ESP32-C3. Supports Serial, USB, and Bluetooth.",
   "requestFramePermissions": [
     "serial",

@@ -88,8 +88,8 @@ export const SerialProvider = ({ children }: { children: ReactNode }) => {
         disconnect();
       }
     };
-    window.addEventListener('electron-os-shutdown', handleShutdown);
-    return () => window.removeEventListener('electron-os-shutdown', handleShutdown);
+    window.addEventListener('nexus-journal-shutdown', handleShutdown);
+    return () => window.removeEventListener('nexus-journal-shutdown', handleShutdown);
   }, [connected, disconnect]);
 
   // Central parsing logic

@@ -2,55 +2,13 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FileUp, Plus, Settings, Trash2, Upload, Terminal, Activity, Save, X, Eye, Edit3, Bold, Italic, Code, List, Image as ImageIcon, Link as LinkIcon, Paperclip, Loader2, FileText, ArrowUp, ArrowDown, AlignLeft, Heading, Minus, Video, LayoutGrid, AlertCircle, Link, Table, CheckSquare, Strikethrough, Copy, Clipboard, ListOrdered, Quote } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Tutorial, TutorialBlock, BlockType, Firmware } from '../types';
+import { BlockEditor } from './shared/BlockEditor';
 
 interface SystemConfigProps {
   tutorials: Tutorial[];
   refreshTutorials: () => Promise<void>;
   loading: boolean;
 }
-
-// Reusable Rich Text Editor component for blocks
-const BlockEditor = React.memo(({ 
-  initialContent, 
-  onChange,
-  onFocus
-}: { 
-  initialContent: string, 
-  onChange: (content: string) => void,
-  onFocus?: () => void
-}) => {
-  const editorRef = useRef<HTMLDivElement>(null);
-  const lastContent = useRef(initialContent);
-
-  useEffect(() => {
-    if (editorRef.current && initialContent !== editorRef.current.innerHTML) {
-      // Only update if the change is external (not from our own input)
-      if (initialContent !== lastContent.current) {
-        editorRef.current.innerHTML = initialContent;
-        lastContent.current = initialContent;
-      }
-    }
-  }, [initialContent]);
-
-  const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
-    const content = e.currentTarget.innerHTML;
-    lastContent.current = content;
-    onChange(content);
-  };
-
-  return (
-    <div 
-      ref={editorRef}
-      contentEditable
-      suppressContentEditableWarning
-      onInput={handleInput}
-      onFocus={onFocus}
-      className="w-full bg-black/20 border border-hw-blue/10 p-3 outline-none text-[11px] text-hw-blue/90 min-h-[100px] prose prose-invert prose-sm max-w-none focus:border-hw-blue/40 transition-colors"
-      dangerouslySetInnerHTML={{ __html: initialContent }}
-      style={{ caretColor: '#00f2ff' }}
-    />
-  );
-});
 
 export const SystemConfig: React.FC<SystemConfigProps> = ({ tutorials, refreshTutorials, loading }) => {
   const [activeTab, setActiveTab] = useState<'firmware' | 'tutorials'>('firmware');

@@ -86,12 +86,12 @@ export const useSettings = () => {
 
 export const SettingsProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<UserProfile>(() => {
-    const saved = localStorage.getItem('electron_os_profile');
+    const saved = localStorage.getItem('nexus_journal_profile');
     return saved ? JSON.parse(saved) : defaultProfile;
   });
 
   const [theme, setTheme] = useState<ThemeConfig>(() => {
-    const saved = localStorage.getItem('electron_os_theme');
+    const saved = localStorage.getItem('nexus_journal_theme');
     if (saved) {
       const parsed = JSON.parse(saved);
       // Merge missing desktop icons
@@ -108,11 +108,11 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
   });
 
   useEffect(() => {
-    localStorage.setItem('electron_os_profile', JSON.stringify(profile));
+    localStorage.setItem('nexus_journal_profile', JSON.stringify(profile));
   }, [profile]);
 
   useEffect(() => {
-    localStorage.setItem('electron_os_theme', JSON.stringify(theme));
+    localStorage.setItem('nexus_journal_theme', JSON.stringify(theme));
     
     // Apply theme to document root
     const root = document.documentElement;

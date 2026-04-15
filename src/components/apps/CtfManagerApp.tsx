@@ -7,7 +7,9 @@ import { cn } from '../../lib/utils';
 import { Tutorial } from '../../types';
 import Markdown from 'react-markdown';
 import { BlockRenderer } from '../shared/BlockRenderer';
-import { TutorialBlock } from '../../types/tutorial';
+import { BlockEditor } from '../shared/BlockEditor';
+import { TutorialBlock, BlockType, AppView } from '../../types';
+import { Bold, Italic, Strikethrough, Link, List, ListOrdered, Quote, Minus, ArrowUp, ArrowDown, Clipboard, Copy, Upload } from 'lucide-react';
 
 const CollapsibleSection: React.FC<{ title: string; defaultOpen?: boolean; children: React.ReactNode }> = ({ title, defaultOpen = false, children }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
@@ -31,13 +33,14 @@ const CollapsibleSection: React.FC<{ title: string; defaultOpen?: boolean; child
 
 export const CtfManagerApp: React.FC<{ 
   onLaunchChallenge?: (challengeId: string) => void;
-  onStartApp?: (appId: string, props?: any) => void;
+  onStartApp?: (appId: AppView, morphFromId?: string, props?: any) => void;
 }> = ({ onLaunchChallenge, onStartApp }) => {
   const { challenges, addChallenge, updateChallenge, deleteChallenge } = useCtf();
   const { items: inventoryItems } = useInventory();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<CtfChallenge>>({});
+  const [blocks, setBlocks] = useState<TutorialBlock[]>([]);
   const [availableTutorials, setAvailableTutorials] = useState<Tutorial[]>([]);
   const [availableNotes, setAvailableNotes] = useState<any[]>([]);
 
@@ -90,8 +93,77 @@ export const CtfManagerApp: React.FC<{
 
   const handleSave = () => {
     if (editingId) {
-      updateChallenge(editingId, editForm);
+      const updatedForm = {
+        ...editForm,
+        description: JSON.stringify(blocks)
+      };
+      updateChallenge(editingId, updatedForm);
       setIsEditing(false);
+    }
+  };
+
+  const handleToggleInventoryItem = (itemId: string) => {
+    setEditForm(prev => {
+      const current = prev.inventoryItems || [];
+      if (current.includes(itemId)) {
+        return { ...prev, inventoryItems: current.filter(id => id !== itemId) };
+      } else {
+        return { ...prev, inventoryItems: [...current, itemId] };
+      }
+    });
+  };
+
+  const getDefaultDataForType = (type: BlockType) => {
+    switch (type) {
+      case 'markdown': return { text: '' };
+      case 'code': return { language: 'cpp', code: '' };
+      case 'image': return { url: '', caption: '', width: 100 };
+      case 'file_download': return { url: '', name: '' };
+      case 'sub_heading': return { text: '' };
+      case 'divider': return {};
+      case 'video_embed': return { url: '' };
+      case 'image_gallery': return { urls: [''] };
+      case 'note': return { type: 'info', text: '' };
+      case 'attached_note': return { noteId: '' };
+      default: return {};
+    }
+  };
+
+  const addBlock = (type: BlockType) => {
+    const newBlock: TutorialBlock = {
+      id: Math.random().toString(36).substr(2, 9),
+      type,
+      data: getDefaultDataForType(type)
+    };
+    setBlocks([...blocks, newBlock]);
+  };
+
+  const updateBlock = (id: string, data: any) => {
+    setBlocks(blocks.map(b => b.id === id ? { ...b, data } : b));
+  };
+
+  const deleteBlock = (id: string) => {
+    setBlocks(blocks.filter(b => b.id !== id));
+  };
+
+  const moveBlock = (index: number, direction: 'up' | 'down') => {
+    if (direction === 'up' && index > 0) {
+      const newBlocks = [...blocks];
+      [newBlocks[index - 1], newBlocks[index]] = [newBlocks[index], newBlocks[index - 1]];
+      setBlocks(newBlocks);
+    } else if (direction === 'down' && index < blocks.length - 1) {
+      const newBlocks = [...blocks];
+      [newBlocks[index + 1], newBlocks[index]] = [newBlocks[index], newBlocks[index + 1]];
+      setBlocks(newBlocks);
+    }
+  };
+
+  const execCommand = (command: string, value?: string) => {
+    document.execCommand(command, false, value);
+    const active = document.activeElement;
+    if (active && active.hasAttribute('contenteditable')) {
+      const event = new Event('input', { bubbles: true });
+      active.dispatchEvent(event);
     }
   };
 
@@ -210,6 +282,12 @@ export const CtfManagerApp: React.FC<{
                   setEditingId(c.id);
                   setEditForm(c);
                   setIsEditing(false);
+                  try {
+                    const parsed = JSON.parse(c.description);
+                    setBlocks(Array.isArray(parsed) ? parsed : [{ id: 'legacy', type: 'markdown', data: { text: c.description } }]);
+                  } catch {
+                    setBlocks([{ id: 'legacy', type: 'markdown', data: { text: c.description } }]);
+                  }
                 }}
               >
                 <div className="flex justify-between items-start mb-1">
@@ -310,13 +388,67 @@ export const CtfManagerApp: React.FC<{
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase tracking-widest opacity-50 font-bold">Description (Markdown)</label>
-                <textarea 
-                  value={editForm.description || ''} 
-                  onChange={e => setEditForm({...editForm, description: e.target.value})}
-                  className="w-full h-32 bg-black/40 border border-hw-blue/20 rounded p-2 text-xs outline-none focus:border-hw-blue custom-scrollbar resize-none"
-                />
+              <div className="space-y-3">
+                <label className="text-[10px] uppercase tracking-widest opacity-50 font-bold">Description Blocks</label>
+                <div className="space-y-4">
+                  {blocks.map((block, idx) => (
+                    <div key={block.id} className="border border-hw-blue/20 bg-hw-blue/5 rounded-sm overflow-hidden group">
+                      <div className="flex items-center justify-between px-3 py-2 bg-hw-blue/10 border-b border-hw-blue/20">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-hw-blue">{block.type.replace('_', ' ')}</span>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => moveBlock(idx, 'up')} disabled={idx === 0} className="p-1 text-hw-blue/40 hover:text-hw-blue disabled:opacity-30"><ArrowUp className="w-3 h-3" /></button>
+                          <button onClick={() => moveBlock(idx, 'down')} disabled={idx === blocks.length - 1} className="p-1 text-hw-blue/40 hover:text-hw-blue disabled:opacity-30"><ArrowDown className="w-3 h-3" /></button>
+                          <button onClick={() => deleteBlock(block.id)} className="p-1 text-red-500/60 hover:text-red-500"><Trash2 className="w-3 h-3" /></button>
+                        </div>
+                      </div>
+                      <div className="p-3">
+                        {block.type === 'markdown' && (
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap items-center gap-1 border-b border-hw-blue/10 pb-2 mb-2">
+                              <button onMouseDown={e => e.preventDefault()} onClick={() => execCommand('formatBlock', 'H1')} className="p-1.5 hover:bg-hw-blue/10 rounded text-hw-blue/60 hover:text-hw-blue transition-colors" title="H1"><span className="text-[10px] font-bold">H1</span></button>
+                              <button onMouseDown={e => e.preventDefault()} onClick={() => execCommand('formatBlock', 'H2')} className="p-1.5 hover:bg-hw-blue/10 rounded text-hw-blue/60 hover:text-hw-blue transition-colors" title="H2"><span className="text-[10px] font-bold">H2</span></button>
+                              <button onMouseDown={e => e.preventDefault()} onClick={() => execCommand('bold')} className="p-1.5 hover:bg-hw-blue/10 rounded text-hw-blue/60 hover:text-hw-blue transition-colors" title="Bold"><Bold className="w-3 h-3" /></button>
+                              <button onMouseDown={e => e.preventDefault()} onClick={() => execCommand('italic')} className="p-1.5 hover:bg-hw-blue/10 rounded text-hw-blue/60 hover:text-hw-blue transition-colors" title="Italic"><Italic className="w-3 h-3" /></button>
+                              <button onMouseDown={e => e.preventDefault()} onClick={() => execCommand('insertUnorderedList')} className="p-1.5 hover:bg-hw-blue/10 rounded text-hw-blue/60 hover:text-hw-blue transition-colors" title="Bullet List"><List className="w-3 h-3" /></button>
+                            </div>
+                            <BlockEditor 
+                              initialContent={block.data.text}
+                              onChange={(content) => updateBlock(block.id, { ...block.data, text: content })}
+                            />
+                          </div>
+                        )}
+                        {block.type === 'code' && (
+                          <textarea
+                            value={block.data.code}
+                            onChange={(e) => updateBlock(block.id, { ...block.data, code: e.target.value })}
+                            className="w-full bg-black/40 border border-hw-blue/20 p-2 outline-none text-[10px] text-hw-blue font-mono resize-y min-h-[100px]"
+                            placeholder="Paste code here..."
+                          />
+                        )}
+                        {block.type === 'image' && (
+                          <input
+                            type="text"
+                            value={block.data.url}
+                            onChange={(e) => updateBlock(block.id, { ...block.data, url: e.target.value })}
+                            className="w-full bg-transparent border-b border-hw-blue/20 outline-none text-[10px] text-hw-blue py-1"
+                            placeholder="Image URL..."
+                          />
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <button onClick={() => addBlock('markdown')} className="px-3 py-1.5 bg-hw-blue/10 hover:bg-hw-blue/20 text-hw-blue rounded text-[10px] uppercase font-bold transition-colors flex items-center gap-2">
+                      <Plus className="w-3 h-3" /> Text Block
+                    </button>
+                    <button onClick={() => addBlock('code')} className="px-3 py-1.5 bg-hw-blue/10 hover:bg-hw-blue/20 text-hw-blue rounded text-[10px] uppercase font-bold transition-colors flex items-center gap-2">
+                      <Plus className="w-3 h-3" /> Code Block
+                    </button>
+                    <button onClick={() => addBlock('image')} className="px-3 py-1.5 bg-hw-blue/10 hover:bg-hw-blue/20 text-hw-blue rounded text-[10px] uppercase font-bold transition-colors flex items-center gap-2">
+                      <Plus className="w-3 h-3" /> Image Block
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-1">
@@ -609,7 +741,7 @@ export const CtfManagerApp: React.FC<{
                           <CollapsibleSection key={tut.id} title={`Knowledge Base: ${tut.title}`}>
                             <div className="flex justify-end mb-2">
                               <button 
-                                onClick={() => onStartApp && onStartApp('tutorials', { initialTutorialId: tut.id })}
+                                onClick={() => onStartApp && onStartApp('tutorials', undefined, { initialTutorialId: tut.id })}
                                 className="px-3 py-1 bg-hw-blue/20 hover:bg-hw-blue/30 text-hw-blue rounded text-[10px] uppercase tracking-widest font-bold transition-colors"
                               >
                                 Open in Knowledge Base
@@ -629,7 +761,7 @@ export const CtfManagerApp: React.FC<{
                           <CollapsibleSection key={note.id} title={`Data Slab: ${note.title}`}>
                             <div className="flex justify-end mb-2">
                               <button 
-                                onClick={() => onStartApp && onStartApp('notes', { initialNoteId: note.id })}
+                                onClick={() => onStartApp && onStartApp('notes', undefined, { initialNoteId: note.id })}
                                 className="px-3 py-1 bg-hw-blue/20 hover:bg-hw-blue/30 text-hw-blue rounded text-[10px] uppercase tracking-widest font-bold transition-colors"
                               >
                                 Open in Data Slabs

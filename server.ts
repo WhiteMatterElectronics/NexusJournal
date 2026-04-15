@@ -33,7 +33,7 @@ async function startServer() {
   const PORT = 3000;
 
   // Initialize SQLite Database
-  const db = new Database("electron_assistant.db");
+  const db = new Database("nexus_journal.db");
   
   // Create tables
   db.exec(`
@@ -85,23 +85,23 @@ async function startServer() {
   const tutorialCount = db.prepare("SELECT count(*) as count FROM tutorials").get() as { count: number };
   
   const firstTutorialBlocks = [
-    { id: 'b1', type: 'sub_heading', data: { text: 'Welcome to ElectronAssistant' } },
-    { id: 'b2', type: 'markdown', data: { text: '<p>ElectronAssistant is a comprehensive hardware and software platform designed to streamline your embedded development workflow. At its core, it consists of a <strong>tiny custom PCB powered by the ESP32-C3</strong> microcontroller, seamlessly integrated with this powerful web-based platform.</p>' } },
+    { id: 'b1', type: 'sub_heading', data: { text: 'Welcome to NexusJournal' } },
+    { id: 'b2', type: 'markdown', data: { text: '<p>NexusJournal is a comprehensive hardware and software platform designed to streamline your embedded development workflow. At its core, it consists of a <strong>tiny custom PCB powered by the ESP32-C3</strong> microcontroller, seamlessly integrated with this powerful web-based platform.</p>' } },
     { id: 'b3', type: 'sub_heading', data: { text: 'The Hardware: ESP32-C3 Custom PCB' } },
-    { id: 'b4', type: 'image', data: { url: '/uploads/1776080347349-523477590-2D_PCB1_2026-04-12.png', caption: 'ElectronAssistant ESP32-C3 Schematic & PCB Layout' } },
-    { id: 'b5', type: 'markdown', data: { text: '<p>The ElectronAssistant board is designed for rapid prototyping and learning. It acts as a bridge between your computer and the physical world. It features:</p><ul><li><strong>ESP32-C3 RISC-V MCU</strong>: Wi-Fi & Bluetooth LE 5.0 capabilities.</li><li><strong>USB Type-C</strong>: For power, programming, and serial communication.</li><li><strong>Compact Form Factor</strong>: Fits perfectly on a breadboard.</li><li><strong>Built-in RGB LED</strong>: For status indication and visual debugging.</li></ul>' } },
+    { id: 'b4', type: 'image', data: { url: '/uploads/1776080347349-523477590-2D_PCB1_2026-04-12.png', caption: 'NexusJournal ESP32-C3 Schematic & PCB Layout' } },
+    { id: 'b5', type: 'markdown', data: { text: '<p>The NexusJournal board is designed for rapid prototyping and learning. It acts as a bridge between your computer and the physical world. It features:</p><ul><li><strong>ESP32-C3 RISC-V MCU</strong>: Wi-Fi & Bluetooth LE 5.0 capabilities.</li><li><strong>USB Type-C</strong>: For power, programming, and serial communication.</li><li><strong>Compact Form Factor</strong>: Fits perfectly on a breadboard.</li><li><strong>Built-in RGB LED</strong>: For status indication and visual debugging.</li></ul>' } },
     { id: 'b6', type: 'note', data: { type: 'tip', text: 'Try navigating to the FLASH_MODULE now to upload your first firmware, or head over to the LAB to see what your board is currently outputting!' } },
-    { id: 'b7', type: 'code', data: { language: 'cpp', code: 'void setup() {\n  Serial.begin(115200);\n  Serial.println("ElectronAssistant Online");\n}\n\nvoid loop() {\n  // Your code here\n}' } }
+    { id: 'b7', type: 'code', data: { language: 'cpp', code: 'void setup() {\n  Serial.begin(115200);\n  Serial.println("NexusJournal Online");\n}\n\nvoid loop() {\n  // Your code here\n}' } }
   ];
 
   if (tutorialCount.count === 0) {
     const seedTutorials = [
       {
-        id: 'intro-electron-assistant',
-        title: 'Welcome to ElectronAssistant',
+        id: 'intro-nexus-journal',
+        title: 'Welcome to NexusJournal',
         category: 'theory',
         difficulty: 'beginner',
-        description: 'A comprehensive introduction to the ElectronAssistant ESP32-C3 hardware and web platform.',
+        description: 'A comprehensive introduction to the NexusJournal ESP32-C3 hardware and web platform.',
         content: JSON.stringify(firstTutorialBlocks)
       },
       {
@@ -158,7 +158,7 @@ async function startServer() {
     seedTutorials.forEach(t => insertTutorial.run(t.id, t.title, t.category, t.difficulty, t.description, t.content, null, null));
   } else {
     // Force update the first tutorial to be "beautiful" with blocks
-    db.prepare("UPDATE tutorials SET content = ? WHERE id = ?").run(JSON.stringify(firstTutorialBlocks), 'intro-electron-assistant');
+    db.prepare("UPDATE tutorials SET content = ? WHERE id = ?").run(JSON.stringify(firstTutorialBlocks), 'intro-nexus-journal');
   }
 
   app.use(cors());

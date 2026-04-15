@@ -1,6 +1,6 @@
-# ElectronAssistant
+# NexusJournal
 
-ElectronAssistant is a comprehensive hardware and software platform designed to streamline your embedded development workflow. At its core, it consists of a custom PCB powered by the ESP32-C3 microcontroller, seamlessly integrated with a powerful web-based platform.
+NexusJournal is a comprehensive hardware and software platform designed to streamline your embedded development workflow. At its core, it consists of a custom PCB powered by the ESP32-C3 microcontroller, seamlessly integrated with a powerful web-based platform.
 
 ## Features
 
@@ -24,8 +24,8 @@ Follow these instructions to get a copy of the project up and running on your lo
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-username/electron-assistant.git
-cd electron-assistant
+git clone https://github.com/your-username/nexus-journal.git
+cd nexus-journal
 ```
 *(Note: Replace the URL with your actual repository URL)*
 
@@ -63,7 +63,7 @@ npm start
 
 ## Hardware Compatibility
 
-This platform is specifically designed to interface with the **ElectronAssistant ESP32-C3 Custom PCB**. However, the Web Serial API and Flash Module can theoretically work with other ESP32-based development boards, provided they are put into the correct bootloader mode.
+This platform is specifically designed to interface with the **NexusJournal ESP32-C3 Custom PCB**. However, the Web Serial API and Flash Module can theoretically work with other ESP32-based development boards, provided they are put into the correct bootloader mode.
 
 ## License
 

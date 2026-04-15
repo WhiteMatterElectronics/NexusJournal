@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Flag, Terminal, CheckCircle, Lock, Play, Code, ChevronRight, ChevronDown, Send } from 'lucide-react';
 import { useCtf } from '../../contexts/CtfContext';
 import { useSerial } from '../../contexts/SerialContext';
@@ -6,7 +6,7 @@ import { useInventory } from '../../contexts/InventoryContext';
 import { cn } from '../../lib/utils';
 import Markdown from 'react-markdown';
 import { BlockRenderer } from '../shared/BlockRenderer';
-import { TutorialBlock } from '../../types/tutorial';
+import { TutorialBlock, AppView, Tutorial } from '../../types';
 
 const CollapsibleSection: React.FC<{ title: string; defaultOpen?: boolean; children: React.ReactNode }> = ({ title, defaultOpen = false, children }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
@@ -30,7 +30,7 @@ const CollapsibleSection: React.FC<{ title: string; defaultOpen?: boolean; child
 
 export const CtfChallengeApp: React.FC<{ 
   challengeId: string;
-  onStartApp?: (appId: string, props?: any) => void;
+  onStartApp?: (appId: AppView, morphFromId?: string, props?: any) => void;
 }> = ({ challengeId, onStartApp }) => {
   const { challenges, updateChallenge } = useCtf();
   const { connected, writeToSerial, logs } = useSerial();
@@ -40,7 +40,7 @@ export const CtfChallengeApp: React.FC<{
   
   const [activeTab, setActiveTab] = useState<'briefing' | 'terminal' | 'custom_ui'>('briefing');
   const [terminalInput, setTerminalInput] = useState('');
-  const [availableTutorials, setAvailableTutorials] = useState<any[]>([]);
+  const [availableTutorials, setAvailableTutorials] = useState<Tutorial[]>([]);
   const [availableNotes, setAvailableNotes] = useState<any[]>([]);
   const [flagInputs, setFlagInputs] = useState<Record<string, string>>(challenge?.flagJournal || {});
   
@@ -117,13 +117,16 @@ export const CtfChallengeApp: React.FC<{
     return () => window.removeEventListener('message', handleMessage);
   }, [challengeId, updateChallenge, writeToSerial]);
 
+  const lastProcessedLogRef = useRef<number>(-1);
+
   // Send serial data to iframe
   useEffect(() => {
-    if (iframeRef.current && iframeRef.current.contentWindow) {
-      const lastLog = logs[logs.length - 1];
-      if (lastLog && lastLog.type === 'data') {
-        iframeRef.current.contentWindow.postMessage({ type: 'SERIAL_DATA', data: lastLog.text }, '*');
+    if (iframeRef.current && iframeRef.current.contentWindow && logs.length > 0) {
+      // Send all new logs since last check
+      for (let i = lastProcessedLogRef.current + 1; i < logs.length; i++) {
+        iframeRef.current.contentWindow.postMessage({ type: 'SERIAL_DATA', data: logs[i].text }, '*');
       }
+      lastProcessedLogRef.current = logs.length - 1;
     }
   }, [logs]);
 
@@ -132,7 +135,7 @@ export const CtfChallengeApp: React.FC<{
     if (!challenge || challenge.status === 'solved') return;
 
     const lastLog = logs[logs.length - 1];
-    if (!lastLog || lastLog.type !== 'data') return;
+    if (!lastLog) return;
 
     challenge.serialTriggers.forEach(trigger => {
       try {
@@ -169,57 +172,60 @@ export const CtfChallengeApp: React.FC<{
     }
   };
 
-  const iframeSrcDoc = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body { 
-          color: #00f2ff; 
-          font-family: monospace; 
-          margin: 0; 
-          padding: 16px; 
-          background: transparent;
-        }
-        /* Basic HW OS styles for custom UI */
-        button {
-          background: rgba(0, 242, 255, 0.2);
-          border: 1px solid rgba(0, 242, 255, 0.4);
-          color: #00f2ff;
-          padding: 8px 16px;
-          cursor: pointer;
-          font-family: monospace;
-          text-transform: uppercase;
-          border-radius: 4px;
-        }
-        button:hover { background: rgba(0, 242, 255, 0.3); }
-        input {
-          background: rgba(0,0,0,0.4);
-          border: 1px solid rgba(0, 242, 255, 0.3);
-          color: #00f2ff;
-          padding: 8px;
-          font-family: monospace;
-          outline: none;
-        }
-        input:focus { border-color: #00f2ff; }
-      </style>
-    </head>
-    <body>
-      ${challenge.customCode || '<h1>Custom Challenge UI</h1><p>No custom code provided.</p>'}
-      <script>
-        window.hwAPI = {
-          complete: () => window.parent.postMessage({ type: 'COMPLETE_CHALLENGE' }, '*'),
-          sendSerial: (data) => window.parent.postMessage({ type: 'SEND_SERIAL', data }, '*'),
-          onSerialData: (callback) => {
-            window.addEventListener('message', (e) => {
-              if (e.data.type === 'SERIAL_DATA') callback(e.data.data);
-            });
+  const iframeSrcDoc = useMemo(() => {
+    if (!challenge) return '';
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { 
+            color: #00f2ff; 
+            font-family: monospace; 
+            margin: 0; 
+            padding: 16px; 
+            background: transparent;
           }
-        };
-      </script>
-    </body>
-    </html>
-  `;
+          /* Basic HW OS styles for custom UI */
+          button {
+            background: rgba(0, 242, 255, 0.2);
+            border: 1px solid rgba(0, 242, 255, 0.4);
+            color: #00f2ff;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-family: monospace;
+            text-transform: uppercase;
+            border-radius: 4px;
+          }
+          button:hover { background: rgba(0, 242, 255, 0.3); }
+          input {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(0, 242, 255, 0.3);
+            color: #00f2ff;
+            padding: 8px;
+            font-family: monospace;
+            outline: none;
+          }
+          input:focus { border-color: #00f2ff; }
+        </style>
+      </head>
+      <body>
+        ${challenge.customCode || '<h1>Custom Challenge UI</h1><p>No custom code provided.</p>'}
+        <script>
+          window.hwAPI = {
+            complete: () => window.parent.postMessage({ type: 'COMPLETE_CHALLENGE' }, '*'),
+            sendSerial: (data) => window.parent.postMessage({ type: 'SEND_SERIAL', data }, '*'),
+            onSerialData: (callback) => {
+              window.addEventListener('message', (e) => {
+                if (e.data.type === 'SERIAL_DATA') callback(e.data.data);
+              });
+            }
+          };
+        </script>
+      </body>
+      </html>
+    `;
+  }, [challenge]);
 
   return (
     <div className="flex flex-col h-full bg-black/80 font-mono text-hw-blue">
@@ -376,7 +382,7 @@ export const CtfChallengeApp: React.FC<{
                       <CollapsibleSection key={tut.id} title={`Knowledge Base: ${tut.title}`}>
                         <div className="flex justify-end mb-2">
                           <button 
-                            onClick={() => onStartApp && onStartApp('tutorials', { initialTutorialId: tut.id })}
+                            onClick={() => onStartApp && onStartApp('tutorials', undefined, { initialTutorialId: tut.id })}
                             className="px-3 py-1 bg-hw-blue/20 hover:bg-hw-blue/30 text-hw-blue rounded text-[10px] uppercase tracking-widest font-bold transition-colors"
                           >
                             Open in Knowledge Base
@@ -396,7 +402,7 @@ export const CtfChallengeApp: React.FC<{
                       <CollapsibleSection key={note.id} title={`Data Slab: ${note.title}`}>
                         <div className="flex justify-end mb-2">
                           <button 
-                            onClick={() => onStartApp && onStartApp('notes', { initialNoteId: note.id })}
+                            onClick={() => onStartApp && onStartApp('notes', undefined, { initialNoteId: note.id })}
                             className="px-3 py-1 bg-hw-blue/20 hover:bg-hw-blue/30 text-hw-blue rounded text-[10px] uppercase tracking-widest font-bold transition-colors"
                           >
                             Open in Data Slabs

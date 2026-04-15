@@ -197,7 +197,7 @@ void setup() {
   xTaskCreate(taskCommandProcessor, "CmdProc", 16384, NULL, 1, &hCmdProc);
 
   Serial.println(F("\n[SYSTEM] ========================================"));
-  Serial.println(F("[SYSTEM]        ESP32 CTF ASSISTANT v5.0        "));
+  Serial.println(F("[SYSTEM]        ESP32 NEXUS JOURNAL v5.0        "));
   Serial.printf( "[SYSTEM]        IDENTITY: %s\n", customBleName.c_str());
   Serial.println(F("[SYSTEM] ========================================"));
   Serial.println(F("[SYSTEM] Ready. Type 'HELP' for a list of modules."));

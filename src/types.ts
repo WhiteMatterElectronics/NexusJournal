@@ -1,4 +1,4 @@
-export type BlockType = 'markdown' | 'code' | 'image' | 'file_download' | 'sub_heading' | 'divider' | 'video_embed' | 'image_gallery' | 'note' | 'attached_note';
+export type BlockType = 'markdown' | 'code' | 'image' | 'file_download' | 'sub_heading' | 'divider' | 'video_embed' | 'image_gallery' | 'note' | 'attached_note' | 'tip' | 'warning';
 
 export interface TutorialBlock {
   id: string;

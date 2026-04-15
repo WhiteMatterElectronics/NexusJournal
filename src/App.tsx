@@ -306,6 +306,26 @@ export default function App() {
     }
   }, [theme.iconPositions, theme.widgets, updateTheme, gridSize]);
 
+  useEffect(() => {
+    const handleGlobalClick = (e: MouseEvent) => {
+      // Close Dash if open and clicking outside content
+      if (showDash) {
+        const dashContent = document.querySelector('.dash-content-area');
+        if (dashContent && !dashContent.contains(e.target as Node)) {
+          setShowDash(false);
+        }
+      }
+      
+      // Close Context Menu
+      if (contextMenu) {
+        setContextMenu(null);
+      }
+    };
+
+    window.addEventListener('mousedown', handleGlobalClick);
+    return () => window.removeEventListener('mousedown', handleGlobalClick);
+  }, [showDash, contextMenu]);
+
   const handleUpdateWidget = useCallback((instanceId: string, updates: Partial<ActiveWidget>) => {
     updateTheme(prev => ({
       widgets: prev.widgets.map(w => w.instanceId === instanceId ? { ...w, ...updates } : w)
@@ -512,7 +532,7 @@ export default function App() {
       setTutorials(data);
       if (!initialLoadDone.current) {
         initialLoadDone.current = true;
-        const intro = data.find((t: Tutorial) => t.id === 'intro-electron-assistant');
+        const intro = data.find((t: Tutorial) => t.id === 'intro-nexus-journal');
         if (intro) {
           setSelectedTutorial(intro);
         }
@@ -675,7 +695,7 @@ export default function App() {
   };
 
   const handleShutdown = () => {
-    window.dispatchEvent(new CustomEvent('electron-os-shutdown'));
+    window.dispatchEvent(new CustomEvent('nexus-journal-shutdown'));
     setWindows(prev => prev.map(w => ({ ...w, isOpen: false })));
   };
 
@@ -993,7 +1013,7 @@ export default function App() {
             
             <div className="text-hw-blue text-2xl font-bold mb-12 tracking-[0.3em] uppercase opacity-60">Applications</div>
             
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-x-8 gap-y-12 w-full">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-x-8 gap-y-12 w-full dash-content-area">
               {APPS.map(app => (
                 <motion.div
                   key={`dash-${app.id}`}
