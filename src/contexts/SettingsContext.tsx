@@ -29,6 +29,13 @@ export interface GranularColors {
 
 export type ThemeMode = 'retro_dark' | 'retro_light' | 'glassy_dark' | 'glassy_light';
 
+export interface TimeConfig {
+  source: 'system' | 'internet' | 'auto';
+  manualOffset: number; // in minutes
+  showSeconds: boolean;
+  is24Hour: boolean;
+}
+
 export interface ThemeConfig {
   mainColor: string;
   terminalColor: string;
@@ -46,6 +53,13 @@ export interface ThemeConfig {
   hideDelay: number;
   animationSpeed: number;
   widgets: ActiveWidget[];
+  desktopGridSize: number;
+  gridCols: number;
+  gridRows: number;
+  desktopLabelColor: string;
+  iconTheme: 'classic' | 'neon' | 'minimal' | 'glass' | 'pixel';
+  iconThemes: Record<string, string>;
+  timeConfig: TimeConfig;
 }
 
 interface SettingsContextType {
@@ -141,14 +155,27 @@ const defaultTheme: ThemeConfig = {
     'notes': true,
     'admin': true,
     'settings': true,
-    'bluetooth': true
+    'bluetooth': true,
+    'properties': false
   },
   iconPositions: {},
   taskbarStyle: 'fixed',
   intellihide: false,
   hideDelay: 500,
   animationSpeed: 0.3,
-  widgets: []
+  widgets: [],
+  desktopGridSize: 100,
+  gridCols: 15,
+  gridRows: 7,
+  desktopLabelColor: '#ffffff',
+  iconTheme: 'classic',
+  iconThemes: {},
+  timeConfig: {
+    source: 'auto',
+    manualOffset: 0,
+    showSeconds: true,
+    is24Hour: true
+  }
 };
 
 const SettingsContext = createContext<SettingsContextType | null>(null);
@@ -201,6 +228,9 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     
     const currentMode: ThemeMode = `${theme.globalTheme}_${theme.isDarkMode ? 'dark' : 'light'}` as ThemeMode;
     const g = theme.granularSettings[currentMode];
+
+    root.style.setProperty('--desktop-grid-size', `${theme.desktopGridSize}px`);
+    root.style.setProperty('--desktop-label-color', theme.desktopLabelColor);
 
     if (theme.useGranular) {
       root.style.setProperty('--theme-main', g.accentColor);

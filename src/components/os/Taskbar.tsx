@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Cpu, Power, Settings, BookOpen, Zap, Terminal, Database, Radio, FileCode, Lock, X, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useSettings, defaultGranular, ThemeMode, GranularColors, TimeConfig } from '../../contexts/SettingsContext';
 import { cn, getContrastColor, adjustColor } from '../../lib/utils';
 import { AppView } from '../../types';
 
@@ -22,6 +23,8 @@ interface TaskbarProps {
   shouldHide?: boolean;
   onHoverChange?: (hovered: boolean) => void;
   animationSpeed?: number;
+  onContextMenu?: (e: React.MouseEvent, type: 'taskbar' | 'dash') => void;
+  timeConfig?: TimeConfig;
 }
 
 export const Taskbar: React.FC<TaskbarProps> = ({
@@ -39,7 +42,9 @@ export const Taskbar: React.FC<TaskbarProps> = ({
   isDarkMode = true,
   shouldHide = false,
   onHoverChange,
-  animationSpeed = 0.3
+  animationSpeed = 0.3,
+  onContextMenu,
+  timeConfig = { source: 'auto', manualOffset: 0, showSeconds: true, is24Hour: true }
 }) => {
   const [isStartOpen, setIsStartOpen] = useState(false);
   const [time, setTime] = useState(new Date());
@@ -72,9 +77,24 @@ export const Taskbar: React.FC<TaskbarProps> = ({
   const contrastColor = getContrastColor(mainColor);
 
   useEffect(() => {
-    const timer = setInterval(() => setTime(new Date()), 1000);
+    const timer = setInterval(() => {
+      const now = new Date();
+      if (timeConfig.manualOffset !== 0) {
+        now.setMinutes(now.getMinutes() + timeConfig.manualOffset);
+      }
+      setTime(now);
+    }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [timeConfig.manualOffset]);
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString([], { 
+      hour12: !timeConfig.is24Hour,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: timeConfig.showSeconds ? '2-digit' : undefined
+    });
+  };
 
   const handleMouseEnter = (appId: string, e: React.MouseEvent) => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
@@ -187,6 +207,13 @@ export const Taskbar: React.FC<TaskbarProps> = ({
         ref={taskbarRef}
         onMouseEnter={() => onHoverChange?.(true)}
         onMouseLeave={() => onHoverChange?.(false)}
+        onContextMenu={(e) => {
+          if (onContextMenu) {
+            e.preventDefault();
+            e.stopPropagation();
+            onContextMenu(e, 'taskbar');
+          }
+        }}
         animate={{ y: shouldHide ? 100 : 0 }}
         transition={{ duration: animationSpeed, ease: "easeInOut" }}
         className={cn(
@@ -204,6 +231,13 @@ export const Taskbar: React.FC<TaskbarProps> = ({
               onToggleDash();
             } else {
               setIsStartOpen(!isStartOpen);
+            }
+          }}
+          onContextMenu={(e) => {
+            if (onContextMenu) {
+              e.preventDefault();
+              e.stopPropagation();
+              onContextMenu(e, 'dash');
             }
           }}
           className={cn(
@@ -303,7 +337,7 @@ export const Taskbar: React.FC<TaskbarProps> = ({
 
         <div className="h-8 px-3 flex items-center justify-center border border-transparent text-hw-blue/60">
           <span className="text-[10px] font-mono">
-            {time.toLocaleTimeString([], { hour12: false })}
+            {formatTime(time)}
           </span>
         </div>
 

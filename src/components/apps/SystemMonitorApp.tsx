@@ -3,7 +3,7 @@ import {
   Activity, Cpu, Database, HardDrive, Network, 
   X, Terminal, Search, Trash2, RefreshCcw, 
   ChevronDown, ChevronRight, Zap, Monitor, 
-  Layers, Gauge, BarChart3
+  Layers, Gauge, BarChart3, EyeOff
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useSettings } from '../../contexts/SettingsContext';
@@ -24,10 +24,14 @@ interface Process {
 interface SystemMonitorProps {
   windows: any[];
   onWindowAction: (instanceId: string, action: 'close' | 'minimize' | 'maximize' | 'focus') => void;
+  initialView?: 'dashboard' | 'process_detail';
+  appId?: string;
 }
 
-export const SystemMonitorApp: React.FC<SystemMonitorProps> = ({ windows, onWindowAction }) => {
+export const SystemMonitorApp: React.FC<SystemMonitorProps> = ({ windows, onWindowAction, initialView = 'dashboard', appId }) => {
   const { theme } = useSettings();
+  const [view, setView] = useState<'dashboard' | 'process_detail'>(initialView);
+  const [selectedAppId, setSelectedAppId] = useState<string | undefined>(appId);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [cpuHistory, setCpuHistory] = useState<number[][]>(Array(8).fill([]).map(() => Array(20).fill(0)));
   const [gpuLoad, setGpuLoad] = useState(0);
@@ -97,6 +101,110 @@ export const SystemMonitorApp: React.FC<SystemMonitorProps> = ({ windows, onWind
   const toggleGroup = (id: string) => {
     setExpandedGroups(prev => ({ ...prev, [id]: !prev[id] }));
   };
+
+  if (view === 'process_detail' && selectedAppId) {
+    const app = processGroups.find(p => p.appId === selectedAppId);
+    return (
+      <div className="flex flex-col h-full bg-hw-black text-hw-blue/90 font-sans select-none overflow-hidden">
+        <div className="p-6 border-b border-hw-blue/10 flex items-center justify-between bg-hw-blue/5">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setView('dashboard')} className="p-2 hover:bg-hw-blue/10 rounded-full transition-colors">
+              <ChevronRight className="w-4 h-4 rotate-180" />
+            </button>
+            <div className="flex flex-col">
+              <h2 className="text-lg font-bold uppercase tracking-widest">{app?.name || selectedAppId.toUpperCase()} PROPERTIES</h2>
+              <span className="text-[9px] opacity-40 uppercase tracking-widest">Process ID: {selectedAppId}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className={cn("px-2 py-1 rounded text-[8px] font-bold uppercase tracking-widest", app ? "bg-green-500/20 text-green-500" : "bg-red-500/20 text-red-500")}>
+              {app ? 'ACTIVE_PROCESS' : 'TERMINATED'}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-6">
+              <div className="p-6 bg-hw-blue/5 border border-hw-blue/10 rounded-xl">
+                <h3 className="text-[10px] font-bold uppercase tracking-widest mb-4 opacity-60">Resource Consumption</h3>
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex justify-between text-[10px] mb-1">
+                      <span>CPU LOAD</span>
+                      <span className="font-mono">{app?.cpu.toFixed(1) || 0}%</span>
+                    </div>
+                    <div className="h-1.5 bg-hw-blue/10 rounded-full overflow-hidden">
+                      <div className="h-full bg-hw-blue transition-all duration-1000" style={{ width: `${app?.cpu || 0}%` }} />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-[10px] mb-1">
+                      <span>MEMORY USAGE</span>
+                      <span className="font-mono">{app?.ram || 0} MB</span>
+                    </div>
+                    <div className="h-1.5 bg-hw-blue/10 rounded-full overflow-hidden">
+                      <div className="h-full bg-hw-blue transition-all duration-1000" style={{ width: `${((app?.ram || 0) / 1024) * 100}%` }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 bg-hw-blue/5 border border-hw-blue/10 rounded-xl">
+                <h3 className="text-[10px] font-bold uppercase tracking-widest mb-4 opacity-60">Process Metadata</h3>
+                <div className="space-y-3 text-[10px]">
+                  <div className="flex justify-between border-b border-hw-blue/5 pb-2">
+                    <span className="opacity-40">EXECUTABLE</span>
+                    <span className="font-mono">{selectedAppId}.bin</span>
+                  </div>
+                  <div className="flex justify-between border-b border-hw-blue/5 pb-2">
+                    <span className="opacity-40">USER</span>
+                    <span className="font-mono">ROOT</span>
+                  </div>
+                  <div className="flex justify-between border-b border-hw-blue/5 pb-2">
+                    <span className="opacity-40">PRIORITY</span>
+                    <span className="font-mono">NORMAL (20)</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="opacity-40">THREADS</span>
+                    <span className="font-mono">12</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+               <div className="p-6 bg-hw-blue/5 border border-hw-blue/10 rounded-xl h-full flex flex-col">
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest mb-4 opacity-60">Active Instances</h3>
+                  <div className="flex-1 space-y-2">
+                    {app?.instances.map((inst, i) => (
+                      <div key={inst.id} className="flex items-center justify-between p-3 bg-black/20 rounded border border-hw-blue/5">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold">Instance #{i+1}</span>
+                          <span className="text-[8px] opacity-40 font-mono">{inst.id}</span>
+                        </div>
+                        <button 
+                          onClick={() => onWindowAction(inst.id, 'close')}
+                          className="p-1.5 hover:bg-red-500/20 text-red-500/60 hover:text-red-500 rounded transition-colors"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                    {(!app || app.instances.length === 0) && (
+                      <div className="flex flex-col items-center justify-center h-40 opacity-20">
+                        <EyeOff className="w-8 h-8 mb-2" />
+                        <span className="text-[10px] uppercase tracking-widest">No active instances</span>
+                      </div>
+                    )}
+                  </div>
+               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const MiniGraph = ({ data, color, height = 30 }: { data: number[], color: string, height?: number }) => (
     <div className="flex items-end gap-[1px] h-[30px] w-full bg-black/20 rounded overflow-hidden p-1">

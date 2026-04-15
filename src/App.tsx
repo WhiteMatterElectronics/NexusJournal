@@ -10,7 +10,7 @@ import { TutorialDetail } from './components/TutorialDetail';
 import { FlashModule } from './components/FlashModule';
 import { SystemConfig } from './components/SystemConfig';
 import { AppView, Tutorial } from './types';
-import { Settings, BookOpen, Zap, Terminal, Database, Radio, FileCode, Lock, Unlock, Activity, Cloud, ChevronRight, Layout, Plus } from 'lucide-react';
+import { Settings, BookOpen, Zap, Terminal, Database, Radio, FileCode, Lock, Unlock, Activity, Cloud, ChevronRight, Layout, Plus, Monitor, RotateCcw, Power, Trash2, Info } from 'lucide-react';
 import { Window } from './components/os/Window';
 import { Taskbar } from './components/os/Taskbar';
 import { ConsoleApp } from './components/apps/ConsoleApp';
@@ -21,6 +21,7 @@ import { CyphonatorApp } from './components/apps/CyphonatorApp';
 import { SettingsApp } from './components/apps/SettingsApp';
 import { NotesApp } from './components/apps/NotesApp';
 import { SystemMonitorApp } from './components/apps/SystemMonitorApp';
+import { PropertiesApp } from './components/apps/PropertiesApp';
 import { WeatherApp } from './components/apps/WeatherApp';
 import { ClockApp } from './components/apps/ClockApp';
 import { BluetoothApp } from './components/apps/BluetoothApp';
@@ -60,6 +61,7 @@ function DesktopIcon({
   desktopRef, 
   gridSize,
   onMouseDown,
+  handleContextMenu,
   isDragging,
   currentMousePos,
   dragOffset
@@ -91,13 +93,83 @@ function DesktopIcon({
     height: `${100 / gridSize.rows}%`,
   };
 
+  const appIconTheme = theme.iconThemes?.[app.id] || theme.iconTheme || 'classic';
+
+  const getThemeStyles = () => {
+    switch (appIconTheme) {
+      case 'neon':
+        return {
+          container: cn(
+            "bg-transparent border-2 rounded-lg",
+            isDragging ? "border-white" : "border-hw-blue/40"
+          ),
+          inner: {
+            boxShadow: `0 0 15px ${mainColor}44, inset 0 0 10px ${mainColor}22`,
+            borderColor: mainColor
+          },
+          icon: {
+            filter: `drop-shadow(0 0 5px ${mainColor})`
+          }
+        };
+      case 'minimal':
+        return {
+          container: "bg-transparent border-none",
+          inner: {
+            boxShadow: 'none',
+            backdropFilter: 'none'
+          },
+          icon: {
+            filter: `drop-shadow(0 2px 4px rgba(0,0,0,0.5))`
+          }
+        };
+      case 'glass':
+        return {
+          container: "bg-white/10 backdrop-blur-xl border border-white/30 rounded-3xl",
+          inner: {
+            boxShadow: `0 8px 32px 0 rgba(31, 38, 135, 0.37)`,
+          },
+          icon: {
+            filter: `drop-shadow(0 0 8px ${mainColor}66)`
+          }
+        };
+      case 'pixel':
+        return {
+          container: "bg-hw-blue border-2 border-white rounded-none",
+          inner: {
+            boxShadow: '4px 4px 0px rgba(0,0,0,0.5)',
+            borderRadius: '0'
+          },
+          icon: {
+            filter: 'none',
+            color: '#ffffff'
+          }
+        };
+      case 'classic':
+      default:
+        return {
+          container: cn(
+            isGlassy 
+              ? "bg-white/10 border border-white/20 rounded-2xl" 
+              : "bg-black/40 border-2 border-hw-blue/40 rounded-none shadow-[4px_4px_0px_rgba(0,0,0,0.5)]"
+          ),
+          inner: {
+            backdropFilter: isGlassy ? 'blur(10px)' : 'none',
+            boxShadow: isDragging ? `0 0 30px ${mainColor}66` : isGlassy ? `0 0 15px ${mainColor}22` : 'none',
+            borderColor: isGlassy ? undefined : isDragging ? mainColor : `${mainColor}66`
+          },
+          icon: {
+            filter: isGlassy ? `drop-shadow(0 0 8px ${mainColor}44)` : 'none'
+          }
+        };
+    }
+  };
+
+  const themeStyles = getThemeStyles();
+
   return (
     <motion.div
-      transition={{ 
-        duration: 0.15,
-        ease: "easeOut"
-      }}
       onMouseDown={(e) => onMouseDown(e, { id: app.id, pos: gridPos })}
+      onContextMenu={(e) => handleContextMenu(e, 'icon', app.id)}
       onTouchStart={(e) => {
         const touch = e.touches[0];
         const mouseEvent = new MouseEvent('mousedown', {
@@ -117,24 +189,22 @@ function DesktopIcon({
       <div 
         className={cn(
           "relative flex items-center justify-center p-2.5 transition-all duration-300 shrink-0",
-          isGlassy 
-            ? "bg-white/10 border border-white/20 group-hover:bg-white/20 group-hover:border-white/40 rounded-2xl" 
-            : "bg-black/40 border-2 border-hw-blue/40 group-hover:bg-black/60 group-hover:border-hw-blue rounded-none shadow-[4px_4px_0px_rgba(0,0,0,0.5)]",
+          themeStyles.container,
           isDragging && (isGlassy ? "bg-white/30" : "bg-black/80 border-hw-blue")
         )}
         style={{ 
-          width: 'min(52px, 60%)',
-          height: 'min(52px, 60%)',
-          backdropFilter: isGlassy ? 'blur(10px)' : 'none',
-          boxShadow: isDragging ? `0 0 30px ${mainColor}66` : isGlassy ? `0 0 15px ${mainColor}22` : 'none',
-          borderColor: isGlassy ? undefined : isDragging ? mainColor : `${mainColor}66`
+          width: `${theme.desktopGridSize * 0.6}px`,
+          height: `${theme.desktopGridSize * 0.6}px`,
+          maxWidth: '80%',
+          maxHeight: '80%',
+          ...themeStyles.inner
         }}
       >
         <app.icon 
           className={cn("w-1/2 h-1/2 transition-colors", !isGlassy && "drop-shadow-none")} 
           style={{ 
-            color: isGlassy ? (isDark ? mainColor : adjustColor(mainColor, -40)) : mainColor,
-            filter: isGlassy ? `drop-shadow(0 0 8px ${mainColor}44)` : 'none'
+            color: appIconTheme === 'pixel' ? '#ffffff' : isGlassy ? (isDark ? mainColor : adjustColor(mainColor, -40)) : mainColor,
+            ...themeStyles.icon
           }}
         />
 
@@ -147,8 +217,8 @@ function DesktopIcon({
             )}
             style={{ 
               maxWidth: '100%',
-              color: isDragging ? contrastColor : mainColor,
-              textShadow: isDark ? `0 0 10px ${mainColor}66` : '0 2px 4px rgba(0,0,0,0.5)',
+              color: isDragging ? contrastColor : theme.desktopLabelColor,
+              textShadow: isDark ? `0 0 10px ${theme.desktopLabelColor}66` : '0 2px 4px rgba(0,0,0,0.5)',
               backgroundColor: isDragging ? mainColor : undefined,
               border: isDragging ? `1px solid ${contrastColor}33` : 'none'
             }}
@@ -172,7 +242,12 @@ export default function App() {
   ]);
   const [activeWindowId, setActiveWindowId] = useState<string | null>('console-1');
   const [highestZIndex, setHighestZIndex] = useState(1);
-  const [contextMenu, setContextMenu] = useState<{x: number, y: number, show: boolean} | null>(null);
+  const [contextMenu, setContextMenu] = useState<{x: number, y: number, show: boolean, type?: 'desktop' | 'taskbar' | 'dash' | 'icon', appId?: string} | null>(null);
+
+  const handleContextMenu = (e: React.MouseEvent, type: 'desktop' | 'taskbar' | 'dash' | 'icon' = 'desktop', appId?: string) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, show: true, type, appId });
+  };
 
   const [selectedTutorial, setSelectedTutorial] = useState<Tutorial | null>(null);
   const [tutorials, setTutorials] = useState<Tutorial[]>([]);
@@ -184,25 +259,13 @@ export default function App() {
   const [dragStartPos, setDragStartPos] = useState({ x: 0, y: 0 });
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [currentMousePos, setCurrentMousePos] = useState({ x: 0, y: 0 });
-  const [gridSize, setGridSize] = useState({ cols: REFERENCE_COLS, rows: REFERENCE_ROWS });
+  const [gridSize, setGridSize] = useState({ cols: theme.gridCols, rows: theme.gridRows });
   const initialLoadDone = useRef(false);
   const desktopRef = useRef<HTMLDivElement>(null);
-  const resizeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
-
-  const updateGridSize = useCallback(() => {
-    // We use fixed grid dimensions to ensure perfect scaling of icons and widgets
-    setGridSize({ cols: REFERENCE_COLS, rows: REFERENCE_ROWS });
-  }, []);
 
   useEffect(() => {
-    updateGridSize();
-    window.addEventListener('resize', updateGridSize);
-    return () => {
-      window.removeEventListener('resize', updateGridSize);
-      if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
-    };
-  }, [updateGridSize]);
+    setGridSize({ cols: theme.gridCols, rows: theme.gridRows });
+  }, [theme.gridCols, theme.gridRows]);
 
   const isMasterMode = gridSize.cols >= REFERENCE_COLS && gridSize.rows >= REFERENCE_ROWS;
   const isOverflowing = gridSize.cols < 10 || gridSize.rows < 5;
@@ -319,15 +382,14 @@ export default function App() {
   }, [updateTheme]);
 
   const handleMouseDown = (e: React.MouseEvent, iconData: { id: string, pos: {x: number, y: number} }) => {
+    // Only allow left click for dragging
+    if (e.button !== 0) return;
+
     // Prevent text selection during drag
     e.preventDefault();
     
     // If it's a double click or more, don't start a drag
     if (e.detail > 1) {
-      if (longPressTimer.current) {
-        clearTimeout(longPressTimer.current);
-        longPressTimer.current = null;
-      }
       setDraggingId(null);
       setIsDraggingIcon(false);
       return;
@@ -340,17 +402,10 @@ export default function App() {
     };
     const startPos = { x: e.clientX, y: e.clientY };
 
-    // Clear any existing timer
-    if (longPressTimer.current) clearTimeout(longPressTimer.current);
-
-    // Start a timer for long press (200ms)
-    longPressTimer.current = setTimeout(() => {
-      setDragOffset(offset);
-      setDraggingId(iconData.id);
-      setDragStartPos(startPos);
-      setCurrentMousePos(startPos);
-      longPressTimer.current = null;
-    }, 200);
+    setDragOffset(offset);
+    setDraggingId(iconData.id);
+    setDragStartPos(startPos);
+    setCurrentMousePos(startPos);
   };
 
   const handleMouseMove = useCallback((e: MouseEvent | TouchEvent) => {
@@ -363,27 +418,14 @@ export default function App() {
       // Only show grid if we've moved more than a small threshold (prevents grid flashing on double click)
       if (!isDraggingIcon) {
         const dist = Math.sqrt(Math.pow(clientX - dragStartPos.x, 2) + Math.pow(clientY - dragStartPos.y, 2));
-        if (dist > 10) {
+        if (dist > 5) {
           setIsDraggingIcon(true);
         }
-      }
-    } else if (longPressTimer.current) {
-      // If we move too much before the timer fires, cancel it
-      // This allows normal clicks to work without accidentally triggering drag
-      const dist = Math.sqrt(Math.pow(clientX - dragStartPos.x, 2) + Math.pow(clientY - dragStartPos.y, 2));
-      if (dist > 10) {
-        clearTimeout(longPressTimer.current);
-        longPressTimer.current = null;
       }
     }
   }, [draggingId, isDraggingIcon, dragStartPos]);
 
   const handleMouseUp = useCallback((e: MouseEvent | TouchEvent) => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-
     if (!draggingId || !desktopRef.current) {
       setDraggingId(null);
       setIsDraggingIcon(false);
@@ -405,13 +447,13 @@ export default function App() {
 
     if (draggingId.startsWith('widget-')) {
       handleUpdateWidget(draggingId, { x: newX, y: newY });
-    } else {
+    } else if (isDraggingIcon) {
       handleIconDrop(draggingId, newX, newY);
     }
     
     setDraggingId(null);
     setIsDraggingIcon(false);
-  }, [draggingId, handleIconDrop, gridSize]);
+  }, [draggingId, isDraggingIcon, handleIconDrop, gridSize, handleUpdateWidget]);
 
   useEffect(() => {
     if (draggingId) {
@@ -552,10 +594,6 @@ export default function App() {
     // Clear any dragging state when an app starts
     setDraggingId(null);
     setIsDraggingIcon(false);
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
 
     if (id === 'tutorials' && initialProps?.initialTutorialId) {
       const tut = tutorials.find(t => t.id === initialProps.initialTutorialId);
@@ -681,7 +719,7 @@ export default function App() {
     setWindows(prev => prev.map(w => ({ ...w, isOpen: false })));
   };
 
-  const renderAppContent = (id: AppView, initialProps?: any) => {
+  const renderAppContent = (id: AppView, instanceId: string, initialProps?: any) => {
     switch (id) {
       case 'console':
         return <ConsoleApp />;
@@ -751,6 +789,22 @@ export default function App() {
         return <CtfChallengeApp challengeId={initialProps?.challengeId} onStartApp={handleStartApp} />;
       case 'inventory':
         return <InventoryApp />;
+      case 'properties':
+        return (
+          <PropertiesApp 
+            appId={initialProps?.appId} 
+            onClose={() => handleWindowAction(instanceId, 'close')}
+            onOpenApp={(id) => handleStartApp(id)}
+            onRemoveIcon={(id) => {
+              updateTheme(prev => ({
+                ...prev,
+                desktopIcons: { ...prev.desktopIcons, [id]: false }
+              }));
+              handleWindowAction(instanceId, 'close');
+            }}
+            onOpenSettings={(tab) => handleStartApp('settings', undefined, { initialTab: tab })}
+          />
+        );
       default:
         return null;
     }
@@ -808,82 +862,161 @@ export default function App() {
   return (
     <div 
       className="h-screen w-screen overflow-hidden bg-transparent relative font-sans text-hw-blue select-none"
-      onContextMenu={(e) => {
-        e.preventDefault();
-        setContextMenu({ x: e.clientX, y: e.clientY, show: true });
-      }}
+      onContextMenu={(e) => handleContextMenu(e, 'desktop')}
       onClick={() => setContextMenu(null)}
     >
       {/* Custom Context Menu */}
-      {contextMenu?.show && (
-        <div 
-          className="absolute z-[99999] bg-hw-black border border-hw-blue/30 shadow-[0_0_25px_rgba(0,0,0,0.5)] rounded-sm py-1 min-w-[180px] animate-in fade-in zoom-in-95 duration-100"
-          style={{ left: contextMenu.x, top: contextMenu.y, backdropFilter: 'var(--theme-backdrop-filter)' }}
-        >
-          <div className="px-3 py-1 text-[8px] uppercase tracking-[0.2em] text-hw-blue/40 border-b border-hw-blue/10 mb-1">Basic Apps</div>
-          
-          {[
-            { id: 'settings', label: 'Settings', icon: Settings },
-            { id: 'console', label: 'Serial Monitor', icon: Terminal },
-            { id: 'sys_monitor', label: 'Sys Monitor', icon: Activity },
-            { id: 'admin', label: 'Sys Config', icon: Settings }
-          ].map(app => (
-            <button
-              key={`ctx-${app.id}`}
-              onClick={() => handleStartApp(app.id as AppView)}
-              className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 transition-colors group"
-            >
-              <app.icon size={12} className="text-hw-blue/60 group-hover:text-hw-blue" />
-              <span className="tracking-widest uppercase">{app.label}</span>
-            </button>
-          ))}
-
-          <div className="h-[1px] bg-hw-blue/10 my-1" />
-          
-          <div className="relative group/widgets">
-            <button
-              onClick={() => handleStartApp('settings', undefined, { initialTab: 'widgets' })}
-              className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center justify-between gap-2 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <Layout size={12} className="text-hw-blue/60" />
-                <span className="tracking-widest uppercase">Widgets</span>
-              </div>
-              <ChevronRight size={10} className="opacity-40" />
-            </button>
-
-            {/* Quick Widget Dropdown */}
-            <div className="absolute left-full top-0 ml-[1px] hidden group-hover/widgets:block bg-hw-black border border-hw-blue/30 shadow-xl py-1 min-w-[160px] rounded-sm">
-              <div className="px-3 py-1 text-[8px] uppercase tracking-[0.2em] text-hw-blue/40 border-b border-hw-blue/10 mb-1">Add Widget</div>
-              {WIDGET_REGISTRY.map(widget => (
+      <AnimatePresence>
+        {contextMenu?.show && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: contextMenu.y > window.innerHeight - 300 ? 10 : -10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: contextMenu.y > window.innerHeight - 300 ? 10 : -10 }}
+            transition={{ duration: 0.1 }}
+            className={cn(
+              "absolute z-[99999] bg-hw-black border border-hw-blue/30 shadow-[0_0_25px_rgba(0,0,0,0.5)] rounded-sm py-1 min-w-[200px] origin-top-left",
+              contextMenu.y > window.innerHeight - 300 && "origin-bottom-left"
+            )}
+            style={{ 
+              left: Math.min(contextMenu.x, window.innerWidth - 210), 
+              top: contextMenu.y > window.innerHeight - 300 ? contextMenu.y - 280 : contextMenu.y,
+              backdropFilter: 'var(--theme-backdrop-filter)' 
+            }}
+          >
+            {contextMenu.type === 'icon' ? (
+              <>
+                <div className="px-3 py-1 text-[8px] uppercase tracking-[0.2em] text-hw-blue/40 border-b border-hw-blue/10 mb-1">
+                  {APPS.find(a => a.id === contextMenu.appId)?.label || 'App'}
+                </div>
                 <button
-                  key={`ctx-widget-${widget.id}`}
                   onClick={() => {
-                    const instanceId = `widget-${Date.now()}`;
-                    updateTheme({
-                      widgets: [...(theme.widgets || []), {
-                        instanceId,
-                        widgetId: widget.id,
-                        x: 0,
-                        y: 0,
-                        w: widget.defaultSize.w,
-                        h: widget.defaultSize.h,
-                        isFloating: false
-                      }]
-                    });
+                    handleStartApp(contextMenu.appId as AppView);
                     setContextMenu(null);
                   }}
+                  className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 transition-colors"
+                >
+                  <Zap size={12} className="text-hw-blue/60" />
+                  <span className="tracking-widest uppercase">Open App</span>
+                </button>
+                <button
+                  onClick={() => {
+                    handleStartApp('settings', undefined, { initialTab: 'desktop' });
+                    setContextMenu(null);
+                  }}
+                  className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 transition-colors"
+                >
+                  <Monitor size={12} className="text-hw-blue/60" />
+                  <span className="tracking-widest uppercase">Desktop Settings</span>
+                </button>
+                <button
+                  onClick={() => {
+                    handleStartApp('properties', undefined, { appId: contextMenu.appId });
+                    setContextMenu(null);
+                  }}
+                  className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 transition-colors"
+                >
+                  <Info size={12} className="text-hw-blue/60" />
+                  <span className="tracking-widest uppercase">Properties</span>
+                </button>
+                <div className="h-[1px] bg-hw-blue/10 my-1" />
+                <button
+                  onClick={() => {
+                    updateTheme(prev => ({
+                      ...prev,
+                      desktopIcons: { ...prev.desktopIcons, [contextMenu.appId!]: false }
+                    }));
+                    setContextMenu(null);
+                  }}
+                  className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-red-500/10 flex items-center gap-2 transition-colors group"
+                >
+                  <Trash2 size={12} className="text-red-500/60 group-hover:text-red-500" />
+                  <span className="tracking-widest uppercase text-red-500/80 group-hover:text-red-500">Remove Icon</span>
+                </button>
+              </>
+            ) : contextMenu.type === 'desktop' ? (
+              <>
+                <div className="px-3 py-1 text-[8px] uppercase tracking-[0.2em] text-hw-blue/40 border-b border-hw-blue/10 mb-1">System Apps</div>
+                
+                {[
+                  { id: 'settings', label: 'Settings', icon: Settings },
+                  { id: 'console', label: 'Serial Monitor', icon: Terminal },
+                  { id: 'sys_monitor', label: 'Sys Monitor', icon: Activity },
+                  { id: 'admin', label: 'Sys Config', icon: Settings }
+                ].map(app => (
+                  <button
+                    key={`ctx-${app.id}`}
+                    onClick={() => handleStartApp(app.id as AppView)}
+                    className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 transition-colors group"
+                  >
+                    <app.icon size={12} className="text-hw-blue/60 group-hover:text-hw-blue" />
+                    <span className="tracking-widest uppercase">{app.label}</span>
+                  </button>
+                ))}
+
+                <div className="h-[1px] bg-hw-blue/10 my-1" />
+                
+                <button
+                  onClick={() => handleStartApp('settings', undefined, { initialTab: 'widgets' })}
+                  className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 transition-colors"
+                >
+                  <Layout size={12} className="text-hw-blue/60" />
+                  <span className="tracking-widest uppercase">Manage Widgets</span>
+                </button>
+
+                <button
+                  onClick={() => handleStartApp('settings', undefined, { initialTab: 'desktop' })}
+                  className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 transition-colors"
+                >
+                  <Monitor size={12} className="text-hw-blue/60" />
+                  <span className="tracking-widest uppercase">Desktop Settings</span>
+                </button>
+
+                <div className="h-[1px] bg-hw-blue/10 my-1" />
+
+                <button
+                  onClick={() => window.location.reload()}
+                  className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 transition-colors"
+                >
+                  <RotateCcw size={12} className="text-hw-blue/60" />
+                  <span className="tracking-widest uppercase">Refresh System</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="px-3 py-1 text-[8px] uppercase tracking-[0.2em] text-hw-blue/40 border-b border-hw-blue/10 mb-1">
+                  {contextMenu.type === 'dash' ? 'Dash Menu' : 'Taskbar Menu'}
+                </div>
+                
+                <button
+                  onClick={() => handleStartApp('settings', undefined, { initialTab: 'taskbar' })}
                   className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 transition-colors group"
                 >
-                  <widget.icon size={12} className="text-hw-blue/60 group-hover:text-hw-blue" />
-                  <span className="tracking-widest uppercase">{widget.name}</span>
-                  <Plus size={8} className="ml-auto opacity-0 group-hover:opacity-40" />
+                  <Monitor size={12} className="text-hw-blue/60 group-hover:text-hw-blue" />
+                  <span className="tracking-widest uppercase">Taskbar Preferences</span>
                 </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+
+                <button
+                  onClick={() => handleStartApp('sys_monitor')}
+                  className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 transition-colors group"
+                >
+                  <Activity size={12} className="text-hw-blue/60 group-hover:text-hw-blue" />
+                  <span className="tracking-widest uppercase">System Monitor</span>
+                </button>
+
+                <div className="h-[1px] bg-hw-blue/10 my-1" />
+
+                <button
+                  onClick={() => handleShutdown()}
+                  className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-red-500/10 flex items-center gap-2 transition-colors group"
+                >
+                  <Power size={12} className="text-red-500/60 group-hover:text-red-500" />
+                  <span className="tracking-widest uppercase text-red-500/80 group-hover:text-red-500">Shutdown</span>
+                </button>
+              </>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Desktop Background / Grid */}
       <div 
@@ -940,6 +1073,7 @@ export default function App() {
               desktopRef={desktopRef}
               gridSize={gridSize}
               onMouseDown={handleMouseDown}
+              handleContextMenu={handleContextMenu}
               isDragging={draggingId === app.id}
               currentMousePos={currentMousePos}
               dragOffset={dragOffset}
@@ -996,7 +1130,7 @@ export default function App() {
             <div className="text-hw-blue text-2xl font-bold mb-12 tracking-[0.3em] uppercase opacity-60">Applications</div>
             
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-x-8 gap-y-12 w-full">
-              {APPS.map(app => (
+              {APPS.filter(app => app.id !== 'properties').map(app => (
                 <motion.div
                   key={`dash-${app.id}`}
                   transition={{ 
@@ -1062,7 +1196,7 @@ export default function App() {
                   taskbarStyle={theme.taskbarStyle}
                   intellihide={theme.intellihide}
                 >
-                  {renderAppContent(win.appId, win.initialProps)}
+                  {renderAppContent(win.appId, win.instanceId, win.initialProps)}
                 </Window>
               </div>
             );
@@ -1087,6 +1221,8 @@ export default function App() {
         shouldHide={shouldHideTaskbar}
         onHoverChange={setIsTaskbarHovered}
         animationSpeed={theme.animationSpeed}
+        onContextMenu={handleContextMenu}
+        timeConfig={theme.timeConfig}
       />
     </div>
   );
