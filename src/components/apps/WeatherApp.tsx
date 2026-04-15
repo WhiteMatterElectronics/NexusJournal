@@ -47,12 +47,11 @@ export const WeatherApp: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const encodedLocation = encodeURIComponent(location);
-      const weatherRes = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${encodedLocation}&appid=${apiKey}&units=metric`);
+      const weatherRes = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${location}&appid=${apiKey}&units=metric`);
       if (!weatherRes.ok) throw new Error('Location not found or invalid API key');
       const weatherData = await weatherRes.json();
 
-      const forecastRes = await fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${encodedLocation}&appid=${apiKey}&units=metric`);
+      const forecastRes = await fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${location}&appid=${apiKey}&units=metric`);
       if (!forecastRes.ok) throw new Error('Failed to fetch forecast');
       const forecastData = await forecastRes.json();
 
@@ -81,9 +80,7 @@ export const WeatherApp: React.FC = () => {
   };
 
   useEffect(() => {
-    if (apiKey) {
-      fetchWeather(search);
-    }
+    fetchWeather(search);
   }, [apiKey]); // Fetch when API key changes
 
   const refreshWeather = () => {
@@ -97,8 +94,7 @@ export const WeatherApp: React.FC = () => {
   };
 
   const toggleFavorite = () => {
-    if (!weather) return;
-    const loc = weather.location; // Use full location for uniqueness
+    const loc = weather.location.split(',')[0]; // Use city name
     let newFavs;
     if (favorites.includes(loc)) {
       newFavs = favorites.filter(f => f !== loc);

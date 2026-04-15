@@ -1,9 +1,9 @@
 import React from 'react';
-import { Terminal, Copy, AlertTriangle, Lightbulb, Download } from 'lucide-react';
+import { Terminal, Copy, AlertTriangle, Lightbulb } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { cn } from '../../lib/utils';
-import { TutorialBlock } from '../../types';
+import { TutorialBlock } from '../../types/tutorial';
 
 export const BlockRenderer: React.FC<{ blocks: TutorialBlock[] }> = ({ blocks }) => {
   const renderBlock = (block: TutorialBlock) => {
@@ -108,50 +108,6 @@ export const BlockRenderer: React.FC<{ blocks: TutorialBlock[] }> = ({ blocks })
             <div className="prose prose-invert max-w-none text-xs opacity-80" dangerouslySetInnerHTML={{ __html: note.content }} />
           </div>
         );
-      case 'sub_heading':
-        return <h3 className="text-2xl font-black text-hw-blue hw-glow mt-12 mb-6 uppercase tracking-tighter">{block.data.text}</h3>;
-      case 'file_download':
-        return (
-          <a href={block.data.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-4 my-6 bg-hw-blue/10 border border-hw-blue/30 hover:bg-hw-blue/20 transition-colors group w-fit">
-            <Download className="w-5 h-5 text-hw-blue group-hover:-translate-y-1 transition-transform" />
-            <span className="text-xs font-bold uppercase tracking-widest text-hw-blue">{block.data.name || 'Download File'}</span>
-          </a>
-        );
-      case 'video_embed':
-        return (
-          <div className="my-8 aspect-video w-full border border-hw-blue/20 bg-black/50">
-            <iframe 
-              src={block.data.url} 
-              className="w-full h-full" 
-              allowFullScreen 
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-            />
-          </div>
-        );
-      case 'image_gallery':
-        return (
-          <div className="my-8 grid grid-cols-2 md:grid-cols-3 gap-4">
-            {block.data.urls.map((url: string, i: number) => (
-              url ? <img key={i} src={url} alt={`Gallery image ${i + 1}`} className="w-full h-48 object-cover border border-hw-blue/20 bg-hw-blue/5" /> : null
-            ))}
-          </div>
-        );
-      case 'note':
-        return (
-          <div className={cn(
-            "my-6 p-5 border-l-2 bg-hw-blue/5 text-sm leading-relaxed",
-            block.data.type === 'warning' ? "border-yellow-500 text-yellow-500/90" :
-            block.data.type === 'tip' ? "border-green-500 text-green-500/90" :
-            "border-hw-blue text-hw-blue/90"
-          )}>
-            <div className="font-bold uppercase tracking-widest mb-2 text-[10px] opacity-70 flex items-center gap-2">
-              {block.data.type}
-            </div>
-            {block.data.text}
-          </div>
-        );
-      case 'divider':
-        return <div className="w-full h-px bg-hw-blue/20 my-10" />;
       case 'tip':
         return (
           <div className="my-8 border border-green-500/30 bg-green-500/5 p-6 relative">
