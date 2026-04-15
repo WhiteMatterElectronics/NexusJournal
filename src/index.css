@@ -5,6 +5,7 @@
   --theme-main: #00f2ff;
   --theme-terminal: #00f2ff;
   --theme-panel-bg: #050505;
+  --theme-header-bg: #0a0a0a;
   --theme-text: #00f2ff;
   --theme-backdrop-filter: none;
   --theme-border-opacity: 0.3;
@@ -12,6 +13,12 @@
   --theme-bg-image: radial-gradient(circle at 2px 2px, rgba(255,255,255,0.05) 1px, transparent 0);
   --theme-bg-size: 24px 24px;
   --theme-bg-color: #020202;
+  --theme-content-bg: #050505;
+  --theme-content-text: #00f2ff;
+  --theme-string: #00ff9d;
+  --theme-keyword: #ff00ff;
+  --theme-number: #ffcc00;
+  --theme-comment: #666666;
 }
 
 @theme {
@@ -40,7 +47,8 @@
 
 @layer utilities {
   .hw-panel {
-    @apply bg-hw-black relative;
+    @apply relative;
+    background-color: var(--theme-panel-bg);
     border: 2px solid var(--theme-border-color);
     backdrop-filter: var(--theme-backdrop-filter);
     box-shadow: inset 0 0 20px color-mix(in srgb, var(--theme-main) 5%, transparent);
@@ -48,9 +56,14 @@
 
   .hw-panel-header {
     @apply flex justify-between items-center px-4 py-1 text-[10px] font-bold uppercase tracking-widest;
-    background-color: color-mix(in srgb, var(--theme-main) 10%, transparent);
+    background-color: var(--theme-header-bg);
     border-bottom: 2px solid var(--theme-border-color);
     color: var(--theme-text);
+  }
+
+  .hw-panel-content {
+    background-color: var(--theme-content-bg);
+    color: var(--theme-content-text);
   }
 
   .hw-button {

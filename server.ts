@@ -78,6 +78,11 @@ async function startServer() {
       target TEXT NOT NULL,
       uploadedAt TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      id TEXT PRIMARY KEY,
+      data TEXT NOT NULL
+    );
   `);
 
   // Seed data if empty
@@ -239,6 +244,29 @@ async function startServer() {
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting firmware:", error);
+      res.status(500).json({ error: String(error) });
+    }
+  });
+
+  app.get("/api/settings/:id", (req, res) => {
+    try {
+      const settings = db.prepare("SELECT data FROM settings WHERE id = ?").get(req.params.id) as { data: string } | undefined;
+      if (settings) {
+        res.json(JSON.parse(settings.data));
+      } else {
+        res.status(404).json({ error: "Settings not found" });
+      }
+    } catch (error) {
+      res.status(500).json({ error: String(error) });
+    }
+  });
+
+  app.post("/api/settings/:id", (req, res) => {
+    try {
+      const data = JSON.stringify(req.body);
+      db.prepare("INSERT INTO settings (id, data) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data").run(req.params.id, data);
+      res.json({ success: true });
+    } catch (error) {
       res.status(500).json({ error: String(error) });
     }
   });

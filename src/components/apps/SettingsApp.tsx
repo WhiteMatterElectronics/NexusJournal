@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { User, Sliders, Monitor, Wifi, Bluetooth, Save, AlertCircle, Layout, Plus, Trash2, Layers } from 'lucide-react';
-import { useSettings } from '../../contexts/SettingsContext';
+import { User, Sliders, Monitor, Wifi, Bluetooth, Save, AlertCircle, Layout, Plus, Trash2, Layers, Palette, RotateCcw } from 'lucide-react';
+import { useSettings, defaultGranular, ThemeMode, GranularColors } from '../../contexts/SettingsContext';
 import { cn } from '../../lib/utils';
 import { WIDGET_REGISTRY } from '../../widgets/registry';
 import { ActiveWidget } from '../../types/widgets';
 import { APPS } from '../../constants';
 
 interface SettingsAppProps {
-  initialTab?: 'profile' | 'preferences' | 'widgets' | 'serial' | 'network' | 'bluetooth';
+  initialTab?: 'profile' | 'preferences' | 'appearance' | 'widgets' | 'serial' | 'network' | 'bluetooth';
 }
 
 export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile' }) => {
@@ -83,6 +83,7 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile'
   const tabs = [
     { id: 'profile', icon: User, label: 'User Profile' },
     { id: 'preferences', icon: Sliders, label: 'Preferences' },
+    { id: 'appearance', icon: Palette, label: 'Appearance' },
     { id: 'widgets', icon: Layout, label: 'Widgets' },
     { id: 'serial', icon: Monitor, label: 'Serial' },
     { id: 'network', icon: Wifi, label: 'Network' },
@@ -254,6 +255,15 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile'
                         className="accent-hw-blue"
                       />
                       <span className="text-[10px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100">Dark Mode</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={localTheme.useGranular}
+                        onChange={(e) => setLocalTheme(prev => ({ ...prev, useGranular: e.target.checked }))}
+                        className="accent-hw-blue"
+                      />
+                      <span className="text-[10px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100">Use Advanced Colors</span>
                     </label>
                   </div>
 
@@ -519,6 +529,213 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile'
             </form>
           </div>
         )}
+        {activeTab === 'appearance' && (
+          <div className="max-w-4xl">
+            <h2 className="text-lg font-bold text-hw-blue uppercase tracking-widest mb-6 flex items-center gap-2">
+              <Palette className="w-5 h-5" /> Advanced Color Manager
+            </h2>
+            
+            <div className="space-y-8">
+              <div className="bg-hw-blue/5 border border-hw-blue/20 p-4 rounded-lg" style={{ borderColor: 'var(--theme-border-color)' }}>
+                <p className="text-[10px] uppercase tracking-widest opacity-60 mb-2">
+                  Customize granular colors for each theme mode. These settings are applied when "Use Advanced Colors" is enabled in Preferences.
+                </p>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={localTheme.useGranular}
+                      onChange={(e) => setLocalTheme(prev => ({ ...prev, useGranular: e.target.checked }))}
+                      className="accent-hw-blue"
+                    />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-hw-blue">Enable Advanced Colors</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {(['retro_dark', 'retro_light', 'glassy_dark', 'glassy_light'] as ThemeMode[]).map(mode => (
+                  <div key={mode} className="space-y-4 p-4 bg-hw-blue/5 border border-hw-blue/10 rounded-lg" style={{ borderColor: 'var(--theme-border-color)' }}>
+                    <div className="flex items-center justify-between border-b border-hw-blue/20 pb-2 mb-4" style={{ borderColor: 'var(--theme-border-color)' }}>
+                      <h3 className="text-[11px] font-bold uppercase tracking-widest text-hw-blue">
+                        {mode.replace('_', ' ')}
+                      </h3>
+                      <button 
+                        onClick={() => {
+                          setLocalTheme(prev => ({
+                            ...prev,
+                            granularSettings: {
+                              ...prev.granularSettings,
+                              [mode]: defaultGranular[mode]
+                            }
+                          }));
+                        }}
+                        className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest opacity-40 hover:opacity-100 transition-opacity"
+                      >
+                        <RotateCcw className="w-3 h-3" /> Reset
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4">
+                      {/* Window Controls */}
+                      <div className="space-y-3">
+                        <span className="text-[9px] font-bold uppercase tracking-widest opacity-40">Window Frame</span>
+                        <div className="grid grid-cols-2 gap-4">
+                          <ColorInput 
+                            label="Frame BG" 
+                            value={localTheme.granularSettings[mode].windowFrame} 
+                            onChange={val => setLocalTheme(prev => ({
+                              ...prev,
+                              granularSettings: {
+                                ...prev.granularSettings,
+                                [mode]: { ...prev.granularSettings[mode], windowFrame: val }
+                              }
+                            }))} 
+                          />
+                          <ColorInput 
+                            label="Header BG" 
+                            value={localTheme.granularSettings[mode].windowHeader} 
+                            onChange={val => setLocalTheme(prev => ({
+                              ...prev,
+                              granularSettings: {
+                                ...prev.granularSettings,
+                                [mode]: { ...prev.granularSettings[mode], windowHeader: val }
+                              }
+                            }))} 
+                          />
+                          <ColorInput 
+                            label="Title Text" 
+                            value={localTheme.granularSettings[mode].windowTitle} 
+                            onChange={val => setLocalTheme(prev => ({
+                              ...prev,
+                              granularSettings: {
+                                ...prev.granularSettings,
+                                [mode]: { ...prev.granularSettings[mode], windowTitle: val }
+                              }
+                            }))} 
+                          />
+                          <ColorInput 
+                            label="Border" 
+                            value={localTheme.granularSettings[mode].windowBorder} 
+                            onChange={val => setLocalTheme(prev => ({
+                              ...prev,
+                              granularSettings: {
+                                ...prev.granularSettings,
+                                [mode]: { ...prev.granularSettings[mode], windowBorder: val }
+                              }
+                            }))} 
+                          />
+                        </div>
+                      </div>
+
+                      {/* Content Controls */}
+                      <div className="space-y-3 pt-2 border-t border-hw-blue/5" style={{ borderColor: 'var(--theme-border-color)' }}>
+                        <span className="text-[9px] font-bold uppercase tracking-widest opacity-40">Content Area</span>
+                        <div className="grid grid-cols-2 gap-4">
+                          <ColorInput 
+                            label="Content BG" 
+                            value={localTheme.granularSettings[mode].contentBg} 
+                            onChange={val => setLocalTheme(prev => ({
+                              ...prev,
+                              granularSettings: {
+                                ...prev.granularSettings,
+                                [mode]: { ...prev.granularSettings[mode], contentBg: val }
+                              }
+                            }))} 
+                          />
+                          <ColorInput 
+                            label="Content Text" 
+                            value={localTheme.granularSettings[mode].contentText} 
+                            onChange={val => setLocalTheme(prev => ({
+                              ...prev,
+                              granularSettings: {
+                                ...prev.granularSettings,
+                                [mode]: { ...prev.granularSettings[mode], contentText: val }
+                              }
+                            }))} 
+                          />
+                          <ColorInput 
+                            label="Accent Color" 
+                            value={localTheme.granularSettings[mode].accentColor} 
+                            onChange={val => setLocalTheme(prev => ({
+                              ...prev,
+                              granularSettings: {
+                                ...prev.granularSettings,
+                                [mode]: { ...prev.granularSettings[mode], accentColor: val }
+                              }
+                            }))} 
+                          />
+                        </div>
+                      </div>
+
+                      {/* Code/String Controls */}
+                      <div className="space-y-3 pt-2 border-t border-hw-blue/5" style={{ borderColor: 'var(--theme-border-color)' }}>
+                        <span className="text-[9px] font-bold uppercase tracking-widest opacity-40">Syntax Highlighting</span>
+                        <div className="grid grid-cols-2 gap-4">
+                          <ColorInput 
+                            label="Strings" 
+                            value={localTheme.granularSettings[mode].stringColor} 
+                            onChange={val => setLocalTheme(prev => ({
+                              ...prev,
+                              granularSettings: {
+                                ...prev.granularSettings,
+                                [mode]: { ...prev.granularSettings[mode], stringColor: val }
+                              }
+                            }))} 
+                          />
+                          <ColorInput 
+                            label="Keywords" 
+                            value={localTheme.granularSettings[mode].keywordColor} 
+                            onChange={val => setLocalTheme(prev => ({
+                              ...prev,
+                              granularSettings: {
+                                ...prev.granularSettings,
+                                [mode]: { ...prev.granularSettings[mode], keywordColor: val }
+                              }
+                            }))} 
+                          />
+                          <ColorInput 
+                            label="Numbers" 
+                            value={localTheme.granularSettings[mode].numberColor} 
+                            onChange={val => setLocalTheme(prev => ({
+                              ...prev,
+                              granularSettings: {
+                                ...prev.granularSettings,
+                                [mode]: { ...prev.granularSettings[mode], numberColor: val }
+                              }
+                            }))} 
+                          />
+                          <ColorInput 
+                            label="Comments" 
+                            value={localTheme.granularSettings[mode].commentColor} 
+                            onChange={val => setLocalTheme(prev => ({
+                              ...prev,
+                              granularSettings: {
+                                ...prev.granularSettings,
+                                [mode]: { ...prev.granularSettings[mode], commentColor: val }
+                              }
+                            }))} 
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="pt-6 flex items-center gap-4">
+                <button onClick={handleSaveTheme} className="hw-button flex items-center gap-2 px-8 py-3">
+                  <Save size={16} />
+                  APPLY ALL COLORS
+                </button>
+                {themeMsg && (
+                  <span className="text-[10px] text-hw-blue uppercase tracking-widest animate-pulse">{themeMsg}</span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'widgets' && (
           <div className="max-w-3xl">
             <h2 className="text-lg font-bold text-hw-blue uppercase tracking-widest mb-6 flex items-center gap-2">
@@ -666,6 +883,37 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile'
             <p className="text-xs mt-2">This configuration panel is under construction.</p>
           </div>
         )}
+      </div>
+    </div>
+  );
+};
+
+interface ColorInputProps {
+  label: string;
+  value: string;
+  onChange: (val: string) => void;
+}
+
+const ColorInput: React.FC<ColorInputProps> = ({ label, value, onChange }) => {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-[8px] uppercase tracking-widest opacity-60">{label}</label>
+      <div className="flex items-center gap-2">
+        <div className="relative w-6 h-6 rounded border border-hw-blue/20 overflow-hidden shrink-0">
+          <input
+            type="color"
+            value={value.startsWith('rgba') ? '#000000' : value}
+            onChange={e => onChange(e.target.value)}
+            className="absolute inset-[-5px] w-[200%] h-[200%] cursor-pointer"
+          />
+        </div>
+        <input
+          type="text"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className="flex-1 bg-hw-blue/5 border border-hw-blue/20 px-2 py-1 text-[9px] font-mono outline-none focus:border-hw-blue"
+          style={{ color: 'var(--theme-text)', borderColor: 'var(--theme-border-color)' }}
+        />
       </div>
     </div>
   );

@@ -1,9 +1,60 @@
 import React from 'react';
 import { Terminal, Copy, AlertTriangle, Lightbulb } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { cn } from '../../lib/utils';
 import { TutorialBlock } from '../../types';
+
+const customSyntaxTheme: any = {
+  'code[class*="language-"]': {
+    color: 'var(--theme-content-text)',
+    background: 'none',
+    textShadow: 'none',
+    fontFamily: '"JetBrains Mono", monospace',
+  },
+  'pre[class*="language-"]': {
+    color: 'var(--theme-content-text)',
+    background: 'var(--theme-content-bg)',
+    textShadow: 'none',
+    fontFamily: '"JetBrains Mono", monospace',
+    margin: 0,
+    padding: '1.5rem',
+    fontSize: '0.75rem',
+    lineHeight: '1.5',
+    border: '1px solid var(--theme-border-color)',
+  },
+  'comment': { color: 'var(--theme-comment)' },
+  'prolog': { color: 'var(--theme-comment)' },
+  'doctype': { color: 'var(--theme-comment)' },
+  'cdata': { color: 'var(--theme-comment)' },
+  'punctuation': { color: 'var(--theme-content-text)', opacity: 0.7 },
+  'namespace': { opacity: 0.7 },
+  'property': { color: 'var(--theme-keyword)' },
+  'tag': { color: 'var(--theme-keyword)' },
+  'boolean': { color: 'var(--theme-number)' },
+  'number': { color: 'var(--theme-number)' },
+  'constant': { color: 'var(--theme-number)' },
+  'symbol': { color: 'var(--theme-number)' },
+  'deleted': { color: 'var(--theme-number)' },
+  'selector': { color: 'var(--theme-string)' },
+  'attr-name': { color: 'var(--theme-string)' },
+  'string': { color: 'var(--theme-string)' },
+  'char': { color: 'var(--theme-string)' },
+  'builtin': { color: 'var(--theme-string)' },
+  'inserted': { color: 'var(--theme-string)' },
+  'operator': { color: 'var(--theme-keyword)' },
+  'entity': { color: 'var(--theme-keyword)', cursor: 'help' },
+  'url': { color: 'var(--theme-keyword)' },
+  'variable': { color: 'var(--theme-main)' },
+  'atrule': { color: 'var(--theme-keyword)' },
+  'attr-value': { color: 'var(--theme-string)' },
+  'function': { color: 'var(--theme-main)' },
+  'class-name': { color: 'var(--theme-main)' },
+  'keyword': { color: 'var(--theme-keyword)' },
+  'regex': { color: 'var(--theme-string)' },
+  'important': { color: 'var(--theme-keyword)', fontWeight: 'bold' },
+  'bold': { fontWeight: 'bold' },
+  'italic': { fontStyle: 'italic' },
+};
 
 export const BlockRenderer: React.FC<{ blocks: TutorialBlock[] }> = ({ blocks }) => {
   const renderBlock = (block: TutorialBlock) => {
@@ -21,13 +72,30 @@ export const BlockRenderer: React.FC<{ blocks: TutorialBlock[] }> = ({ blocks })
               prose-hr:border-hw-blue/10
               prose-img:border prose-img:border-hw-blue/20 prose-img:p-2 prose-img:bg-hw-blue/5
             "
+            style={{ 
+              color: 'var(--theme-content-text)',
+              '--tw-prose-headings': 'var(--theme-main)',
+              '--tw-prose-body': 'var(--theme-content-text)',
+              '--tw-prose-bold': 'var(--theme-main)',
+              '--tw-prose-links': 'var(--theme-main)',
+              '--tw-prose-code': 'var(--theme-main)',
+              '--tw-prose-pre-bg': 'var(--theme-content-bg)',
+              '--tw-prose-pre-code': 'var(--theme-content-text)',
+            } as any}
             dangerouslySetInnerHTML={{ __html: block.data.text }}
           />
         );
       case 'code':
         return (
           <div className="my-6 group/code relative">
-            <div className="bg-hw-blue/10 border border-hw-blue/20 border-b-0 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-hw-blue/60 flex items-center justify-between">
+            <div 
+              className="border border-b-0 px-4 py-2 text-[10px] font-bold uppercase tracking-widest flex items-center justify-between"
+              style={{ 
+                backgroundColor: 'var(--theme-header-bg)', 
+                borderColor: 'var(--theme-border-color)',
+                color: 'var(--theme-text)'
+              }}
+            >
               <div className="flex items-center gap-2">
                 <Terminal className="w-3 h-3" />
                 {block.data.language}
@@ -43,23 +111,7 @@ export const BlockRenderer: React.FC<{ blocks: TutorialBlock[] }> = ({ blocks })
             <div className="relative">
               <SyntaxHighlighter 
                 language={block.data.language || 'text'} 
-                style={vscDarkPlus}
-                customStyle={{
-                  margin: 0,
-                  padding: '1.5rem',
-                  fontSize: '0.75rem',
-                  lineHeight: '1.5',
-                  backgroundColor: 'rgba(0, 0, 0, 0.6)',
-                  border: '1px solid rgba(0, 242, 255, 0.2)',
-                  fontFamily: '"JetBrains Mono", monospace',
-                }}
-                codeTagProps={{
-                  style: {
-                    fontFamily: '"JetBrains Mono", monospace',
-                    color: '#00f2ff',
-                    textShadow: '0 0 5px rgba(0, 242, 255, 0.3)'
-                  }
-                }}
+                style={customSyntaxTheme}
               >
                 {block.data.code}
               </SyntaxHighlighter>

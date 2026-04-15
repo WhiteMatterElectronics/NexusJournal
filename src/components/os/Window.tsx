@@ -224,29 +224,31 @@ export const Window: React.FC<WindowProps> = ({
         ease: "easeOut"
       }}
       onMouseDown={onFocus}
+      className={cn(
+        "flex flex-col border shadow-2xl overflow-hidden pointer-events-auto",
+        isMaximized ? "border-none" : cn("border-hw-border", globalTheme === 'glassy' ? "rounded-2xl" : "rounded-sm"),
+        isActive ? "shadow-[0_0_30px_rgba(0,242,255,0.15)]" : "opacity-90"
+      )}
       style={{ 
         zIndex, 
         position: 'absolute', 
         backdropFilter: 'var(--theme-backdrop-filter)', 
         color: 'var(--theme-text)',
+        backgroundColor: 'var(--theme-panel-bg)',
+        borderColor: 'var(--theme-border-color)',
         visibility: isVisible ? 'visible' : (isOpen ? 'visible' : 'hidden'),
       }}
-      className={cn(
-        "flex flex-col bg-hw-black border shadow-2xl overflow-hidden pointer-events-auto",
-        isMaximized ? "border-none" : cn("border-hw-border", globalTheme === 'glassy' ? "rounded-2xl" : "rounded-sm"),
-        isActive ? "border-hw-blue shadow-[0_0_30px_rgba(0,242,255,0.15)]" : "opacity-90"
-      )}
     >
       {/* Title Bar (Draggable Area) */}
       <div 
         className={cn(
           "h-8 flex items-center justify-between px-3 shrink-0 select-none",
-          isActive ? "" : "bg-hw-blue/5 border-b border-hw-blue/20"
+          isActive ? "" : "opacity-80"
         )}
         style={{ 
           cursor: isMaximized ? 'default' : 'grab',
-          backgroundColor: isActive ? mainColor : undefined,
-          borderBottomColor: isActive ? mainColor : undefined
+          backgroundColor: 'var(--theme-header-bg)',
+          borderBottom: '1px solid var(--theme-border-color)'
         }}
         onPointerDown={handleTitleBarPointerDown}
         onDoubleClick={(e) => {
@@ -255,8 +257,8 @@ export const Window: React.FC<WindowProps> = ({
         }}
       >
         <div className="flex items-center gap-2 pointer-events-none">
-          <Icon className="w-4 h-4" style={{ color: isActive ? contrastColor : mainColor }} />
-          <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: isActive ? contrastColor : mainColor }}>{title}</span>
+          <Icon className="w-4 h-4" style={{ color: 'var(--theme-text)' }} />
+          <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--theme-text)' }}>{title}</span>
         </div>
         <div 
           className="flex items-center gap-1"
@@ -265,7 +267,7 @@ export const Window: React.FC<WindowProps> = ({
           <button 
             onClick={(e) => { e.stopPropagation(); onMinimize(); }} 
             className={cn("p-1.5 transition-colors", globalTheme === 'glassy' && "hover:bg-white/10 rounded-lg")}
-            style={{ color: isActive ? contrastColor : mainColor }}
+            style={{ color: 'var(--theme-text)' }}
           >
             <Minus className="w-3 h-3" />
           </button>
@@ -273,7 +275,7 @@ export const Window: React.FC<WindowProps> = ({
             <button 
               onClick={(e) => { e.stopPropagation(); onCollapse(); }} 
               className={cn("p-1.5 transition-colors", globalTheme === 'glassy' && "hover:bg-white/10 rounded-lg")}
-              style={{ color: isActive ? contrastColor : mainColor }}
+              style={{ color: 'var(--theme-text)' }}
               title="Collapse to Widget"
             >
               <Minimize2 className="w-3 h-3" />
@@ -282,14 +284,14 @@ export const Window: React.FC<WindowProps> = ({
           <button 
             onClick={(e) => { e.stopPropagation(); onMaximize(); }} 
             className={cn("p-1.5 transition-colors", globalTheme === 'glassy' && "hover:bg-white/10 rounded-lg")}
-            style={{ color: isActive ? contrastColor : mainColor }}
+            style={{ color: 'var(--theme-text)' }}
           >
             {isMaximized ? <Minus className="w-3 h-3" /> : <Square className="w-3 h-3" />}
           </button>
           <button 
             onClick={(e) => { e.stopPropagation(); onClose(); }} 
             className={cn("p-1.5 transition-colors", globalTheme === 'glassy' && "hover:bg-red-500/10 rounded-lg")}
-            style={{ color: isActive ? contrastColor : 'rgb(239, 68, 68)' }}
+            style={{ color: isActive ? 'var(--theme-text)' : 'rgb(239, 68, 68)' }}
           >
             <X className="w-3 h-3" />
           </button>
@@ -297,7 +299,7 @@ export const Window: React.FC<WindowProps> = ({
       </div>
 
       {/* Window Content */}
-      <div className="flex-1 overflow-hidden relative bg-transparent">
+      <div className="flex-1 overflow-hidden relative" style={{ backgroundColor: 'var(--theme-content-bg)', color: 'var(--theme-content-text)' }}>
         {children}
       </div>
 
