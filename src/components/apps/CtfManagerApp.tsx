@@ -27,7 +27,10 @@ const CollapsibleSection: React.FC<{ title: string; defaultOpen?: boolean; child
   );
 };
 
-export const CtfManagerApp: React.FC<{ onLaunchChallenge?: (challengeId: string) => void }> = ({ onLaunchChallenge }) => {
+export const CtfManagerApp: React.FC<{ 
+  onLaunchChallenge?: (challengeId: string) => void;
+  onStartApp?: (appId: string, props?: any) => void;
+}> = ({ onLaunchChallenge, onStartApp }) => {
   const { challenges, addChallenge, updateChallenge, deleteChallenge } = useCtf();
   const { items: inventoryItems } = useInventory();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -37,10 +40,12 @@ export const CtfManagerApp: React.FC<{ onLaunchChallenge?: (challengeId: string)
   const [availableNotes, setAvailableNotes] = useState<any[]>([]);
 
   useEffect(() => {
-    const savedTuts = localStorage.getItem('hw_os_tutorials');
-    if (savedTuts) {
-      try { setAvailableTutorials(JSON.parse(savedTuts)); } catch (e) {}
-    }
+    // Fetch tutorials from API
+    fetch('/api/tutorials')
+      .then(res => res.json())
+      .then(data => setAvailableTutorials(data))
+      .catch(err => console.error("Failed to fetch tutorials", err));
+
     const savedNotes = localStorage.getItem('hw_os_notes');
     if (savedNotes) {
       try { setAvailableNotes(JSON.parse(savedNotes)); } catch (e) {}
@@ -555,14 +560,23 @@ export const CtfManagerApp: React.FC<{ onLaunchChallenge?: (challengeId: string)
                   {activeChallenge.inventoryItems && activeChallenge.inventoryItems.length > 0 && (
                     <div className="space-y-4">
                       <h3 className="text-sm font-bold uppercase tracking-widest opacity-50 border-b border-hw-blue/20 pb-2">Required Inventory</h3>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-4">
                         {activeChallenge.inventoryItems.map(itemId => {
                           const item = inventoryItems.find(inv => inv.id === itemId);
                           if (!item) return null;
                           return (
-                            <div key={itemId} className="px-3 py-1.5 bg-hw-blue/10 border border-hw-blue/30 rounded text-xs font-bold flex items-center gap-2">
-                              <span>{item.name}</span>
-                              <span className="text-[9px] opacity-50 uppercase">({item.category})</span>
+                            <div key={itemId} className="flex items-center gap-3 p-3 bg-hw-blue/5 border border-hw-blue/20 rounded-lg">
+                              <div className="w-10 h-10 bg-black/40 rounded overflow-hidden flex items-center justify-center shrink-0">
+                                {item.images && item.images.length > 0 ? (
+                                  <img src={item.images[0]} alt={item.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full bg-hw-blue/10 flex items-center justify-center text-[8px] opacity-50">NO IMG</div>
+                                )}
+                              </div>
+                              <div>
+                                <div className="text-xs font-bold">{item.name}</div>
+                                <div className="text-[9px] opacity-50 uppercase tracking-widest">{item.category}</div>
+                              </div>
                             </div>
                           );
                         })}
@@ -579,6 +593,14 @@ export const CtfManagerApp: React.FC<{ onLaunchChallenge?: (challengeId: string)
                         if (!tut) return null;
                         return (
                           <CollapsibleSection key={tut.id} title={`Knowledge Base: ${tut.title}`}>
+                            <div className="flex justify-end mb-2">
+                              <button 
+                                onClick={() => onStartApp && onStartApp('tutorials', { initialTutorialId: tut.id })}
+                                className="px-3 py-1 bg-hw-blue/20 hover:bg-hw-blue/30 text-hw-blue rounded text-[10px] uppercase tracking-widest font-bold transition-colors"
+                              >
+                                Open in Knowledge Base
+                              </button>
+                            </div>
                             <div className="prose prose-invert prose-hw max-w-none text-xs">
                               <Markdown>{tut.content}</Markdown>
                             </div>
@@ -591,9 +613,18 @@ export const CtfManagerApp: React.FC<{ onLaunchChallenge?: (challengeId: string)
                         if (!note) return null;
                         return (
                           <CollapsibleSection key={note.id} title={`Data Slab: ${note.title}`}>
-                            <div className="prose prose-invert prose-hw max-w-none text-xs">
-                              <Markdown>{note.content}</Markdown>
+                            <div className="flex justify-end mb-2">
+                              <button 
+                                onClick={() => onStartApp && onStartApp('notes', { initialNoteId: note.id })}
+                                className="px-3 py-1 bg-hw-blue/20 hover:bg-hw-blue/30 text-hw-blue rounded text-[10px] uppercase tracking-widest font-bold transition-colors"
+                              >
+                                Open in Data Slabs
+                              </button>
                             </div>
+                            <div 
+                              className="prose prose-invert prose-hw max-w-none text-xs"
+                              dangerouslySetInnerHTML={{ __html: note.content }}
+                            />
                           </CollapsibleSection>
                         );
                       })}

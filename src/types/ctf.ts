@@ -23,6 +23,7 @@ export interface CtfChallenge {
   notes?: string[]; // Array of note IDs
   flags?: CtfFlag[];
   solvedFlags?: string[]; // Array of solved flag IDs
+  flagJournal?: Record<string, string>; // Journaled flag values
   serialTriggers: SerialTrigger[];
   customCode?: string; // Custom HTML/JS to render in iframe
   inventoryItems?: string[]; // Array of required inventory item IDs

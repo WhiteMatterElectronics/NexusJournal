@@ -557,6 +557,13 @@ export default function App() {
       longPressTimer.current = null;
     }
 
+    if (id === 'tutorials' && initialProps?.initialTutorialId) {
+      const tut = tutorials.find(t => t.id === initialProps.initialTutorialId);
+      if (tut) {
+        setSelectedTutorial(tut);
+      }
+    }
+
     if (morphFromId) {
       updateTheme(prev => ({
         ...prev,
@@ -685,7 +692,7 @@ export default function App() {
       case 'cyphonator':
         return <CyphonatorApp />;
       case 'notes':
-        return <NotesApp />;
+        return <NotesApp initialNoteId={initialProps?.initialNoteId} />;
       case 'tutorials':
         return (
           <div className="h-full overflow-y-auto p-6 custom-scrollbar">
@@ -737,9 +744,9 @@ export default function App() {
       case 'wifi':
         return <WifiApp />;
       case 'ctf_manager':
-        return <CtfManagerApp onLaunchChallenge={(challengeId) => handleStartApp('ctf_challenge', undefined, { challengeId })} />;
+        return <CtfManagerApp onLaunchChallenge={(challengeId) => handleStartApp('ctf_challenge', undefined, { challengeId })} onStartApp={handleStartApp} />;
       case 'ctf_challenge':
-        return <CtfChallengeApp challengeId={initialProps?.challengeId} />;
+        return <CtfChallengeApp challengeId={initialProps?.challengeId} onStartApp={handleStartApp} />;
       case 'inventory':
         return <InventoryApp />;
       default:

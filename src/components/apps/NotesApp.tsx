@@ -43,9 +43,9 @@ const Editor = React.memo(({
   );
 }, () => true); // Never re-render, we manage DOM manually or remount via key
 
-export const NotesApp: React.FC = () => {
+export const NotesApp: React.FC<{ initialNoteId?: string }> = ({ initialNoteId }) => {
   const [notes, setNotes] = useState<Note[]>([]);
-  const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
+  const [activeNoteId, setActiveNoteId] = useState<string | null>(initialNoteId || null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -62,8 +62,8 @@ export const NotesApp: React.FC = () => {
         try {
           const parsed = JSON.parse(saved);
           setNotes(parsed);
-          // Only set active note if we don't have one, to avoid jumping
-          if (parsed.length > 0 && !activeNoteId) {
+          // Only set active note if we don't have one and initialNoteId is not provided
+          if (parsed.length > 0 && !activeNoteId && !initialNoteId) {
             setActiveNoteId(parsed[0].id);
           }
         } catch (e) {

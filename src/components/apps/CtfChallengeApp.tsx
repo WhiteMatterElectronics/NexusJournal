@@ -26,7 +26,10 @@ const CollapsibleSection: React.FC<{ title: string; defaultOpen?: boolean; child
   );
 };
 
-export const CtfChallengeApp: React.FC<{ challengeId: string }> = ({ challengeId }) => {
+export const CtfChallengeApp: React.FC<{ 
+  challengeId: string;
+  onStartApp?: (appId: string, props?: any) => void;
+}> = ({ challengeId, onStartApp }) => {
   const { challenges, updateChallenge } = useCtf();
   const { connected, writeToSerial, logs } = useSerial();
   const { items: inventoryItems } = useInventory();
@@ -37,16 +40,19 @@ export const CtfChallengeApp: React.FC<{ challengeId: string }> = ({ challengeId
   const [terminalInput, setTerminalInput] = useState('');
   const [availableTutorials, setAvailableTutorials] = useState<any[]>([]);
   const [availableNotes, setAvailableNotes] = useState<any[]>([]);
-  const [flagInputs, setFlagInputs] = useState<Record<string, string>>({});
+  const [flagInputs, setFlagInputs] = useState<Record<string, string>>(challenge?.flagJournal || {});
   
   const terminalScrollRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
-    const savedTuts = localStorage.getItem('hw_os_tutorials');
-    if (savedTuts) {
-      try { setAvailableTutorials(JSON.parse(savedTuts)); } catch (e) {}
-    }
+    // Fetch tutorials from API
+    fetch('/api/tutorials')
+      .then(res => res.json())
+      .then(data => setAvailableTutorials(data))
+      .catch(err => console.error("Failed to fetch tutorials", err));
+
+    // Fetch notes from localStorage
     const savedNotes = localStorage.getItem('hw_os_notes');
     if (savedNotes) {
       try { setAvailableNotes(JSON.parse(savedNotes)); } catch (e) {}
@@ -55,26 +61,26 @@ export const CtfChallengeApp: React.FC<{ challengeId: string }> = ({ challengeId
 
   const handleSubmitFlag = (flagId: string) => {
     if (!challenge) return;
-    const flag = challenge.flags?.find(f => f.id === flagId);
     const inputVal = flagInputs[flagId] || '';
     
-    if (flag && flag.value === inputVal) {
-      const currentSolved = challenge.solvedFlags || [];
-      if (!currentSolved.includes(flagId)) {
-        const newSolved = [...currentSolved, flagId];
-        const updates: any = { solvedFlags: newSolved };
-        
-        // Check if all flags are solved
-        if (challenge.flags && newSolved.length === challenge.flags.length) {
-          updates.status = 'solved';
-        }
-        
-        updateChallenge(challenge.id, updates);
-      }
-    } else {
-      // Could show an error toast here, but for now just clear or shake
-      setFlagInputs(prev => ({ ...prev, [flagId]: '' }));
+    // Journal the flag value locally
+    const currentJournal = challenge.flagJournal || {};
+    const newJournal = { ...currentJournal, [flagId]: inputVal };
+    
+    const currentSolved = challenge.solvedFlags || [];
+    const newSolved = currentSolved.includes(flagId) ? currentSolved : [...currentSolved, flagId];
+    
+    const updates: any = { 
+      flagJournal: newJournal,
+      solvedFlags: newSolved 
+    };
+    
+    // Check if all flags are solved
+    if (challenge.flags && newSolved.length === challenge.flags.length) {
+      updates.status = 'solved';
     }
+    
+    updateChallenge(challenge.id, updates);
   };
 
   // Auto-scroll terminal
@@ -293,20 +299,22 @@ export const CtfChallengeApp: React.FC<{ challengeId: string }> = ({ challengeId
                                 type="text"
                                 value={flagInputs[flag.id] || ''}
                                 onChange={e => setFlagInputs(prev => ({ ...prev, [flag.id]: e.target.value }))}
-                                placeholder="Enter flag..."
+                                placeholder="Journal flag value here..."
                                 className="flex-1 bg-black/40 border border-hw-blue/20 rounded p-2 text-xs outline-none focus:border-hw-blue"
                                 onKeyDown={e => e.key === 'Enter' && handleSubmitFlag(flag.id)}
                               />
                               <button 
                                 onClick={() => handleSubmitFlag(flag.id)}
                                 className="px-3 py-2 bg-hw-blue/20 hover:bg-hw-blue/30 text-hw-blue rounded transition-colors flex items-center justify-center"
+                                title="Save to Journal"
                               >
                                 <Send className="w-4 h-4" />
                               </button>
                             </div>
                           ) : (
-                            <div className="text-xs font-mono text-green-400 opacity-80">
-                              Flag captured successfully.
+                            <div className="text-xs font-mono text-green-400 opacity-80 flex flex-col gap-1">
+                              <span>Flag journaled successfully.</span>
+                              <span className="opacity-50 break-all">Value: {challenge.flagJournal?.[flag.id]}</span>
                             </div>
                           )}
                         </div>
@@ -319,14 +327,23 @@ export const CtfChallengeApp: React.FC<{ challengeId: string }> = ({ challengeId
               {challenge.inventoryItems && challenge.inventoryItems.length > 0 && (
                 <div className="space-y-4 pt-8 border-t border-hw-blue/20">
                   <h3 className="text-sm font-bold uppercase tracking-widest opacity-50">Required Inventory</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {challenge.inventoryItems.map((itemId, i) => {
+                  <div className="flex flex-wrap gap-4">
+                    {challenge.inventoryItems.map(itemId => {
                       const item = inventoryItems.find(inv => inv.id === itemId);
                       if (!item) return null;
                       return (
-                        <div key={i} className="px-3 py-1.5 bg-hw-blue/10 border border-hw-blue/30 rounded text-xs font-bold flex items-center gap-2">
-                          <span>{item.name}</span>
-                          <span className="text-[9px] opacity-50 uppercase">({item.category})</span>
+                        <div key={itemId} className="flex items-center gap-3 p-3 bg-hw-blue/5 border border-hw-blue/20 rounded-lg">
+                          <div className="w-10 h-10 bg-black/40 rounded overflow-hidden flex items-center justify-center shrink-0">
+                            {item.images && item.images.length > 0 ? (
+                              <img src={item.images[0]} alt={item.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full bg-hw-blue/10 flex items-center justify-center text-[8px] opacity-50">NO IMG</div>
+                            )}
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold">{item.name}</div>
+                            <div className="text-[9px] opacity-50 uppercase tracking-widest">{item.category}</div>
+                          </div>
                         </div>
                       );
                     })}
@@ -343,6 +360,14 @@ export const CtfChallengeApp: React.FC<{ challengeId: string }> = ({ challengeId
                     if (!tut) return null;
                     return (
                       <CollapsibleSection key={tut.id} title={`Knowledge Base: ${tut.title}`}>
+                        <div className="flex justify-end mb-2">
+                          <button 
+                            onClick={() => onStartApp && onStartApp('tutorials', { initialTutorialId: tut.id })}
+                            className="px-3 py-1 bg-hw-blue/20 hover:bg-hw-blue/30 text-hw-blue rounded text-[10px] uppercase tracking-widest font-bold transition-colors"
+                          >
+                            Open in Knowledge Base
+                          </button>
+                        </div>
                         <div className="prose prose-invert prose-hw max-w-none text-xs">
                           <Markdown>{tut.content}</Markdown>
                         </div>
@@ -355,9 +380,18 @@ export const CtfChallengeApp: React.FC<{ challengeId: string }> = ({ challengeId
                     if (!note) return null;
                     return (
                       <CollapsibleSection key={note.id} title={`Data Slab: ${note.title}`}>
-                        <div className="prose prose-invert prose-hw max-w-none text-xs">
-                          <Markdown>{note.content}</Markdown>
+                        <div className="flex justify-end mb-2">
+                          <button 
+                            onClick={() => onStartApp && onStartApp('notes', { initialNoteId: note.id })}
+                            className="px-3 py-1 bg-hw-blue/20 hover:bg-hw-blue/30 text-hw-blue rounded text-[10px] uppercase tracking-widest font-bold transition-colors"
+                          >
+                            Open in Data Slabs
+                          </button>
                         </div>
+                        <div 
+                          className="prose prose-invert prose-hw max-w-none text-xs"
+                          dangerouslySetInnerHTML={{ __html: note.content }}
+                        />
                       </CollapsibleSection>
                     );
                   })}
