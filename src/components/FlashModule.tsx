@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ESPLoader, Transport } from 'esptool-js';
-import { AlertCircle, CheckCircle2, Cpu, Download, Loader2, Terminal, Zap } from 'lucide-react';
+import { Activity, AlertCircle, CheckCircle2, Cpu, Download, Loader2, Terminal, Zap } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Firmware } from '../types';
 
@@ -26,21 +26,22 @@ export const FlashModule: React.FC<FlashModuleProps> = ({ autoFlashFirmwareId, o
 
   const BAUD_RATES = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600];
 
-  useEffect(() => {
-    const fetchFirmwares = async () => {
-      try {
-        const res = await fetch('/api/firmware');
-        const data = await res.json();
-        setFirmwares(data);
-        if (autoFlashFirmwareId) {
-          setSelectedFirmwareId(autoFlashFirmwareId);
-        }
-      } catch (err) {
-        console.error('Failed to fetch firmwares:', err);
+  const fetchFirmwares = useCallback(async () => {
+    try {
+      const res = await fetch('/api/firmware');
+      const data = await res.json();
+      setFirmwares(data);
+      if (autoFlashFirmwareId) {
+        setSelectedFirmwareId(autoFlashFirmwareId);
       }
-    };
-    fetchFirmwares();
+    } catch (err) {
+      console.error('Failed to fetch firmwares:', err);
+    }
   }, [autoFlashFirmwareId]);
+
+  useEffect(() => {
+    fetchFirmwares();
+  }, [fetchFirmwares]);
 
   useEffect(() => {
     if (autoFlashFirmwareId && selectedFirmwareId === autoFlashFirmwareId && !autoFlashAttempted.current) {
@@ -215,8 +216,15 @@ export const FlashModule: React.FC<FlashModuleProps> = ({ autoFlashFirmwareId, o
             </div>
 
             <div className="hw-panel p-0 overflow-hidden">
-              <div className="hw-panel-header">
+              <div className="hw-panel-header flex justify-between items-center">
                 <span>FIRMWARE_SELECTION</span>
+                <button 
+                  onClick={fetchFirmwares}
+                  className="p-1 text-hw-blue/40 hover:text-hw-blue transition-colors"
+                  title="Refresh Firmware List"
+                >
+                  <Activity className="w-3 h-3" />
+                </button>
               </div>
               <div className="p-6 space-y-3">
                 {firmwares.length === 0 ? (

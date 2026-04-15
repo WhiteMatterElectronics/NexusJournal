@@ -67,10 +67,9 @@ async function startServer() {
     console.error("Migration failed:", err);
   }
 
-  // Recreate firmware table to match new schema
+  // Ensure firmware table exists
   db.exec(`
-    DROP TABLE IF EXISTS firmware;
-    CREATE TABLE firmware (
+    CREATE TABLE IF NOT EXISTS firmware (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       version TEXT NOT NULL,

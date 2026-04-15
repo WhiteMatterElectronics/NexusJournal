@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { FileUp, Plus, Settings, Trash2, Upload, Terminal, Activity, Save, X, Eye, Edit3, Bold, Italic, Code, List, Image as ImageIcon, Link as LinkIcon, Paperclip, Loader2, FileText, ArrowUp, ArrowDown, AlignLeft, Heading, Minus, Video, LayoutGrid, AlertCircle, Link, Table, CheckSquare, Strikethrough, Copy, Clipboard, ListOrdered, Quote } from 'lucide-react';
+import { FileUp, Plus, Settings, Trash2, Upload, Terminal, Activity, Save, X, Eye, Edit3, Bold, Italic, Code, List, Image as ImageIcon, Link as LinkIcon, Paperclip, Loader2, FileText, ArrowUp, ArrowDown, AlignLeft, Heading, Minus, Video, LayoutGrid, AlertCircle, Link, Table, CheckSquare, Strikethrough, Copy, Clipboard, ListOrdered, Quote, Zap } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Tutorial, TutorialBlock, BlockType, Firmware } from '../types';
 
@@ -652,12 +652,29 @@ export const SystemConfig: React.FC<SystemConfigProps> = ({ tutorials, refreshTu
                         <td className="px-6 py-4 text-hw-blue">{fw.version}</td>
                         <td className="px-6 py-4 text-hw-blue/40">{fw.uploadedAt}</td>
                         <td className="px-6 py-4 text-right">
-                          <button 
-                            onClick={() => handleDeleteFirmware(fw.id)}
-                            className="p-1.5 text-red-500/60 hover:text-red-500 hover:bg-red-500/10 border border-transparent hover:border-red-500/30 transition-all"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            <button 
+                              onClick={() => {
+                                window.dispatchEvent(new CustomEvent('hw_os_open_app', { 
+                                  detail: { 
+                                    appId: 'flasher',
+                                    initialProps: { autoFlashFirmwareId: fw.id }
+                                  } 
+                                }));
+                              }}
+                              className="p-1.5 text-hw-blue/60 hover:text-hw-blue hover:bg-hw-blue/10 border border-transparent hover:border-hw-blue/30 transition-all"
+                              title="Flash this firmware"
+                            >
+                              <Zap className="w-3.5 h-3.5" />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteFirmware(fw.id)}
+                              className="p-1.5 text-red-500/60 hover:text-red-500 hover:bg-red-500/10 border border-transparent hover:border-red-500/30 transition-all"
+                              title="Delete firmware"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))

@@ -611,7 +611,9 @@ export default function App() {
       }];
     });
     
-    if (id !== 'flasher') {
+    if (id === 'flasher' && initialProps?.autoFlashFirmwareId) {
+      setAutoFlashFirmwareId(initialProps.autoFlashFirmwareId);
+    } else if (id !== 'flasher') {
       setAutoFlashFirmwareId(null);
     }
   };
