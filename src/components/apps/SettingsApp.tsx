@@ -456,6 +456,33 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile'
                       <span className="text-[10px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100">Panel (Modern)</span>
                     </label>
                   </div>
+
+                  <div className="flex flex-col gap-4 p-4 bg-hw-blue/5 border border-hw-blue/10 rounded-lg" style={{ borderColor: 'var(--theme-border-color)' }}>
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={localTheme.intellihide}
+                        onChange={(e) => setLocalTheme(prev => ({ ...prev, intellihide: e.target.checked }))}
+                        className="accent-hw-blue"
+                      />
+                      <span className="text-[10px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100">Intellihide (Auto-hide)</span>
+                    </label>
+
+                    {localTheme.intellihide && (
+                      <div className="flex items-center justify-between pt-2 border-t border-hw-blue/10" style={{ borderColor: 'var(--theme-border-color)' }}>
+                        <span className="text-[9px] font-bold uppercase tracking-widest opacity-60">Hide Delay</span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-[10px] font-mono">{localTheme.hideDelay}ms</span>
+                          <input 
+                            type="range" min="0" max="2000" step="100"
+                            value={localTheme.hideDelay}
+                            onChange={e => setLocalTheme(prev => ({ ...prev, hideDelay: parseInt(e.target.value) }))}
+                            className="w-32 h-1 bg-hw-blue/20 rounded-lg appearance-none cursor-pointer accent-hw-blue"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 

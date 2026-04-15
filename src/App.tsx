@@ -89,12 +89,9 @@ function DesktopIcon({
 
   return (
     <motion.div
-      layoutId={app.id}
       transition={{ 
-        type: "spring",
-        stiffness: 400,
-        damping: 40,
-        mass: 1
+        duration: 0.15,
+        ease: "easeOut"
       }}
       onMouseDown={(e) => onMouseDown(e, { id: app.id, pos: gridPos })}
       onTouchStart={(e) => {
@@ -106,7 +103,7 @@ function DesktopIcon({
         });
         onMouseDown(mouseEvent as any, { id: app.id, pos: gridPos });
       }}
-      onDoubleClick={() => handleStartApp(app.id as AppView, app.id)}
+      onDoubleClick={() => handleStartApp(app.id as AppView, `desktop-${app.id}`)}
       style={style}
       className={cn(
         "flex flex-col items-center justify-center group cursor-grab",
@@ -434,6 +431,17 @@ export default function App() {
   const [isTaskbarHovered, setIsTaskbarHovered] = useState(false);
   const [isTaskbarEffectivelyHovered, setIsTaskbarEffectivelyHovered] = useState(false);
   const [shouldHideTaskbar, setShouldHideTaskbar] = useState(false);
+
+  useEffect(() => {
+    // Debug permissions policy
+    if ((document as any).featurePolicy) {
+      const allowed = (document as any).featurePolicy.allowedFeatures();
+      console.log("Permissions Policy Allowed Features:", allowed);
+      if (!allowed.includes('serial')) {
+        console.error("CRITICAL: 'serial' is NOT allowed by permissions policy. Please refresh the page or open in a new tab.");
+      }
+    }
+  }, []);
 
   // Handle show delay for taskbar to prevent accidental triggers
   useEffect(() => {
@@ -876,10 +884,11 @@ export default function App() {
       </div>
       
       {/* Desktop Icons Container */}
-      <div 
+      <motion.div 
         className="absolute inset-0 z-10 overflow-hidden" 
         ref={desktopRef}
-        style={{ bottom: taskbarHeight }}
+        animate={{ bottom: (theme.taskbarStyle === 'panel' || shouldHideTaskbar || theme.intellihide) ? 0 : taskbarHeight }}
+        transition={{ duration: theme.animationSpeed, ease: "easeInOut" }}
       >
         {APPS.map((app) => {
           if (theme.desktopIcons?.[app.id] === false) return null;
@@ -920,7 +929,7 @@ export default function App() {
             isDraggingAny={!!draggingId}
           />
         ))}
-      </div>
+      </motion.div>
 
       {/* Dash Panel (Ubuntu-style overflow) */}
       {showDash && (
@@ -953,14 +962,11 @@ export default function App() {
               {APPS.filter(app => theme.desktopIcons?.[app.id] !== false).map(app => (
                 <motion.div
                   key={`dash-${app.id}`}
-                  layoutId={app.id}
                   transition={{ 
-                    type: "spring",
-                    stiffness: 400,
-                    damping: 40,
-                    mass: 1
+                    duration: 0.15,
+                    ease: "easeOut"
                   }}
-                  onClick={() => handleStartApp(app.id as AppView, app.id)}
+                  onClick={() => handleStartApp(app.id as AppView, `dash-${app.id}`)}
                   className="flex flex-col items-center gap-4 cursor-pointer group"
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
@@ -980,50 +986,51 @@ export default function App() {
 
       {/* Windows Area */}
       <motion.div 
-        className="absolute inset-0 overflow-hidden pointer-events-none z-10"
+        className="absolute inset-0 overflow-hidden pointer-events-none z-20"
         animate={{ bottom: (theme.taskbarStyle === 'panel' || shouldHideTaskbar || theme.intellihide) ? 0 : taskbarHeight }}
         transition={{ duration: theme.animationSpeed, ease: "easeInOut" }}
       >
-        {windows.map(win => {
-          const appInfo = APPS.find(a => a.id === win.appId);
-          if (!appInfo) return null;
-          
-          const isSingleton = win.appId === 'console' || win.appId === 'settings' || win.appId === 'admin' || win.appId === 'flasher';
-          const title = isSingleton ? appInfo.label : `${appInfo.label} - ${win.instanceNumber}`;
+        <AnimatePresence mode="popLayout">
+          {windows.map(win => {
+            const appInfo = APPS.find(a => a.id === win.appId);
+            if (!appInfo) return null;
+            
+            const isSingleton = win.appId === 'console' || win.appId === 'settings' || win.appId === 'admin' || win.appId === 'flasher';
+            const title = isSingleton ? appInfo.label : `${appInfo.label} - ${win.instanceNumber}`;
 
-          return (
-            <div key={win.instanceId} className="pointer-events-auto">
-              <Window
-                id={win.instanceId}
-                title={title}
-                icon={appInfo.icon}
-                isOpen={win.isOpen}
-                isMinimized={win.isMinimized}
-                isMaximized={win.isMaximized}
-                isActive={activeWindowId === win.instanceId}
-                zIndex={win.zIndex}
-                onClose={() => handleWindowAction(win.instanceId, 'close')}
-                onMinimize={() => handleWindowAction(win.instanceId, 'minimize')}
-                onMaximize={() => handleWindowAction(win.instanceId, 'maximize')}
-                onFocus={() => handleWindowAction(win.instanceId, 'focus')}
-                onCollapse={() => handleWindowAction(win.instanceId, 'close')}
-                morphFromId={win.morphFromId}
-                defaultSize={{ width: 900, height: 600 }}
-                defaultPosition={{ x: 50 + (win.zIndex * 20) % 200, y: 50 + (win.zIndex * 20) % 200 }}
-                globalTheme={theme.globalTheme}
-                mainColor={theme.mainColor}
-                isDarkMode={theme.isDarkMode}
-                taskbarHeight={taskbarHeight}
-                shouldHideTaskbar={shouldHideTaskbar}
-                taskbarStyle={theme.taskbarStyle}
-                intellihide={theme.intellihide}
-                layoutId={win.morphFromId}
-              >
-                {renderAppContent(win.appId, win.initialProps)}
-              </Window>
-            </div>
-          );
-        })}
+            return (
+              <div key={win.instanceId} className="pointer-events-auto">
+                <Window
+                  id={win.instanceId}
+                  title={title}
+                  icon={appInfo.icon}
+                  isOpen={win.isOpen}
+                  isMinimized={win.isMinimized}
+                  isMaximized={win.isMaximized}
+                  isActive={activeWindowId === win.instanceId}
+                  zIndex={win.zIndex}
+                  onClose={() => handleWindowAction(win.instanceId, 'close')}
+                  onMinimize={() => handleWindowAction(win.instanceId, 'minimize')}
+                  onMaximize={() => handleWindowAction(win.instanceId, 'maximize')}
+                  onFocus={() => handleWindowAction(win.instanceId, 'focus')}
+                  onCollapse={() => handleWindowAction(win.instanceId, 'close')}
+                  morphFromId={win.morphFromId}
+                  defaultSize={{ width: 900, height: 600 }}
+                  defaultPosition={{ x: 50 + (win.zIndex * 20) % 200, y: 50 + (win.zIndex * 20) % 200 }}
+                  globalTheme={theme.globalTheme}
+                  mainColor={theme.mainColor}
+                  isDarkMode={theme.isDarkMode}
+                  taskbarHeight={taskbarHeight}
+                  shouldHideTaskbar={shouldHideTaskbar}
+                  taskbarStyle={theme.taskbarStyle}
+                  intellihide={theme.intellihide}
+                >
+                  {renderAppContent(win.appId, win.initialProps)}
+                </Window>
+              </div>
+            );
+          })}
+        </AnimatePresence>
       </motion.div>
 
       {/* Taskbar */}

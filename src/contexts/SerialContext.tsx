@@ -154,9 +154,14 @@ export const SerialProvider = ({ children }: { children: ReactNode }) => {
 
   const connect = async () => {
     try {
+      const serial = (window.navigator as any).serial;
+      if (!serial) {
+        throw new Error("Web Serial API is not supported in this browser.");
+      }
+
       let currentPort = port;
       if (!currentPort) {
-        currentPort = await (navigator as any).serial.requestPort();
+        currentPort = await serial.requestPort();
         setPort(currentPort);
       }
 

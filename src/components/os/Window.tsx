@@ -215,23 +215,23 @@ export const Window: React.FC<WindowProps> = ({
   return (
     <motion.div
       id={`window-${id}`}
-      initial={false}
-      animate={{
-        ...windowState,
-        display: isVisible ? 'flex' : 'none'
-      }}
-      layoutId={layoutId}
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={windowState}
+      exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.15 } }}
       transition={{ 
-        type: "spring",
-        stiffness: 400,
-        damping: 40,
-        mass: 1,
-        display: { delay: isVisible ? 0 : 0.4 }
+        duration: 0.15,
+        ease: "easeOut"
       }}
       onMouseDown={onFocus}
-      style={{ zIndex, position: 'absolute', backdropFilter: 'var(--theme-backdrop-filter)', color: 'var(--theme-text)' }}
+      style={{ 
+        zIndex, 
+        position: 'absolute', 
+        backdropFilter: 'var(--theme-backdrop-filter)', 
+        color: 'var(--theme-text)',
+        visibility: isVisible ? 'visible' : (isOpen ? 'visible' : 'hidden'),
+      }}
       className={cn(
-        "flex flex-col bg-hw-black border shadow-2xl overflow-hidden",
+        "flex flex-col bg-hw-black border shadow-2xl overflow-hidden pointer-events-auto",
         isMaximized ? "border-none" : cn("border-hw-border", globalTheme === 'glassy' ? "rounded-2xl" : "rounded-sm"),
         isActive ? "border-hw-blue shadow-[0_0_30px_rgba(0,242,255,0.15)]" : "opacity-90"
       )}

@@ -65,7 +65,8 @@ const defaultTheme: ThemeConfig = {
     'flasher': true,
     'notes': true,
     'admin': true,
-    'settings': true
+    'settings': true,
+    'bluetooth': true
   },
   iconPositions: {},
   taskbarStyle: 'fixed',
