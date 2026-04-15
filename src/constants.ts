@@ -1,4 +1,4 @@
-import { Settings, BookOpen, Zap, Terminal, Database, Radio, FileCode, Lock, Activity, Cloud, Clock, Bluetooth, Wifi, Flag, Package, Info, Folder, FileText } from 'lucide-react';
+import { Settings, BookOpen, Zap, Terminal, Database, Radio, FileCode, Lock, Activity, Cloud, Clock, Bluetooth, Wifi, Flag, Package, Info, Folder, FileText, Globe } from 'lucide-react';
 import { AppView } from './types';
 
 export interface AppDefinition {
@@ -28,4 +28,5 @@ export const APPS: AppDefinition[] = [
   { id: 'inventory', icon: Package, label: 'INVENTORY' },
   { id: 'properties', icon: Info, label: 'PROPERTIES' },
   { id: 'text_editor', icon: FileText, label: 'TEXT_EDITOR' },
+  { id: 'browser', icon: Globe, label: 'BROWSER' },
 ];

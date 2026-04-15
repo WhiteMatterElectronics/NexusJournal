@@ -31,6 +31,7 @@ import { CtfChallengeApp } from './components/apps/CtfChallengeApp';
 import { InventoryApp } from './components/apps/InventoryApp';
 import { MyFilesApp } from './components/apps/MyFilesApp';
 import { TextEditorApp } from './components/apps/TextEditorApp';
+import { BrowserApp } from './components/apps/BrowserApp';
 import { WidgetContainer } from './components/os/WidgetContainer';
 import { SaveFileDialog } from './components/os/SaveFileDialog';
 import { useSettings } from './contexts/SettingsContext';
@@ -857,6 +858,8 @@ export default function App() {
         return <MyFilesApp />;
       case 'text_editor':
         return <TextEditorApp file={initialProps?.file} onClose={() => handleWindowAction(instanceId, 'close')} />;
+      case 'browser':
+        return <BrowserApp onClose={() => handleWindowAction(instanceId, 'close')} />;
       case 'properties':
         return (
           <PropertiesApp 
@@ -1301,27 +1304,31 @@ export default function App() {
             
             <div className="text-hw-blue text-2xl font-bold mb-12 tracking-[0.3em] uppercase opacity-60">Applications</div>
             
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-x-8 gap-y-12 w-full">
-              {APPS.filter(app => app.id !== 'properties').map(app => (
-                <motion.div
-                  key={`dash-${app.id}`}
-                  transition={{ 
-                    duration: 0.15,
-                    ease: "easeOut"
-                  }}
-                  onClick={() => handleStartApp(app.id as AppView, `dash-${app.id}`)}
-                  className="flex flex-col items-center gap-4 cursor-pointer group"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <div className="w-20 h-20 rounded-3xl bg-hw-blue/5 border border-hw-blue/10 flex items-center justify-center group-hover:bg-hw-blue/15 group-hover:border-hw-blue/30 group-hover:scale-110 transition-all duration-300 shadow-lg group-hover:shadow-[0_0_30px_rgba(0,242,255,0.1)]">
-                    <app.icon size={32} className="text-hw-blue/70 group-hover:text-hw-blue transition-colors" />
-                  </div>
-                  <span className="text-[10px] font-bold text-center text-hw-blue/70 group-hover:text-hw-blue uppercase tracking-widest drop-shadow-md truncate w-full px-2">
-                    {app.label.replace('_', ' ')}
-                  </span>
-                </motion.div>
-              ))}
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-x-8 gap-y-12 w-full h-full overflow-y-auto custom-scrollbar pr-4">
+              {[...APPS.filter(app => app.id !== 'properties'), ...(theme.shortcuts || [])].map((app, index) => {
+                const isShortcut = !('icon' in app);
+                const Icon = isShortcut ? (app.type === 'folder' ? Folder : (app.category === 'note' ? FileText : (app.category === 'tutorial' ? FileCode : (app.category === 'pdf' ? FileDown : (app.category === 'image' ? ImageIcon : (app.category === 'video' ? Video : File)))))) : app.icon;
+                return (
+                  <motion.div
+                    key={`dash-${'icon' in app ? app.id : `shortcut-${app.id}`}-${index}`}
+                    transition={{ 
+                      duration: 0.15,
+                      ease: "easeOut"
+                    }}
+                    onClick={() => handleStartApp('icon' in app ? (app.id as AppView) : app.id as AppView)}
+                    className="flex flex-col items-center gap-4 cursor-pointer group"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <div className="w-20 h-20 rounded-3xl bg-hw-blue/5 border border-hw-blue/10 flex items-center justify-center group-hover:bg-hw-blue/15 group-hover:border-hw-blue/30 group-hover:scale-110 transition-all duration-300 shadow-lg group-hover:shadow-[0_0_30px_rgba(0,242,255,0.1)]">
+                      <Icon size={32} className="text-hw-blue/70 group-hover:text-hw-blue transition-colors" />
+                    </div>
+                    <span className="text-[10px] font-bold text-center text-hw-blue/70 group-hover:text-hw-blue uppercase tracking-widest drop-shadow-md truncate w-full px-2">
+                      {app.label.replace('_', ' ')}
+                    </span>
+                  </motion.div>
+                );
+              })}
             </div>
           </motion.div>
         </div>

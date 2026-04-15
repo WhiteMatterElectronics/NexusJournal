@@ -286,6 +286,7 @@ export const MyFilesApp: React.FC = () => {
   };
 
   const handleContextMenu = (e: React.MouseEvent, item: any = null) => {
+    console.log("MyFilesApp context menu", item);
     e.preventDefault();
     e.stopPropagation();
     const rect = containerRef.current?.getBoundingClientRect();
@@ -445,6 +446,7 @@ export const MyFilesApp: React.FC = () => {
       className="flex h-full select-none relative" 
       style={{ backgroundColor: 'var(--theme-panel-bg)', color: 'var(--theme-text)' }}
       onClick={() => setContextMenu(null)}
+      onContextMenu={(e) => handleContextMenu(e)}
     >
       {/* Sidebar */}
       <div className="w-48 border-r border-hw-blue/10 flex flex-col bg-hw-blue/5" style={{ borderColor: 'var(--theme-border-color)' }}>
