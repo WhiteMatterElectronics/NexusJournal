@@ -16,6 +16,7 @@ interface BleCharacteristic {
   properties: string[];
   value?: string;
   isNotifying: boolean;
+  verifiedWritable?: boolean;
 }
 
 interface BleService {
@@ -31,6 +32,13 @@ interface LogEntry {
   message: string;
 }
 
+interface TerminalLog {
+  id: string;
+  timestamp: number;
+  type: 'tx' | 'rx';
+  data: string;
+}
+
 export const BluetoothApp: React.FC = () => {
   const { connected, port, writeToSerial } = useSerial();
   const [devices, setDevices] = useState<BleDevice[]>([]);
@@ -38,14 +46,28 @@ export const BluetoothApp: React.FC = () => {
   const [connectedDevice, setConnectedDevice] = useState<BleDevice | null>(null);
   const [services, setServices] = useState<BleService[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [activeTab, setActiveTab] = useState<'explorer' | 'console'>('explorer');
+  const [activeTab, setActiveTab] = useState<'explorer' | 'console' | 'terminal'>('explorer');
   const [writeValues, setWriteValues] = useState<Record<string, string>>({});
   
+  const [txChar, setTxChar] = useState<string>('');
+  const [rxChar, setRxChar] = useState<string>('');
+  const [terminalLogs, setTerminalLogs] = useState<TerminalLog[]>([]);
+  const [terminalInput, setTerminalInput] = useState('');
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
+  const terminalEndRef = useRef<HTMLDivElement>(null);
   
   const lastReadUuidRef = useRef<string | null>(null);
+  const lastWriteUuidRef = useRef<string | null>(null);
   const pendingConnectionAddressRef = useRef<string | null>(null);
+  const rxCharRef = useRef<string>('');
+  const txCharRef = useRef<string>('');
+
+  useEffect(() => {
+    rxCharRef.current = rxChar;
+    txCharRef.current = txChar;
+  }, [rxChar, txChar]);
 
   const addLog = useCallback((type: LogEntry['type'], message: string) => {
     setLogs(prev => [
@@ -64,6 +86,12 @@ export const BluetoothApp: React.FC = () => {
       logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [logs]);
+
+  useEffect(() => {
+    if (terminalEndRef.current) {
+      terminalEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [terminalLogs]);
 
   useEffect(() => {
     const handleSerialLine = (e: Event) => {
@@ -138,16 +166,44 @@ export const BluetoothApp: React.FC = () => {
               return prev.map((s, idx) => idx === prev.length - 1 ? { ...s, characteristics: [...s.characteristics, newChar] } : s);
             });
           }
+        } else if (text.includes("Write sent.")) {
+          if (lastWriteUuidRef.current) {
+            const uuid = lastWriteUuidRef.current;
+            addLog('success', `[${uuid}] Write verified.`);
+            setServices(prev => prev.map(s => ({
+              ...s,
+              characteristics: s.characteristics.map(c => c.uuid === uuid ? { ...c, verifiedWritable: true } : c)
+            })));
+          }
+        } else if (text.includes("ERR: UUID not found/writable")) {
+          if (lastWriteUuidRef.current) {
+            const uuid = lastWriteUuidRef.current;
+            addLog('error', `[${uuid}] Write failed. Removing write permission.`);
+            setServices(prev => prev.map(s => ({
+              ...s,
+              characteristics: s.characteristics.map(c => c.uuid === uuid ? { 
+                ...c, 
+                properties: c.properties.filter(p => p !== 'WRITE'),
+                verifiedWritable: false 
+              } : c)
+            })));
+          }
         } else if (text.includes("[BLE-READ] Hex:")) {
           const hexMatch = text.match(/Hex:\s*([a-zA-Z0-9]+)/);
+          const asciiMatch = text.match(/ASCII:\s*(.+)/);
           if (hexMatch && lastReadUuidRef.current) {
             const hexData = hexMatch[1];
+            const asciiData = asciiMatch ? asciiMatch[1] : hexData;
             const charUuid = lastReadUuidRef.current;
             addLog('data', `[${charUuid}] READ: ${hexData}`);
             setServices(prev => prev.map(s => ({
               ...s,
               characteristics: s.characteristics.map(c => c.uuid === charUuid ? { ...c, value: hexData } : c)
             })));
+            
+            if (charUuid === rxCharRef.current) {
+              setTerminalLogs(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), timestamp: Date.now(), type: 'rx', data: asciiData }]);
+            }
           }
         } else if (text.includes("[BLE-NOTIFY]")) {
           const parts = text.replace("[BLE-NOTIFY]", "").trim().split(":");
@@ -159,6 +215,17 @@ export const BluetoothApp: React.FC = () => {
               ...s,
               characteristics: s.characteristics.map(c => c.uuid === charUuid ? { ...c, value: hexData } : c)
             })));
+            
+            if (charUuid === rxCharRef.current) {
+              // Try to convert hex to ascii for terminal
+              let asciiStr = '';
+              for (let i = 0; i < hexData.length; i += 2) {
+                const code = parseInt(hexData.substr(i, 2), 16);
+                if (code >= 32 && code <= 126) asciiStr += String.fromCharCode(code);
+                else asciiStr += '.';
+              }
+              setTerminalLogs(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), timestamp: Date.now(), type: 'rx', data: asciiStr }]);
+            }
           }
         }
       }
@@ -203,8 +270,33 @@ export const BluetoothApp: React.FC = () => {
     if (!connected) return;
     const value = writeValues[uuid];
     if (!value) return;
+    lastWriteUuidRef.current = uuid;
     addLog('sent', `Writing to ${uuid}: ${value}`);
     writeToSerial(`BLE WRITE ${uuid} ${value}\n`);
+  };
+
+  const autoVerifyWritable = async () => {
+    if (!connected) return;
+    addLog('info', 'Starting auto-verification of writable characteristics...');
+    for (const service of services) {
+      for (const char of service.characteristics) {
+        if (char.properties.includes('WRITE')) {
+          lastWriteUuidRef.current = char.uuid;
+          writeToSerial(`BLE WRITE ${char.uuid} 0\n`);
+          // Wait a bit to let the firmware process and respond
+          await new Promise(r => setTimeout(r, 500));
+        }
+      }
+    }
+    addLog('success', 'Auto-verification complete.');
+  };
+
+  const sendTerminal = () => {
+    if (!connected || !txChar || !terminalInput) return;
+    lastWriteUuidRef.current = txChar;
+    writeToSerial(`BLE WRITE ${txChar} ${terminalInput}\n`);
+    setTerminalLogs(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), timestamp: Date.now(), type: 'tx', data: terminalInput }]);
+    setTerminalInput('');
   };
 
   const toggleNotify = (uuid: string, current: boolean) => {
@@ -242,6 +334,12 @@ export const BluetoothApp: React.FC = () => {
             className={cn("px-3 py-1 text-[10px] uppercase tracking-widest transition-all", activeTab === 'console' ? "bg-hw-blue text-black font-bold" : "text-hw-blue/60 hover:text-hw-blue")}
           >
             Console
+          </button>
+          <button 
+            onClick={() => setActiveTab('terminal')}
+            className={cn("px-3 py-1 text-[10px] uppercase tracking-widest transition-all", activeTab === 'terminal' ? "bg-hw-blue text-black font-bold" : "text-hw-blue/60 hover:text-hw-blue")}
+          >
+            Terminal
           </button>
           <div className="w-px h-4 bg-hw-blue/20 mx-2" />
           {!connectedDevice ? (
@@ -323,6 +421,13 @@ export const BluetoothApp: React.FC = () => {
                       <Database className="w-6 h-6 text-hw-blue" />
                       <h2 className="text-lg font-bold tracking-[0.2em] uppercase">Service Explorer</h2>
                     </div>
+                    <button 
+                      onClick={autoVerifyWritable}
+                      className="hw-button px-4 py-1 text-[10px] flex items-center gap-2"
+                    >
+                      <Activity className="w-3 h-3" />
+                      AUTO-VERIFY WRITABLE
+                    </button>
                   </div>
 
                   {services.length === 0 && (
@@ -397,7 +502,10 @@ export const BluetoothApp: React.FC = () => {
 
                                       {char.properties.includes('WRITE') && (
                                         <div className="flex-1 min-w-[200px]">
-                                          <div className="text-[9px] font-bold uppercase tracking-widest opacity-50 mb-2">Write Hex</div>
+                                          <div className="text-[9px] font-bold uppercase tracking-widest opacity-50 mb-2 flex items-center gap-2">
+                                            Write Data
+                                            {char.verifiedWritable && <span className="text-green-500 bg-green-500/20 px-1.5 py-0.5 rounded text-[8px]">VERIFIED</span>}
+                                          </div>
                                           <div className="flex items-center gap-2">
                                             <input 
                                               type="text"
@@ -441,6 +549,82 @@ export const BluetoothApp: React.FC = () => {
                     ))}
                   </div>
                 </div>
+              )}
+            </div>
+          ) : activeTab === 'terminal' ? (
+            <div className="flex-1 flex flex-col p-6 max-w-4xl mx-auto w-full">
+              {!connectedDevice ? (
+                <div className="h-full flex flex-col items-center justify-center text-hw-blue/20 space-y-4">
+                  <Terminal className="w-16 h-16 opacity-10" />
+                  <p className="text-sm tracking-widest uppercase">Connect to a device to use Terminal</p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex gap-4 mb-4">
+                    <div className="flex-1">
+                      <label className="block text-[10px] font-bold uppercase opacity-50 mb-2">RX Characteristic (Notify/Read)</label>
+                      <select 
+                        value={rxChar} 
+                        onChange={e => setRxChar(e.target.value)}
+                        className="w-full bg-black/40 border border-hw-blue/20 rounded p-2 text-xs font-mono text-hw-blue outline-none"
+                      >
+                        <option value="">Select RX...</option>
+                        {services.flatMap(s => s.characteristics).filter(c => c.properties.includes('NOTIFY') || c.properties.includes('READ')).map(c => (
+                          <option key={c.uuid} value={c.uuid}>{c.uuid}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-[10px] font-bold uppercase opacity-50 mb-2">TX Characteristic (Write)</label>
+                      <select 
+                        value={txChar} 
+                        onChange={e => setTxChar(e.target.value)}
+                        className="w-full bg-black/40 border border-hw-blue/20 rounded p-2 text-xs font-mono text-hw-blue outline-none"
+                      >
+                        <option value="">Select TX...</option>
+                        {services.flatMap(s => s.characteristics).filter(c => c.properties.includes('WRITE')).map(c => (
+                          <option key={c.uuid} value={c.uuid}>{c.uuid}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div className="flex-1 bg-black/40 border border-hw-blue/20 rounded-xl flex flex-col overflow-hidden">
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                      {terminalLogs.length === 0 && (
+                        <div className="h-full flex items-center justify-center text-hw-blue/30 italic text-xs">
+                          No messages yet. Select RX/TX characteristics and start typing.
+                        </div>
+                      )}
+                      {terminalLogs.map(log => (
+                        <div key={log.id} className={cn("flex flex-col max-w-[80%]", log.type === 'tx' ? "ml-auto items-end" : "mr-auto items-start")}>
+                          <span className="text-[9px] opacity-40 mb-1">{log.type === 'tx' ? 'TX' : 'RX'} - {new Date(log.timestamp).toLocaleTimeString()}</span>
+                          <div className={cn("px-3 py-2 rounded-lg text-xs font-mono break-all", log.type === 'tx' ? "bg-hw-blue/20 text-hw-blue" : "bg-green-500/20 text-green-400")}>
+                            {log.data}
+                          </div>
+                        </div>
+                      ))}
+                      <div ref={terminalEndRef} />
+                    </div>
+                    <div className="p-4 border-t border-hw-blue/20 bg-black/60 flex gap-2">
+                      <input 
+                        type="text" 
+                        value={terminalInput}
+                        onChange={e => setTerminalInput(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && sendTerminal()}
+                        placeholder="Type message to send..."
+                        className="flex-1 bg-black/40 border border-hw-blue/30 rounded px-3 py-2 text-sm font-mono outline-none focus:border-hw-blue text-hw-blue"
+                      />
+                      <button 
+                        onClick={sendTerminal}
+                        disabled={!txChar || !terminalInput}
+                        className="px-6 py-2 bg-hw-blue/20 hover:bg-hw-blue/30 disabled:opacity-30 rounded font-bold uppercase tracking-widest text-xs transition-colors"
+                      >
+                        Send
+                      </button>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           ) : (
