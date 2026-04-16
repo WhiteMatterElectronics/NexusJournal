@@ -57,7 +57,7 @@ export interface ThemeConfig {
   gridCols: number;
   gridRows: number;
   desktopLabelColor: string;
-  iconTheme: 'classic' | 'neon' | 'minimal' | 'glass' | 'pixel';
+  iconStyle: 'retro' | 'glassy' | 'minimal';
   iconThemes: Record<string, string>;
   timeConfig: TimeConfig;
   customCss: string;
@@ -182,7 +182,7 @@ const defaultTheme: ThemeConfig = {
   gridCols: 15,
   gridRows: 7,
   desktopLabelColor: '#ffffff',
-  iconTheme: 'classic',
+  iconStyle: 'retro',
   iconThemes: {},
   timeConfig: {
     source: 'auto',

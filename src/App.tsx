@@ -32,6 +32,8 @@ import { InventoryApp } from './components/apps/InventoryApp';
 import { MyFilesApp } from './components/apps/MyFilesApp';
 import { TextEditorApp } from './components/apps/TextEditorApp';
 import { BrowserApp } from './components/apps/BrowserApp';
+import { TrashCanApp } from './components/apps/TrashCanApp';
+import { GameHubApp } from './components/apps/GameHubApp';
 import { WidgetContainer } from './components/os/WidgetContainer';
 import { SaveFileDialog } from './components/os/SaveFileDialog';
 import { useSettings } from './contexts/SettingsContext';
@@ -860,10 +862,15 @@ export default function App() {
         return <TextEditorApp file={initialProps?.file} onClose={() => handleWindowAction(instanceId, 'close')} />;
       case 'browser':
         return <BrowserApp onClose={() => handleWindowAction(instanceId, 'close')} />;
+      case 'trash':
+        return <TrashCanApp onClose={() => handleWindowAction(instanceId, 'close')} />;
+      case 'gamehub':
+        return <GameHubApp />;
       case 'properties':
         return (
           <PropertiesApp 
             appId={initialProps?.appId} 
+            file={initialProps?.file}
             onClose={() => handleWindowAction(instanceId, 'close')}
             onOpenApp={(id) => handleStartApp(id)}
             onRemoveIcon={(id) => {
@@ -1317,13 +1324,18 @@ export default function App() {
                     }}
                     onClick={() => handleStartApp('icon' in app ? (app.id as AppView) : app.id as AppView)}
                     className="flex flex-col items-center gap-4 cursor-pointer group"
-                    whileHover={{ scale: 1.05 }}
+                    whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.95 }}
                   >
-                    <div className="w-20 h-20 rounded-3xl bg-hw-blue/5 border border-hw-blue/10 flex items-center justify-center group-hover:bg-hw-blue/15 group-hover:border-hw-blue/30 group-hover:scale-110 transition-all duration-300 shadow-lg group-hover:shadow-[0_0_30px_rgba(0,242,255,0.1)]">
+                    <div className={cn(
+                      "w-20 h-20 flex items-center justify-center transition-all duration-300 shadow-lg group-hover:shadow-[0_0_30px_rgba(0,242,255,0.1)] group-hover:scale-110",
+                      theme.iconStyle === 'glassy' ? "rounded-2xl bg-white/10 border border-white/20 backdrop-blur-md" : 
+                      theme.iconStyle === 'minimal' ? "rounded-lg bg-transparent border-none" :
+                      "rounded-3xl bg-hw-blue/5 border border-hw-blue/10"
+                    )}>
                       <Icon size={32} className="text-hw-blue/70 group-hover:text-hw-blue transition-colors" />
                     </div>
-                    <span className="text-[10px] font-bold text-center text-hw-blue/70 group-hover:text-hw-blue uppercase tracking-widest drop-shadow-md truncate w-full px-2">
+                    <span className="text-[10px] font-bold text-center text-hw-blue/70 group-hover:text-hw-blue uppercase tracking-widest drop-shadow-md truncate w-full px-2 mt-2">
                       {app.label.replace('_', ' ')}
                     </span>
                   </motion.div>

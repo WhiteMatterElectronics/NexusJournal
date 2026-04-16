@@ -27,4 +27,5 @@ export interface Firmware {
   uploadedAt: string;
 }
 
-export type AppView = 'tutorials' | 'flasher' | 'admin' | 'console' | 'eeprom' | 'rfid' | 'binary' | 'cyphonator' | 'settings' | 'notes' | 'sys_monitor' | 'weather' | 'clock' | 'bluetooth' | 'wifi' | 'ctf_manager' | 'ctf_challenge' | 'inventory' | 'properties' | 'my_files' | 'text_editor' | 'browser';
+export type AppView = 'tutorials' | 'flasher' | 'admin' | 'console' | 'eeprom' | 'rfid' | 'binary' | 'cyphonator' | 'settings' | 'notes' | 'sys_monitor' | 'weather' | 'clock' | 'bluetooth' | 'wifi' | 'ctf_manager' | 'ctf_challenge' | 'inventory' | 'properties' | 'my_files' | 'text_editor' | 'browser' | 'trash'
+| 'gamehub';

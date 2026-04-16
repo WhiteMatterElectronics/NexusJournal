@@ -41,6 +41,7 @@ interface TerminalLog {
 
 export const BluetoothApp: React.FC = () => {
   const { connected, port, writeToSerial } = useSerial();
+  const [mode, setMode] = useState<'esp32' | 'system'>('esp32');
   const [devices, setDevices] = useState<BleDevice[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [connectedDevice, setConnectedDevice] = useState<BleDevice | null>(null);
@@ -55,6 +56,7 @@ export const BluetoothApp: React.FC = () => {
   const [terminalLogs, setTerminalLogs] = useState<TerminalLog[]>([]);
   const [terminalInput, setTerminalInput] = useState('');
   const [autoScroll, setAutoScroll] = useState(true);
+  const [terminalFormat, setTerminalFormat] = useState<'hex' | 'ascii'>('hex');
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const terminalScrollRef = useRef<HTMLDivElement>(null);
@@ -69,6 +71,69 @@ export const BluetoothApp: React.FC = () => {
     rxCharRef.current = rxChar;
     txCharRef.current = txChar;
   }, [rxChar, txChar]);
+
+  // System BLE state
+  const systemDeviceRef = useRef<any | null>(null);
+  const systemServerRef = useRef<any | null>(null);
+
+  const scanSystemBle = async () => {
+    if (!(navigator as any).bluetooth) {
+      addLog('error', 'Web Bluetooth API not supported in this browser or context.');
+      return;
+    }
+    try {
+      addLog('info', 'Requesting Bluetooth device...');
+      const device = await (navigator as any).bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: [] // We'll discover services after connecting
+      });
+      
+      addLog('success', `Found: ${device.name || 'Unknown'}`);
+      setDevices([{ address: device.id, name: device.name || 'Unknown', rssi: 0, lastSeen: Date.now() }]);
+      systemDeviceRef.current = device;
+    } catch (err) {
+      addLog('error', `Scan failed: ${err}`);
+    }
+  };
+
+  const connectSystemBle = async (device: BleDevice) => {
+    if (!systemDeviceRef.current) return;
+    try {
+      addLog('info', 'Connecting to GATT server...');
+      const server = await systemDeviceRef.current.gatt?.connect();
+      systemServerRef.current = server!;
+      setConnectedDevice(device);
+      addLog('success', 'Connected to GATT server.');
+
+      // Discover services
+      const services = await server!.getPrimaryServices();
+      for (const service of services) {
+        addLog('info', `Service: ${service.uuid}`);
+        const characteristics = await service.getCharacteristics();
+        const bleService: BleService = {
+          uuid: service.uuid,
+          characteristics: characteristics.map(c => ({
+            uuid: c.uuid,
+            properties: [], // We need to check properties
+            isNotifying: false
+          })),
+          isExpanded: false
+        };
+        setServices(prev => [...prev, bleService]);
+      }
+    } catch (err) {
+      addLog('error', `Connection failed: ${err}`);
+    }
+  };
+
+  const toggleMode = () => {
+    setMode(prev => prev === 'esp32' ? 'system' : 'esp32');
+    setDevices([]);
+    setConnectedDevice(null);
+    setServices([]);
+    addLog('info', `Switched to ${mode === 'esp32' ? 'System' : 'ESP32'} mode.`);
+  };
+
 
   const addLog = useCallback((type: LogEntry['type'], message: string) => {
     setLogs(prev => [
@@ -267,31 +332,75 @@ export const BluetoothApp: React.FC = () => {
   };
 
   const connectDevice = (address: string) => {
-    if (!connected) return;
-    addLog('info', `Connecting to ${address}...`);
-    pendingConnectionAddressRef.current = address;
-    writeToSerial(`BLE CONNECT ${address}\n`);
+    if (mode === 'esp32') {
+      if (!connected) return;
+      addLog('info', `Connecting to ${address}...`);
+      pendingConnectionAddressRef.current = address;
+      writeToSerial(`BLE CONNECT ${address}\n`);
+    } else {
+      const device = devices.find(d => d.address === address);
+      if (device) connectSystemBle(device);
+    }
   };
 
   const disconnectDevice = () => {
-    if (!connected) return;
-    writeToSerial("BLE DISCONNECT\n");
+    if (mode === 'esp32') {
+      if (!connected) return;
+      writeToSerial("BLE DISCONNECT\n");
+    } else {
+      systemServerRef.current?.disconnect();
+      setConnectedDevice(null);
+      addLog('info', 'Disconnected from System BLE.');
+    }
   };
 
-  const readChar = (uuid: string) => {
-    if (!connected) return;
-    lastReadUuidRef.current = uuid;
-    addLog('sent', `Reading characteristic ${uuid}...`);
-    writeToSerial(`BLE READ ${uuid}\n`);
+  const findCharacteristic = async (uuid: string) => {
+    if (!systemServerRef.current) return null;
+    const services = await systemServerRef.current.getPrimaryServices();
+    for (const service of services) {
+      try {
+        const char = await service.getCharacteristic(uuid);
+        return char;
+      } catch (e) {
+        // Not in this service
+      }
+    }
+    return null;
   };
 
-  const writeChar = (uuid: string) => {
-    if (!connected) return;
-    const value = writeValues[uuid];
-    if (!value) return;
-    lastWriteUuidRef.current = uuid;
-    addLog('sent', `Writing to ${uuid}: ${value}`);
-    writeToSerial(`BLE WRITE ${uuid} ${value}\n`);
+  const readChar = async (uuid: string) => {
+    if (mode === 'esp32') {
+      if (!connected) return;
+      lastReadUuidRef.current = uuid;
+      addLog('sent', `Reading characteristic ${uuid}...`);
+      writeToSerial(`BLE READ ${uuid}\n`);
+    } else {
+      const char = await findCharacteristic(uuid);
+      if (char) {
+        const value = await char.readValue();
+        const hex = Array.from(new Uint8Array(value.buffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+        addLog('data', `[${uuid}] READ: ${hex}`);
+      }
+    }
+  };
+
+  const writeChar = async (uuid: string) => {
+    if (mode === 'esp32') {
+      if (!connected) return;
+      const value = writeValues[uuid];
+      if (!value) return;
+      lastWriteUuidRef.current = uuid;
+      addLog('sent', `Writing to ${uuid}: ${value}`);
+      writeToSerial(`BLE WRITE ${uuid} ${value}\n`);
+    } else {
+      const char = await findCharacteristic(uuid);
+      if (char) {
+        const value = writeValues[uuid];
+        const encoder = new TextEncoder();
+        await char.writeValue(encoder.encode(value));
+        addLog('success', `[${uuid}] Write verified.`);
+      }
+    }
   };
 
   const autoVerifyWritable = async () => {
@@ -310,17 +419,59 @@ export const BluetoothApp: React.FC = () => {
     addLog('success', 'Auto-verification complete.');
   };
 
-  const sendTerminal = () => {
-    if (!connected || !txChar || !terminalInput) return;
-    lastWriteUuidRef.current = txChar;
-    writeToSerial(`BLE WRITE ${txChar} ${terminalInput}\n`);
-    setTerminalLogs(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), timestamp: Date.now(), type: 'tx', data: terminalInput }]);
+  const sendTerminal = async () => {
+    if (!txChar || !terminalInput || !connectedDevice) return;
+    
+    if (mode === 'esp32') {
+      if (!connected) return;
+      lastWriteUuidRef.current = txChar;
+      writeToSerial(`BLE WRITE ${txChar} ${terminalInput}\n`);
+    } else {
+      // System BLE: Write to the selected TX characteristic
+      setWriteValues(prev => ({ ...prev, [txChar]: terminalInput }));
+      await writeChar(txChar);
+    }
+    
+    setTerminalLogs(prev => [...prev, {
+      id: Math.random().toString(36).substr(2, 9),
+      timestamp: Date.now(),
+      type: 'tx',
+      data: terminalInput
+    }]);
     setTerminalInput('');
   };
 
-  const toggleNotify = (uuid: string, current: boolean) => {
-    // Firmware auto-subscribes. We don't need to send a command.
-    addLog('info', `Firmware automatically manages subscriptions.`);
+  const toggleNotify = async (uuid: string, current: boolean) => {
+    if (mode === 'esp32') {
+      // Firmware auto-subscribes. We don't need to send a command.
+      addLog('info', `Firmware automatically manages subscriptions.`);
+    } else {
+      const char = await findCharacteristic(uuid);
+      if (char) {
+        if (!current) {
+          await char.startNotifications();
+          char.addEventListener('characteristicvaluechanged', (event: any) => {
+            const value = event.target.value;
+            const hex = Array.from(new Uint8Array(value.buffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+            addLog('data', `[${uuid}] NOTIFY: ${hex}`);
+            setTerminalLogs(prev => [...prev, {
+              id: Math.random().toString(36).substr(2, 9),
+              timestamp: Date.now(),
+              type: 'rx',
+              data: hex
+            }]);
+          });
+          addLog('success', `[${uuid}] Notifications enabled.`);
+        } else {
+          await char.stopNotifications();
+          addLog('info', `[${uuid}] Notifications disabled.`);
+        }
+        setServices(prev => prev.map(s => ({
+          ...s,
+          characteristics: s.characteristics.map(c => c.uuid === uuid ? { ...c, isNotifying: !current } : c)
+        })));
+      }
+    }
   };
 
   const toggleService = (uuid: string) => {
@@ -361,10 +512,25 @@ export const BluetoothApp: React.FC = () => {
             Terminal
           </button>
           <div className="w-px h-4 bg-hw-blue/20 mx-2" />
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={toggleMode}
+              className={cn("px-3 py-1 text-[10px] uppercase tracking-widest transition-all", mode === 'esp32' ? "bg-hw-blue text-black font-bold" : "text-hw-blue/60 hover:text-hw-blue")}
+            >
+              ESP32
+            </button>
+            <button 
+              onClick={toggleMode}
+              className={cn("px-3 py-1 text-[10px] uppercase tracking-widest transition-all", mode === 'system' ? "bg-hw-blue text-black font-bold" : "text-hw-blue/60 hover:text-hw-blue")}
+            >
+              System
+            </button>
+          </div>
+          <div className="w-px h-4 bg-hw-blue/20 mx-2" />
           {!connectedDevice ? (
             <button 
-              onClick={isScanning ? stopScan : startScan}
-              disabled={!connected}
+              onClick={mode === 'esp32' ? (isScanning ? stopScan : startScan) : scanSystemBle}
+              disabled={mode === 'esp32' && !connected}
               className={cn("hw-button px-4 py-1 text-[10px] flex items-center gap-2", isScanning && "animate-pulse")}
             >
               {isScanning ? <BluetoothOff className="w-3 h-3" /> : <Search className="w-3 h-3" />}
@@ -654,7 +820,10 @@ export const BluetoothApp: React.FC = () => {
                         <div key={log.id} className={cn("flex flex-col max-w-[80%]", log.type === 'tx' ? "ml-auto items-end" : "mr-auto items-start")}>
                           <span className="text-[9px] opacity-40 mb-1">{log.type === 'tx' ? 'TX' : 'RX'} - {new Date(log.timestamp).toLocaleTimeString()}</span>
                           <div className={cn("px-3 py-2 rounded-lg text-xs font-mono break-all", log.type === 'tx' ? "bg-hw-blue/20 text-hw-blue" : "bg-green-500/20 text-green-400")}>
-                            {log.data}
+                            {terminalFormat === 'hex' ? log.data : (
+                              // Simple hex to ascii conversion
+                              log.data.match(/.{1,2}/g)?.map(byte => String.fromCharCode(parseInt(byte, 16))).join('') || log.data
+                            )}
                           </div>
                         </div>
                       ))}

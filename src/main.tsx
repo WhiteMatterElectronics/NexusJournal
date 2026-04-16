@@ -6,6 +6,7 @@ import { SerialProvider } from './contexts/SerialContext.tsx';
 import { SettingsProvider } from './contexts/SettingsContext.tsx';
 import { CtfProvider } from './contexts/CtfContext.tsx';
 import { InventoryProvider } from './contexts/InventoryContext.tsx';
+import { TrashProvider } from './contexts/TrashContext.tsx';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -13,7 +14,9 @@ createRoot(document.getElementById('root')!).render(
       <SerialProvider>
         <InventoryProvider>
           <CtfProvider>
-            <App />
+            <TrashProvider>
+              <App />
+            </TrashProvider>
           </CtfProvider>
         </InventoryProvider>
       </SerialProvider>

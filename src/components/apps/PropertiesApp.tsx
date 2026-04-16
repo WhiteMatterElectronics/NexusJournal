@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Info, Zap, Monitor, Trash2, Activity, Cpu, Database, Shield, Calendar, Tag, HardDrive, Globe, Lock as LockIcon, Wifi, Server, Box, File, Image as ImageIcon } from 'lucide-react';
+import { Info, Zap, Monitor, Trash2, Activity, Cpu, Database, Shield, Calendar, Tag, HardDrive, Globe, Lock as LockIcon, Wifi, Server, Box, File, Image as ImageIcon, Star } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useSettings } from '../../contexts/SettingsContext';
 import { APPS } from '../../constants';
@@ -26,6 +26,10 @@ export const PropertiesApp: React.FC<PropertiesAppProps> = ({
   const app = useMemo(() => appId ? APPS.find(a => a.id === appId) : null, [appId]);
 
   const [fileData, setFileData] = React.useState(file);
+
+  React.useEffect(() => {
+    if (file) setFileData(file);
+  }, [file]);
 
   if (!app && !fileData) {
     return (
@@ -86,6 +90,26 @@ export const PropertiesApp: React.FC<PropertiesAppProps> = ({
               <div className="p-3 rounded-lg border" style={{ borderColor: 'var(--theme-border-color)', backgroundColor: 'color-mix(in srgb, var(--theme-text) 5%, transparent)' }}>
                 <span className="text-[9px] uppercase opacity-40 block mb-1">Created</span>
                 <span className="text-xs font-mono">{new Date(fileData.createdAt).toLocaleString()}</span>
+              </div>
+              <div className="p-3 rounded-lg border flex items-center justify-between" style={{ borderColor: 'var(--theme-border-color)', backgroundColor: 'color-mix(in srgb, var(--theme-text) 5%, transparent)' }}>
+                <div>
+                  <span className="text-[9px] uppercase opacity-40 block mb-1">Starred</span>
+                  <span className="text-xs uppercase tracking-widest">{fileData.isStarred ? 'Yes' : 'No'}</span>
+                </div>
+                <button 
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleUpdateFile('isStarred', !fileData.isStarred);
+                  }}
+                  className={cn(
+                    "p-2 rounded-lg border transition-all active:scale-90",
+                    fileData.isStarred ? "bg-hw-blue/20 border-hw-blue text-hw-blue shadow-[0_0_10px_rgba(0,242,255,0.2)]" : "border-white/10 opacity-40 hover:opacity-100"
+                  )}
+                >
+                  <Star size={14} className={cn("pointer-events-none", fileData.isStarred && "fill-hw-blue")} />
+                </button>
               </div>
             </div>
           </section>

@@ -375,16 +375,14 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile'
                       <span className="text-[8px] opacity-40 uppercase">Apply a consistent look to all icons</span>
                     </div>
                     <select 
-                      value={localTheme.iconTheme}
-                      onChange={e => handleUpdateLocalTheme({ iconTheme: e.target.value as any })}
+                      value={localTheme.iconStyle}
+                      onChange={e => handleUpdateLocalTheme({ iconStyle: e.target.value as any })}
                       className="bg-hw-black border border-hw-blue/30 text-[10px] font-bold uppercase tracking-widest p-2 outline-none focus:border-hw-blue transition-colors min-w-[120px]"
                       style={{ color: 'var(--theme-text)' }}
                     >
-                      <option value="classic" className="bg-hw-black">Classic</option>
-                      <option value="neon" className="bg-hw-black">Neon Glow</option>
+                      <option value="retro" className="bg-hw-black">Retro</option>
+                      <option value="glassy" className="bg-hw-black">Glassy</option>
                       <option value="minimal" className="bg-hw-black">Minimalist</option>
-                      <option value="glass" className="bg-hw-black">Glass Morph</option>
-                      <option value="pixel" className="bg-hw-black">Pixel Retro</option>
                     </select>
                   </div>
 
