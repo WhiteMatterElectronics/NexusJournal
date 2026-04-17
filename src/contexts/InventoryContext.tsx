@@ -27,9 +27,9 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const defaultItems: InventoryItem[] = [
       {
         id: 'hs-01',
-        name: 'HomeSec v2 Development Board',
-        description: 'Advanced silicon research board with ATmega328P core. Integrates MFRC522 protocol stack, 64Kb I2C EEPROM, and a parasitic ATtiny44 sub-processor. Designed for high-stakes decryption challenges.',
-        images: ['https://picsum.photos/seed/homesec_board/400/400'],
+        name: 'AEGIS-IV ICARUS Station Core',
+        description: 'OMEGA-PREMIUM research hardware recovered from the derelict USN Icarus. Features a dual-core ATmega328P/AETHER configuration, custom I2C Singularity memory, and a reactive HUD interface. Essential for bridging the Singularity Event.',
+        images: ['https://picsum.photos/seed/icarus_core/400/400'],
         stock: 5,
         category: 'challenge',
         type: 'hardware'

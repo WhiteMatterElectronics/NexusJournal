@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useRef, ReactNode, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useRef, ReactNode, useCallback, useEffect, useMemo } from 'react';
 
 export interface LogEntry {
   time: number;
@@ -13,7 +13,6 @@ interface ConnectionState {
   baudRate: number;
   logs: LogEntry[];
   buffer: string;
-  listeners: Set<(data: string) => void>;
   reader: any;
   closedPromise: Promise<void> | null;
   keepReading: boolean;
@@ -44,13 +43,12 @@ export const useSerial = (id: string = 'shared') => {
     baudRate: 115200,
     logs: [],
     buffer: "",
-    listeners: new Set(),
     reader: null,
     closedPromise: null,
     keepReading: false
   };
 
-  return {
+  return useMemo(() => ({
     ...conn,
     connect: () => context.connect(id),
     disconnect: () => context.disconnect(id),
@@ -59,9 +57,8 @@ export const useSerial = (id: string = 'shared') => {
     setBaudRate: (rate: number) => context.setBaudRate(rate, id),
     clearLogs: () => context.clearLogs(id),
     renameConnection: (name: string) => context.renameConnection(id, name),
-    // For legacy support or cross-connection access
     allConnections: context.connections
-  };
+  }), [conn, id, context]);
 };
 
 export const SerialProvider = ({ children }: { children: ReactNode }) => {
@@ -73,13 +70,13 @@ export const SerialProvider = ({ children }: { children: ReactNode }) => {
       baudRate: 115200,
       logs: [],
       buffer: "",
-      listeners: new Set(),
       reader: null,
       closedPromise: null,
       keepReading: false
     }
   });
 
+  const listenersRef = useRef<Record<string, Set<(data: string) => void>>>({});
   const connectionsRef = useRef(connections);
   useEffect(() => {
     connectionsRef.current = connections;
@@ -181,8 +178,8 @@ export const SerialProvider = ({ children }: { children: ReactNode }) => {
             const { value, done } = await reader.read();
             if (done) break;
             if (value) {
-              // Get current listeners from ref to avoid stale closures
-              connectionsRef.current[id]?.listeners.forEach(cb => cb(value));
+              // Get current listeners from ref
+              listenersRef.current[id]?.forEach(cb => cb(value));
               
               loopBuffer += value;
               const lines = loopBuffer.split("\n");
@@ -244,7 +241,6 @@ export const SerialProvider = ({ children }: { children: ReactNode }) => {
           baudRate: 115200,
           logs: [],
           buffer: "",
-          listeners: new Set(),
           reader: null,
           closedPromise: null,
           keepReading: false
@@ -333,38 +329,13 @@ export const SerialProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const subscribe = useCallback((callback: (data: string) => void, id: string = 'shared') => {
-    setConnections(prev => {
-      const conn = prev[id] || {
-        id,
-        port: null,
-        connected: false,
-        baudRate: 115200,
-        logs: [],
-        buffer: "",
-        listeners: new Set(),
-        reader: null,
-        closedPromise: null,
-        keepReading: false
-      };
-      const newListeners = new Set(conn.listeners);
-      newListeners.add(callback);
-      return {
-        ...prev,
-        [id]: { ...conn, listeners: newListeners }
-      };
-    });
+    if (!listenersRef.current[id]) {
+      listenersRef.current[id] = new Set();
+    }
+    listenersRef.current[id].add(callback);
 
     return () => {
-      setConnections(prev => {
-        const conn = prev[id];
-        if (!conn) return prev;
-        const newListeners = new Set(conn.listeners);
-        newListeners.delete(callback);
-        return {
-          ...prev,
-          [id]: { ...conn, listeners: newListeners }
-        };
-      });
+      listenersRef.current[id]?.delete(callback);
     };
   }, []);
 

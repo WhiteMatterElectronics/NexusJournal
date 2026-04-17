@@ -535,6 +535,10 @@ export const MyFilesApp: React.FC = () => {
         };
         
         saveFS(prev => {
+          // Check if folder with exact name already exists in target parent to prevent visual duplicates
+          const nameExists = prev.some(i => i.parentId === targetParentId && i.name.toLowerCase() === name.toLowerCase() && i.type === 'folder');
+          if (nameExists) return prev;
+          
           const exists = prev.some(i => i.id === newItem.id);
           if (exists) return prev;
           const next = [...prev, newItem];

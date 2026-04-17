@@ -16,7 +16,7 @@ export interface CtfChallenge {
   id: string;
   title: string;
   description: string;
-  difficulty: 'easy' | 'medium' | 'hard';
+  difficulty: 'easy' | 'medium' | 'hard' | 'extreme';
   points: number;
   category: string;
   tutorials: string[]; // Array of tutorial IDs

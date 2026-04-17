@@ -16,6 +16,7 @@ import { Taskbar } from './components/os/Taskbar';
 import { ConsoleApp } from './components/apps/ConsoleApp';
 import { EepromApp } from './components/apps/EepromApp';
 import { RfidApp } from './components/apps/RfidApp';
+import { DebuggerApp } from './components/apps/DebuggerApp';
 import { BinaryApp } from './components/apps/BinaryApp';
 import { CyphonatorApp } from './components/apps/CyphonatorApp';
 import { SettingsApp } from './components/apps/SettingsApp';
@@ -26,14 +27,12 @@ import { WeatherApp } from './components/apps/WeatherApp';
 import { ClockApp } from './components/apps/ClockApp';
 import { BluetoothApp } from './components/apps/BluetoothApp';
 import { WifiApp } from './components/apps/WifiApp';
-import { CtfManagerApp } from './components/apps/CtfManagerApp';
-import { CtfChallengeApp } from './components/apps/CtfChallengeApp';
 import { InventoryApp } from './components/apps/InventoryApp';
 import { MyFilesApp } from './components/apps/MyFilesApp';
 import { TextEditorApp } from './components/apps/TextEditorApp';
-import { BrowserApp } from './components/apps/BrowserApp';
 import { TrashCanApp } from './components/apps/TrashCanApp';
 import { GameHubApp } from './components/apps/GameHubApp';
+import { InternalFilePicker } from './components/apps/InternalFilePicker';
 import { WidgetContainer } from './components/os/WidgetContainer';
 import { SaveFileDialog } from './components/os/SaveFileDialog';
 import { useSettings } from './contexts/SettingsContext';
@@ -276,9 +275,32 @@ function DesktopIcon({
 export default function App() {
   const { profile, theme, updateTheme } = useSettings();
   const isGlassy = theme.globalTheme === 'glassy';
+  const [isPermReady, setIsPermReady] = useState(false);
   const [isLocked, setIsLocked] = useState(true);
   const [lockPassword, setLockPassword] = useState('');
   const [lockError, setLockError] = useState('');
+
+  useEffect(() => {
+    const checkPerms = () => {
+      if (window.self === window.top) {
+        setIsPermReady(true);
+        return;
+      }
+      const policy = (document as any).featurePolicy;
+      if (!policy) {
+        setIsPermReady(true);
+        return;
+      }
+      const allowed = policy.allowedFeatures();
+      // If 'serial' is allowed, the user has confirmed the permission bar in AI Studio
+      if (allowed.includes('serial')) {
+        setIsPermReady(true);
+      }
+    };
+    checkPerms();
+    const interval = setInterval(checkPerms, 200);
+    return () => clearInterval(interval);
+  }, []);
 
   // Save File Dialog State
   const [saveDialog, setSaveDialog] = useState<{
@@ -621,7 +643,7 @@ export default function App() {
       setTutorials(data);
       if (!initialLoadDone.current) {
         initialLoadDone.current = true;
-        const intro = data.find((t: Tutorial) => t.id === 'intro-nexus-journal');
+        const intro = data.find((t: Tutorial) => t.id === 'intro-electron-assistant');
         if (intro) {
           setSelectedTutorial(intro);
         }
@@ -682,10 +704,8 @@ export default function App() {
       setHighestZIndex(nextZIndex);
       
       // Singletons
-      if (id === 'settings' || id === 'admin' || id === 'flasher' || id === 'ctf_challenge') {
-        const found = id === 'ctf_challenge' 
-          ? existing.find(w => w.initialProps?.challengeId === initialProps?.challengeId)
-          : (existing.length > 0 ? existing[0] : null);
+      if (id === 'settings' || id === 'admin' || id === 'flasher') {
+        const found = existing.length > 0 ? existing[0] : null;
 
         if (found) {
           setActiveWindowId(found.instanceId);
@@ -807,6 +827,8 @@ export default function App() {
         return <RfidApp connectionId={initialProps?.connectionId} />;
       case 'binary':
         return <BinaryApp />;
+      case 'debugger':
+        return <DebuggerApp />;
       case 'cyphonator':
         return <CyphonatorApp />;
       case 'notes':
@@ -824,6 +846,7 @@ export default function App() {
                 onBack={() => setSelectedTutorial(null)} 
                 onFlashFirmware={handleFlashFirmware}
                 onUpdate={handleUpdateTutorial}
+                onStartApp={handleStartApp}
               />
             ) : (
               <ConceptExplorer 
@@ -861,22 +884,28 @@ export default function App() {
         return <BluetoothApp />;
       case 'wifi':
         return <WifiApp />;
-      case 'ctf_manager':
-        return <CtfManagerApp onLaunchChallenge={(challengeId) => handleStartApp('ctf_challenge', undefined, { challengeId })} onStartApp={handleStartApp} />;
-      case 'ctf_challenge':
-        return <CtfChallengeApp challengeId={initialProps?.challengeId} onStartApp={handleStartApp} />;
       case 'inventory':
         return <InventoryApp />;
       case 'my_files':
         return <MyFilesApp />;
       case 'text_editor':
         return <TextEditorApp file={initialProps?.file} onClose={() => handleWindowAction(instanceId, 'close')} />;
-      case 'browser':
-        return <BrowserApp onClose={() => handleWindowAction(instanceId, 'close')} />;
       case 'trash':
         return <TrashCanApp onClose={() => handleWindowAction(instanceId, 'close')} />;
       case 'gamehub':
         return <GameHubApp />;
+      case 'nexus_disk':
+        return (
+          <div className="h-full">
+            <InternalFilePicker 
+              onFileSelect={(file) => {
+                window.dispatchEvent(new CustomEvent('hw_os_nexus_file_selected', { detail: { file } }));
+              }}
+              allowedExtensions={['c', 'asm', 'h', 'bin', 'elf']}
+              className="h-full border-none shadow-none"
+            />
+          </div>
+        );
       case 'properties':
         return (
           <PropertiesApp 
@@ -955,6 +984,17 @@ export default function App() {
     window.addEventListener('hw_os_open_shortcut', handleOpenShortcut);
     return () => window.removeEventListener('hw_os_open_shortcut', handleOpenShortcut);
   }, [tutorials, handleStartApp]);
+
+  if (!isPermReady) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-black font-sans text-hw-blue">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-2 border-hw-blue/20 border-t-hw-blue rounded-full animate-spin" />
+          <span className="text-[10px] uppercase tracking-[0.4em] opacity-40 animate-pulse">Initializing_Authorization...</span>
+        </div>
+      </div>
+    );
+  }
 
   if (isLocked) {
     return (

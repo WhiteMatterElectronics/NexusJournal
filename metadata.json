@@ -1,6 +1,6 @@
 {
-  "name": "NexusJournal",
-  "description": "Hardware hackathon companion for ESP32-C3. Supports Serial, USB, and Bluetooth.",
+  "name": "AEGIS-IV | USN ICARUS",
+  "description": "Immersive spaceship bridge interface for the USN ICARUS CTF. Simulate hardware interactions, manipulate system registers, and breach secure protocols.",
   "requestFramePermissions": [
     "serial",
     "usb",

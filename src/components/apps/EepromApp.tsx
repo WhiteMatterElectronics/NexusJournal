@@ -36,7 +36,7 @@ export const EepromApp: React.FC<{ connectionId?: string }> = ({ connectionId: i
 
       if (text.includes("--- EEPROM DUMP")) {
         setIsDumping(true);
-        memoryBufferRef.current = new Array(4096).fill(0xFF);
+        memoryBufferRef.current = new Array(32768).fill(0xFF);
         setMemoryData(new Uint8Array(memoryBufferRef.current));
       } else if (text.includes("ERR: Connection lost")) {
         isDumpingRef.current = false;
@@ -60,8 +60,8 @@ export const EepromApp: React.FC<{ connectionId?: string }> = ({ connectionId: i
           
           setMemoryData(new Uint8Array(memoryBufferRef.current));
 
-          // If we reached the end of 4096 bytes (0x0FF0 is the last 16-byte block)
-          if (addr >= 4080) {
+          // If we reached the end of 32768 bytes (0x7FF0 is the last 16-byte block)
+          if (addr >= 32752) {
             isDumpingRef.current = false;
             setIsDumping(false);
             if (dumpTimeoutRef.current) clearTimeout(dumpTimeoutRef.current);
@@ -79,8 +79,8 @@ export const EepromApp: React.FC<{ connectionId?: string }> = ({ connectionId: i
     
     isDumpingRef.current = true;
     setIsDumping(true);
-    // Initialize a full 4096-byte buffer with 0xFF
-    memoryBufferRef.current = new Array(4096).fill(0xFF);
+    // Initialize a full 32768-byte buffer with 0xFF
+    memoryBufferRef.current = new Array(32768).fill(0xFF);
     setMemoryData(new Uint8Array(memoryBufferRef.current));
     
     if (dumpTimeoutRef.current) clearTimeout(dumpTimeoutRef.current);
@@ -89,7 +89,7 @@ export const EepromApp: React.FC<{ connectionId?: string }> = ({ connectionId: i
         setIsDumping(false);
         isDumpingRef.current = false;
       }
-    }, 15000);
+    }, 45000);
 
     writeToSerial(`EEPROM DUMP ${i2cAddress}\r\n`);
   };
@@ -121,7 +121,7 @@ export const EepromApp: React.FC<{ connectionId?: string }> = ({ connectionId: i
     if (memoryData.length === 0) return;
     
     // Load virtual folders
-    const savedItemsStr = localStorage.getItem('hw_os_files');
+    const savedItemsStr = localStorage.getItem('hw_os_fs');
     let loadedFolders = [];
     if (savedItemsStr) {
       try { 
@@ -133,10 +133,10 @@ export const EepromApp: React.FC<{ connectionId?: string }> = ({ connectionId: i
     if (loadedFolders.length === 0) {
       // Fallback defaults from MyFilesApp
       loadedFolders = [
+        { id: 'root', name: 'Home' },
         { id: 'downloads', name: 'Downloads' },
         { id: 'documents', name: 'Documents' },
         { id: 'pictures', name: 'Pictures' },
-        { id: 'root', name: 'Home' },
       ];
     }
     
@@ -151,7 +151,7 @@ export const EepromApp: React.FC<{ connectionId?: string }> = ({ connectionId: i
     const reader = new FileReader();
     reader.onload = (e) => {
       const dataUrl = e.target?.result as string;
-      const savedItemsStr = localStorage.getItem('hw_os_files');
+      const savedItemsStr = localStorage.getItem('hw_os_fs');
       let savedItems: any[] = [];
       try { savedItems = savedItemsStr ? JSON.parse(savedItemsStr) : []; } catch (err) { }
       
@@ -167,8 +167,10 @@ export const EepromApp: React.FC<{ connectionId?: string }> = ({ connectionId: i
         category: 'text' // Fallback category that Files app accepts
       };
       
-      localStorage.setItem('hw_os_files', JSON.stringify([...savedItems, newItem]));
-      window.dispatchEvent(new StorageEvent('storage', { key: 'hw_os_files' }));
+      localStorage.setItem('hw_os_fs', JSON.stringify([...savedItems, newItem]));
+      // Note: MyFilesApp listens to hw_os_fs_updated CustomEvent, not just StorageEvent globally via standard hooks usually
+      window.dispatchEvent(new CustomEvent('hw_os_fs_updated', { detail: { sourceId: 'eeprom-vfs-save' } }));
+      window.dispatchEvent(new StorageEvent('storage', { key: 'hw_os_fs' }));
       setShowVfsModal(false);
     };
     reader.readAsDataURL(blob);
@@ -383,19 +385,31 @@ export const EepromApp: React.FC<{ connectionId?: string }> = ({ connectionId: i
               <div className="flex flex-col gap-1">
                 <label className="text-[9px] font-bold text-hw-blue/50 uppercase tracking-widest">Select Folder</label>
                 <div className="flex flex-col border border-hw-blue/20 bg-black/40 max-h-40 overflow-y-auto custom-scrollbar">
-                  {vfsFolders.map(folder => (
-                    <button
-                      key={folder.id}
-                      onClick={() => setSelectedFolderId(folder.id)}
-                      className={cn(
-                        "flex items-center gap-2 px-3 py-2 text-[11px] text-left hover:bg-hw-blue/10 transition-colors",
-                        selectedFolderId === folder.id ? "bg-hw-blue/20 text-hw-blue" : "text-hw-blue/70"
-                      )}
-                    >
-                      <Folder className="w-3 h-3" />
-                      {folder.name}
-                    </button>
-                  ))}
+                  {vfsFolders.map(folder => {
+                    // Calculate visual depth roughly by counting parents (hacky but works for quick flat map)
+                    let depth = 0;
+                    let current: any = folder;
+                    while (current && current.parentId !== null && current.parentId !== undefined && current.parentId !== 'root' && current.id !== 'root') {
+                      depth++;
+                      const parent = vfsFolders.find((f: any) => f.id === current.parentId);
+                      if (parent) { current = parent; } else { break; }
+                    }
+                    
+                    return (
+                      <button
+                        key={folder.id}
+                        onClick={() => setSelectedFolderId(folder.id)}
+                        className={cn(
+                          "flex items-center gap-2 px-3 py-2 text-[11px] text-left hover:bg-hw-blue/10 transition-colors",
+                          selectedFolderId === folder.id ? "bg-hw-blue/20 text-hw-blue" : "text-hw-blue/70"
+                        )}
+                        style={{ paddingLeft: `${0.75 + (depth * 1.25)}rem` }}
+                      >
+                        <Folder className="w-3 h-3 shrink-0" />
+                        <span className="truncate">{folder.name}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>

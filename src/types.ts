@@ -1,4 +1,4 @@
-export type BlockType = 'markdown' | 'code' | 'image' | 'file_download' | 'sub_heading' | 'divider' | 'video_embed' | 'image_gallery' | 'note' | 'attached_note' | 'tip' | 'warning';
+export type BlockType = 'markdown' | 'code' | 'image' | 'file_download' | 'sub_heading' | 'divider' | 'video_embed' | 'image_gallery' | 'note' | 'attached_note' | 'tip' | 'warning' | 'app_link';
 
 export interface TutorialBlock {
   id: string;
@@ -27,5 +27,4 @@ export interface Firmware {
   uploadedAt: string;
 }
 
-export type AppView = 'tutorials' | 'flasher' | 'admin' | 'console' | 'eeprom' | 'rfid' | 'binary' | 'cyphonator' | 'settings' | 'notes' | 'sys_monitor' | 'weather' | 'clock' | 'bluetooth' | 'wifi' | 'ctf_manager' | 'ctf_challenge' | 'inventory' | 'properties' | 'my_files' | 'text_editor' | 'browser' | 'trash'
-| 'gamehub';
+export type AppView = 'tutorials' | 'flasher' | 'admin' | 'console' | 'eeprom' | 'rfid' | 'binary' | 'debugger' | 'cyphonator' | 'settings' | 'notes' | 'sys_monitor' | 'weather' | 'clock' | 'bluetooth' | 'wifi' | 'inventory' | 'properties' | 'my_files' | 'text_editor' | 'trash' | 'gamehub' | 'nexus_disk';

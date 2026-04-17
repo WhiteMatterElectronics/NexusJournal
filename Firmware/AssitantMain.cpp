@@ -22,7 +22,7 @@
 // I2C Pins
 #define SDA_PIN 8
 #define SCL_PIN 9
-#define EEPROM_SIZE 4096 
+#define EEPROM_SIZE 32768
 
 // UART1 Bridge Pins
 #define RX1_PIN 20
@@ -678,8 +678,7 @@ void dumpEEPROM(uint8_t i2cAddr) {
       Wire.requestFrom(i2cAddr, (uint8_t)16);
       for (int i = 0; i < 16; i++) { if (Wire.available()) assistantPrintf("%02X ", Wire.read()); }
       assistantPrintln("");
-      Serial.flush();
-      vTaskDelay(pdMS_TO_TICKS(10));
+      vTaskDelay(pdMS_TO_TICKS(2));
     }
     xSemaphoreGive(i2cMutex);
   }
@@ -732,8 +731,6 @@ void runDump() {
       assistantPrintf("BLOCK:%d:DATA:", b);
       for (byte i = 0; i < 16; i++) assistantPrintf("%02X", buffer[i]);
       assistantPrintln("");
-      Serial.flush();
-      vTaskDelay(pdMS_TO_TICKS(5));
     }
   }
   closeOut();
@@ -803,13 +800,11 @@ void printMan(String cmd) {
     assistantPrintln("SCAN: Lists SSID, RSSI, and Channel info for nearby networks.");
     assistantPrintln("CONNECT: Joins a network. Usage: WIFI CONNECT HomeSSID Password123");
     assistantPrintln("AP: Starts an Access Point. Default pass is 12345678 if omitted.");
-    assistantPrintln("STA: Shows current station connection details.");
-    assistantPrintln("OFF: Powers down WiFi radio.");
   }
   else if (cmd == "PING") {
     assistantPrintln("\n[ PING MANUAL ]");
     assistantPrintln("USAGE: PING <host/ip>");
-    assistantPrintln("PURPOSE: Tests network connectivity to a remote host (4 packets).");
+    assistantPrintln("PURPOSE: Tests network connectivity to a remote host.");
   }
   else if (cmd == "GREP") {
     assistantPrintln("\n[ GREP MANUAL ]");
@@ -817,56 +812,7 @@ void printMan(String cmd) {
     assistantPrintln("EXAMPLE: BLE SCAN | grep iPhone");
     assistantPrintln("PURPOSE: Filters any command output to lines containing the pattern.");
   }
-  else if (cmd == "BLE") {
-    assistantPrintln("\n[ BLE MANUAL ]");
-    assistantPrintln("SCAN: Starts a 5-second scan for nearby BLE devices.");
-    assistantPrintln("CONNECT <addr>: Connects to a specific BLE MAC address.");
-    assistantPrintln("RSSI: Measures the signal strength of the connected BLE device.");
-    assistantPrintln("READ <uuid>: Reads the value of a specific characteristic.");
-    assistantPrintln("WRITE <uuid> <data>: Writes ASCII data to a specific characteristic.");
-    assistantPrintln("WRITEHEX <uuid> <hex>: Writes HEX data to a specific characteristic.");
-    assistantPrintln("NAME <name>: Renames the local device BLE broadcaster and restarts.");
-    assistantPrintln("DISCONNECT: Terminates the current BLE connection.");
-  }
-  else if (cmd == "I2C") {
-    assistantPrintln("\n[ I2C MANUAL ]");
-    assistantPrintln("SCAN: Scans the I2C bus for connected devices (0x01 to 0x7F).");
-    assistantPrintln("READ <addr> <reg> <count>: Reads <count> bytes from <reg> at <addr>.");
-    assistantPrintln("WRITE <addr> <reg> <data> [...]: Writes one or more bytes starting at <reg> at <addr>.");
-  }
-  else if (cmd == "EEPROM") {
-    assistantPrintln("\n[ EEPROM MANUAL ]");
-    assistantPrintln("DUMP 0X<addr>: Dumps the entire 4KB EEPROM connected at I2C <addr>.");
-    assistantPrintln("WRITE 0X<addr> 0X<memAddr> <data>: Writes data to EEPROM at <memAddr>.");
-    assistantPrintln("  Data can be a space-separated list of HEX bytes or a quoted string.");
-    assistantPrintln("  Example: EEPROM WRITE 0x50 0x00 \"Hello\"");
-    assistantPrintln("  Example: EEPROM WRITE 0x50 0x10 0xDE 0xAD 0xBE 0xEF");
-  }
-  else if (cmd == "RFID") {
-    assistantPrintln("\n[ RFID MANUAL ]");
-    assistantPrintln("DUMP: Authenticates with default keys and dumps all blocks of MIFARE.");
-    assistantPrintln("READ <sector>: Authenticates and reads 4 blocks of the specified sector (0-15).");
-    assistantPrintln("WRITE <block> <hex>: Authenticates and writes exactly 32 hex characters (16 bytes) to a block.");
-    assistantPrintln("  Example: RFID WRITE 4 0102030405060708090A0B0C0D0E0F10");
-  }
-  else if (cmd == "BRIDGE") {
-    assistantPrintln("\n[ BRIDGE MANUAL ]");
-    assistantPrintln("ON: Activates the hardware UART1 passthrough bridge.");
-    assistantPrintln("OFF: Deactivates the hardware UART1 passthrough bridge.");
-    assistantPrintln("BAUD <value>: Sets the baud rate for the bridged UART1 (default 115200).");
-    assistantPrintln("WRITE <data>: Writes raw string data to the UART1 bridge.");
-  }
-  else if (cmd == "STATUS") {
-    assistantPrintln("\n[ STATUS MANUAL ]");
-    assistantPrintln("USAGE: STATUS");
-    assistantPrintln("PURPOSE: Prints detailed system telemetry, memory usage, and connectivity states.");
-  }
-  else if (cmd == "RESET") {
-    assistantPrintln("\n[ RESET MANUAL ]");
-    assistantPrintln("USAGE: RESET");
-    assistantPrintln("PURPOSE: Performs a soft reboot of the ESP32 assistant system.");
-  }
   else {
-    assistantPrintln("Manual page not found. Type 'HELP' for a list of modules.");
+    assistantPrintln("Manual page not found.");
   }
 }

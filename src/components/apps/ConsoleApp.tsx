@@ -4,6 +4,8 @@ import { cn } from "../../lib/utils";
 import { useSerial } from "../../contexts/SerialContext";
 import { SerialConnectionSelector } from "../common/SerialConnectionSelector";
 
+import { XTermConsole } from "../common/XTermConsole";
+
 export const ConsoleApp: React.FC<{ connectionId?: string }> = ({ connectionId: initialConnId }) => {
   const [selectedConnId, setSelectedConnId] = useState(initialConnId || 'shared');
   const {
@@ -16,7 +18,8 @@ export const ConsoleApp: React.FC<{ connectionId?: string }> = ({ connectionId: 
     writeToSerial,
     logs,
     clearLogs,
-    allConnections
+    allConnections,
+    subscribe
   } = useSerial(selectedConnId);
 
   const [autoScroll, setAutoScroll] = useState(true);
@@ -28,6 +31,15 @@ export const ConsoleApp: React.FC<{ connectionId?: string }> = ({ connectionId: 
   const [bridgeBaud, setBridgeBaud] = useState(115200);
   const [lineEnding, setLineEnding] = useState("CRLF");
 
+  // Subscribe to raw serial data for XTerm
+  useEffect(() => {
+    const unsub = subscribe((data) => {
+      // Dispatch custom event for the terminal component
+      window.dispatchEvent(new CustomEvent('terminal-write-' + selectedConnId, { detail: data }));
+    });
+    return () => unsub();
+  }, [subscribe, selectedConnId]);
+
   const logEndRef = useRef<HTMLDivElement>(null);
   const bridgeLogEndRef = useRef<HTMLDivElement>(null);
 
@@ -37,16 +49,14 @@ export const ConsoleApp: React.FC<{ connectionId?: string }> = ({ connectionId: 
 
   useEffect(() => {
     if (autoScroll) {
-      const mainContainer = logEndRef.current?.parentElement;
-      if (mainContainer) {
-        mainContainer.scrollTop = mainContainer.scrollHeight;
-      }
+      window.dispatchEvent(new CustomEvent('terminal-scroll-bottom-' + selectedConnId));
+      
       const bridgeContainer = bridgeLogEndRef.current?.parentElement;
       if (bridgeContainer) {
         bridgeContainer.scrollTop = bridgeContainer.scrollHeight;
       }
     }
-  }, [logs, autoScroll]);
+  }, [logs, autoScroll, selectedConnId]);
 
   const getEndingToken = () => {
     switch (lineEnding) {
@@ -96,6 +106,11 @@ export const ConsoleApp: React.FC<{ connectionId?: string }> = ({ connectionId: 
 
   const mainLogs = logs;
   const bridgeLogs = logs.filter(log => isBridgeLog(log.text) || isBridgeWriteLocal(log.text));
+
+  const handleClearTerminal = () => {
+    clearLogs();
+    window.dispatchEvent(new CustomEvent('terminal-clear-' + selectedConnId));
+  };
 
   return (
     <div className="flex flex-col h-full" style={{ backgroundColor: 'var(--theme-panel-bg)' }}>
@@ -174,72 +189,59 @@ export const ConsoleApp: React.FC<{ connectionId?: string }> = ({ connectionId: 
         {/* Main Serial Stream */}
         <div 
           className={cn(
-            "flex-1 overflow-y-auto p-4 font-mono text-[11px] leading-relaxed custom-scrollbar transition-all",
+            "flex-1 flex flex-col min-w-0 transition-all",
             showBridge ? "border-r border-hw-blue/20" : ""
           )}
-          style={{ color: 'var(--theme-terminal, var(--theme-main))', borderColor: 'var(--theme-border-color)' }}
+          style={{ borderColor: 'var(--theme-border-color)' }}
         >
-          <div className="sticky top-0 bg-black/80 backdrop-blur-sm py-1 px-2 mb-2 border-b border-hw-blue/20 text-[10px] font-bold text-hw-blue/60 uppercase tracking-widest z-10 flex justify-between items-center">
-            <span>ESP32 Stream</span>
-            <span className="text-hw-blue/40">{mainLogs.length} msgs</span>
-          </div>
-          {mainLogs.length === 0 ? (
-            <div className="opacity-40 italic">
-              Waiting for serial data...
+          <div className="bg-black/60 backdrop-blur-sm py-1.5 px-3 border-b border-hw-blue/20 text-[10px] font-bold text-hw-blue/60 uppercase tracking-widest z-10 flex justify-between items-center shrink-0">
+            <div className="flex items-center gap-2">
+               <Terminal className="w-3 h-3" />
+               <span>Serial Terminal - {selectedConnId}</span>
             </div>
-          ) : (
-            mainLogs.map((log, i) => (
-              <div key={i} className="hover:bg-hw-blue/5 px-2 py-0.5 break-all">
-                {showTimestamp && (
-                  <span className="opacity-40 mr-4 select-none">
-                    [{new Date(log.time).toISOString().substring(11, 23)}]
-                  </span>
-                )}
-                <span className="opacity-90">{log.text}</span>
-              </div>
-            ))
-          )}
-          <div ref={logEndRef} />
+            <span className="text-hw-blue/40 tracking-tighter opacity-50">ANSI_REALTIME_ACTIVE</span>
+          </div>
+          <div className="flex-1 min-h-0 bg-black/40">
+            <XTermConsole 
+              id={selectedConnId}
+              onData={(data) => writeToSerial(data)}
+              className="w-full h-full"
+            />
+          </div>
         </div>
 
         {/* Bridged Serial Stream */}
         {showBridge && (
           <div 
-            className="flex-1 overflow-y-auto p-4 font-mono text-[11px] leading-relaxed custom-scrollbar bg-hw-blue/5"
-            style={{ color: 'var(--theme-terminal, var(--theme-main))' }}
+            className="flex-1 flex flex-col min-w-0 bg-hw-blue/5"
           >
-            <div className="sticky top-0 bg-black/80 backdrop-blur-sm py-1 px-2 mb-2 border-b border-hw-blue/20 text-[10px] font-bold text-hw-blue/60 uppercase tracking-widest z-10 flex justify-between items-center">
+            <div className="bg-black/60 backdrop-blur-sm py-1.5 px-3 border-b border-hw-blue/20 text-[10px] font-bold text-hw-blue/60 uppercase tracking-widest z-10 flex justify-between items-center shrink-0">
               <div className="flex items-center gap-2">
-                <span>Bridged Stream (UART1)</span>
-                <div className={cn("w-1.5 h-1.5 rounded-full", bridgeActive ? "bg-green-500" : "bg-red-500")} />
+                <SplitSquareHorizontal className="w-3 h-3" />
+                <span>Bridge Tunnel</span>
+                <div className={cn("w-1.5 h-1.5 rounded-full", bridgeActive ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" : "bg-red-500 opacity-30")} />
               </div>
-              <span className="text-hw-blue/40">{bridgeLogs.length} msgs</span>
             </div>
-            {bridgeLogs.length === 0 ? (
-              <div className="opacity-40 italic">
-                No bridged data received...
+            <div className="flex-1 min-h-0">
+               {/* Legacy bridge logs for context? 
+                   Actually, let's keep it consistent. 
+                   If the bridge outputs raw chunks, we'd need another connection.
+                   For now, we'll keep log rendering for bridge since it might be parsed text, 
+                   but the user wants "serial console" to be ANSI. The Main stream is the serial console.
+               */}
+              <div className="h-full overflow-y-auto p-4 font-mono text-[11px] leading-relaxed custom-scrollbar">
+                {bridgeLogs.length === 0 ? (
+                  <div className="opacity-20 italic text-center mt-10 uppercase tracking-widest">No bridge data...</div>
+                ) : (
+                  bridgeLogs.map((log, i) => (
+                    <div key={i} className="px-2 py-0.5 break-all opacity-80 border-b border-hw-blue/5">
+                      {log.text}
+                    </div>
+                  ))
+                )}
+                <div ref={bridgeLogEndRef} />
               </div>
-            ) : (
-              bridgeLogs.map((log, i) => {
-                const isTx = log.text.includes("[UART1_TX]") || log.text.includes("[UART_TX]") || isBridgeWriteLocal(log.text);
-                const cleanText = log.text.replace(/^>\s*BRIDGE WRITE\s*/, "");
-                
-                return (
-                  <div key={i} className={cn("hover:bg-hw-blue/10 px-2 py-0.5 break-all flex", isTx ? "text-cyan-400" : "text-green-400")}>
-                    {showTimestamp && (
-                      <span className="opacity-40 mr-4 select-none text-hw-blue/40 shrink-0">
-                        [{new Date(log.time).toISOString().substring(11, 23)}]
-                      </span>
-                    )}
-                    <span className="opacity-50 mr-2 font-bold select-none shrink-0">
-                      {isTx ? ">>" : "<<"}
-                    </span>
-                    <span className="opacity-90">{cleanText}</span>
-                  </div>
-                );
-              })
-            )}
-            <div ref={bridgeLogEndRef} />
+            </div>
           </div>
         )}
       </div>
@@ -281,32 +283,32 @@ export const ConsoleApp: React.FC<{ connectionId?: string }> = ({ connectionId: 
               <button
                 type="button"
                 onClick={() => {
-                  const container = logEndRef.current?.parentElement;
-                  if (container) container.scrollTop = 0;
+                  window.dispatchEvent(new CustomEvent('terminal-scroll-top-' + selectedConnId));
                   const bContainer = bridgeLogEndRef.current?.parentElement;
                   if (bContainer) bContainer.scrollTop = 0;
                 }}
-                className="text-hw-blue/40 hover:text-hw-blue transition-colors text-[10px] uppercase tracking-widest"
+                className="text-hw-blue/40 hover:text-hw-blue transition-all p-1.5 hover:bg-hw-blue/10 rounded"
+                title="Scroll to Top"
               >
-                TOP
+                <ArrowUpToLine className="w-3 h-3" />
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  const container = logEndRef.current?.parentElement;
-                  if (container) container.scrollTop = container.scrollHeight;
+                  window.dispatchEvent(new CustomEvent('terminal-scroll-bottom-' + selectedConnId));
                   const bContainer = bridgeLogEndRef.current?.parentElement;
                   if (bContainer) bContainer.scrollTop = bContainer.scrollHeight;
                 }}
-                className="text-hw-blue/40 hover:text-hw-blue transition-colors text-[10px] uppercase tracking-widest"
+                className="text-hw-blue/40 hover:text-hw-blue transition-all p-1.5 hover:bg-hw-blue/10 rounded"
+                title="Scroll to Bottom"
               >
-                BOTTOM
+                <ArrowDownToLine className="w-3 h-3" />
               </button>
             </div>
           </div>
           <button
             type="button"
-            onClick={clearLogs}
+            onClick={handleClearTerminal}
             className="text-hw-blue/40 hover:text-red-500 transition-all flex items-center gap-2 text-[10px] uppercase tracking-widest group"
           >
             <div className="p-1 rounded bg-hw-blue/5 group-hover:bg-red-500/10 transition-colors">

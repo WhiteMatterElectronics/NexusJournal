@@ -11,6 +11,7 @@ interface TutorialDetailProps {
   onBack: () => void;
   onFlashFirmware?: (firmwareId: string) => void;
   onUpdate?: (tutorial: Tutorial) => Promise<void>;
+  onStartApp?: (appId: string) => void;
 }
 
 // Reusable Rich Text Editor component for blocks
@@ -56,7 +57,7 @@ const BlockEditor = React.memo(({
   );
 });
 
-export const TutorialDetail: React.FC<TutorialDetailProps> = ({ tutorial, onBack, onFlashFirmware, onUpdate }) => {
+export const TutorialDetail: React.FC<TutorialDetailProps> = ({ tutorial, onBack, onFlashFirmware, onUpdate, onStartApp }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedTutorial, setEditedTutorial] = useState<Tutorial>(tutorial);
   const [blocks, setBlocks] = useState<TutorialBlock[]>([]);
@@ -123,6 +124,7 @@ export const TutorialDetail: React.FC<TutorialDetailProps> = ({ tutorial, onBack
       case 'image_gallery': return { urls: [''] };
       case 'note': return { type: 'info', text: '' };
       case 'attached_note': return { noteId: '' };
+      case 'app_link': return { appId: '', label: '' };
       default: return {};
     }
   };
@@ -447,6 +449,24 @@ export const TutorialDetail: React.FC<TutorialDetailProps> = ({ tutorial, onBack
               </div>
             </div>
           )}
+          {block.type === 'app_link' && (
+            <div className="space-y-3">
+              <input 
+                type="text" 
+                value={block.data.appId || ''} 
+                onChange={(e) => updateBlock(block.id, { ...block.data, appId: e.target.value })} 
+                placeholder="Target App ID (e.g. console, eeprom, flasher)" 
+                className="w-full bg-hw-blue/10 border border-hw-blue/20 text-[10px] text-hw-blue px-2 py-2 outline-none placeholder:text-hw-blue/30"
+              />
+              <input 
+                type="text" 
+                value={block.data.label || ''} 
+                onChange={(e) => updateBlock(block.id, { ...block.data, label: e.target.value })} 
+                placeholder="Button Label" 
+                className="w-full bg-hw-blue/10 border border-hw-blue/20 text-[10px] text-hw-blue px-2 py-2 outline-none placeholder:text-hw-blue/30"
+              />
+            </div>
+          )}
           {block.type === 'divider' && (
             <div className="w-full h-px bg-hw-blue/20 my-2" />
           )}
@@ -658,6 +678,21 @@ export const TutorialDetail: React.FC<TutorialDetailProps> = ({ tutorial, onBack
         );
       case 'divider':
         return <div className="w-full h-px bg-hw-blue/20 my-10" />;
+      case 'app_link':
+        return (
+          <button 
+            onClick={() => {
+              if (onStartApp && block.data.appId) onStartApp(block.data.appId);
+            }}
+            className="flex items-center justify-between w-full max-w-sm mt-4 mb-6 p-4 border border-hw-blue/40 bg-hw-blue/10 hover:bg-hw-blue/20 transition-all group"
+          >
+            <div className="flex flex-col text-left">
+              <span className="text-[10px] uppercase font-bold tracking-widest text-hw-blue/60 mb-1">LAUNCH_APPLICATION</span>
+              <span className="text-lg font-black text-hw-blue tracking-tighter uppercase">{block.data.label || block.data.appId}</span>
+            </div>
+            <ExternalLink className="w-5 h-5 text-hw-blue group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+          </button>
+        );
       default:
         return null;
     }
@@ -782,6 +817,7 @@ export const TutorialDetail: React.FC<TutorialDetailProps> = ({ tutorial, onBack
                     { type: 'image_gallery', icon: LayoutGrid, label: 'IMAGE GALLERY' },
                     { type: 'note', icon: AlertCircle, label: 'NOTE / TIP' },
                     { type: 'attached_note', icon: Copy, label: 'ATTACHED NOTE' },
+                    { type: 'app_link', icon: ExternalLink, label: 'APP LINK' },
                   ].map(item => (
                     <button
                       key={item.type}

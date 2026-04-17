@@ -673,10 +673,10 @@ export const BluetoothApp: React.FC<{ connectionId?: string }> = ({ connectionId
                                     </div>
 
                                     <div className="flex flex-wrap gap-4 items-end">
-                                      <div className="flex-1 min-w-[200px]">
+                                      <div className="flex-1 min-w-[200px] min-w-0">
                                         <div className="text-[9px] font-bold uppercase tracking-widest opacity-50 mb-2">Value</div>
                                         <div className="flex items-center gap-2">
-                                          <div className="flex-1 bg-black/40 border border-hw-blue/20 rounded px-3 py-2 text-xs font-mono min-h-[32px] flex items-center">
+                                          <div className="flex-1 min-w-0 bg-black/40 border border-hw-blue/20 rounded px-3 py-2 text-xs font-mono min-h-[32px] flex items-center break-all">
                                             {char.value || <span className="opacity-20 italic">No data read</span>}
                                           </div>
                                           {char.properties.includes('READ') && (
@@ -703,7 +703,7 @@ export const BluetoothApp: React.FC<{ connectionId?: string }> = ({ connectionId
                                               value={writeValues[char.uuid] || ''}
                                               onChange={(e) => setWriteValues(prev => ({ ...prev, [char.uuid]: e.target.value }))}
                                               placeholder="e.g. FF00AA"
-                                              className="flex-1 bg-black/40 border border-hw-blue/20 rounded px-3 py-2 text-xs font-mono outline-none focus:border-hw-blue transition-colors"
+                                              className="flex-1 min-w-0 bg-black/40 border border-hw-blue/20 rounded px-3 py-2 text-xs font-mono outline-none focus:border-hw-blue transition-colors"
                                             />
                                             <button 
                                               onClick={() => writeChar(char.uuid)}
@@ -895,7 +895,7 @@ export const BluetoothApp: React.FC<{ connectionId?: string }> = ({ connectionId
                       {log.type}
                     </span>
                     <span className={cn(
-                      "flex-1 break-all",
+                      "flex-1 min-w-0 break-all",
                       log.type === 'error' ? 'text-red-400' :
                       log.type === 'success' ? 'text-green-400' :
                       log.type === 'sent' ? 'text-hw-blue/70' :
