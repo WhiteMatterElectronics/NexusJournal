@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Database, ArrowDownToLine, ArrowUpToLine, Download, HardDrive } from "lucide-react";
+import { Database, ArrowDownToLine, ArrowUpToLine, Download, HardDrive, Folder, X } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { useSerial } from "../../contexts/SerialContext";
 import { SerialConnectionSelector } from "../common/SerialConnectionSelector";
@@ -15,6 +15,11 @@ export const EepromApp: React.FC<{ connectionId?: string }> = ({ connectionId: i
   // Local State for this specific instance
   const [memoryData, setMemoryData] = useState<Uint8Array>(new Uint8Array());
   const [isDumping, setIsDumping] = useState(false);
+  
+  const [showVfsModal, setShowVfsModal] = useState(false);
+  const [vfsFileName, setVfsFileName] = useState("");
+  const [vfsFolders, setVfsFolders] = useState<{ id: string, name: string }[]>([]);
+  const [selectedFolderId, setSelectedFolderId] = useState("downloads");
   
   const isDumpingRef = useRef(false);
   const memoryBufferRef = useRef<number[]>([]);
@@ -114,23 +119,49 @@ export const EepromApp: React.FC<{ connectionId?: string }> = ({ connectionId: i
 
   const exportToVirtualFiles = () => {
     if (memoryData.length === 0) return;
+    
+    // Load virtual folders
+    const savedItemsStr = localStorage.getItem('hw_os_files');
+    let loadedFolders = [];
+    if (savedItemsStr) {
+      try { 
+        const parsed = JSON.parse(savedItemsStr);
+        loadedFolders = parsed.filter((item: any) => item.type === 'folder');
+      } catch (err) { }
+    }
+    
+    if (loadedFolders.length === 0) {
+      // Fallback defaults from MyFilesApp
+      loadedFolders = [
+        { id: 'downloads', name: 'Downloads' },
+        { id: 'documents', name: 'Documents' },
+        { id: 'pictures', name: 'Pictures' },
+        { id: 'root', name: 'Home' },
+      ];
+    }
+    
+    setVfsFolders(loadedFolders);
+    setVfsFileName(`eeprom_dump_0x${i2cAddress.replace('0x', '')}_${Date.now()}.bin`);
+    setShowVfsModal(true);
+  };
+
+  const confirmVfsSave = () => {
+    if (memoryData.length === 0 || !vfsFileName.trim()) return;
     const blob = new Blob([memoryData], { type: 'application/octet-stream' });
     const reader = new FileReader();
     reader.onload = (e) => {
       const dataUrl = e.target?.result as string;
-      const fileName = `eeprom_dump_0x${i2cAddress.replace('0x', '')}_${Date.now()}.bin`;
-      
       const savedItemsStr = localStorage.getItem('hw_os_files');
-      let savedItems = [];
+      let savedItems: any[] = [];
       try { savedItems = savedItemsStr ? JSON.parse(savedItemsStr) : []; } catch (err) { }
       
       const newItem = {
         id: crypto.randomUUID(),
-        name: fileName,
+        name: vfsFileName.endsWith('.bin') ? vfsFileName : `${vfsFileName}.bin`,
         type: 'file',
         extension: 'bin',
         content: dataUrl,
-        parentId: 'downloads', 
+        parentId: selectedFolderId, 
         createdAt: Date.now(),
         size: memoryData.length,
         category: 'text' // Fallback category that Files app accepts
@@ -138,7 +169,7 @@ export const EepromApp: React.FC<{ connectionId?: string }> = ({ connectionId: i
       
       localStorage.setItem('hw_os_files', JSON.stringify([...savedItems, newItem]));
       window.dispatchEvent(new StorageEvent('storage', { key: 'hw_os_files' }));
-      alert(`Dump saved to Virtual Files 'Downloads' as ${fileName}`);
+      setShowVfsModal(false);
     };
     reader.readAsDataURL(blob);
   };
@@ -322,6 +353,71 @@ export const EepromApp: React.FC<{ connectionId?: string }> = ({ connectionId: i
           </button>
         </form>
       </div>
+
+      {showVfsModal && (
+        <div className="absolute inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+          <div className="bg-black/90 border border-hw-blue/40 w-full max-w-sm flex flex-col shadow-2xl backdrop-blur-sm">
+            <div className="flex items-center justify-between p-2 border-b border-hw-blue/20 bg-hw-blue/10">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-hw-blue flex items-center gap-2">
+                <HardDrive className="w-3 h-3" /> Save to Virtual Files
+              </span>
+              <button 
+                onClick={() => setShowVfsModal(false)}
+                className="text-hw-blue/50 hover:text-hw-blue"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="p-4 flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-[9px] font-bold text-hw-blue/50 uppercase tracking-widest">File Name</label>
+                <input
+                  type="text"
+                  value={vfsFileName}
+                  onChange={(e) => setVfsFileName(e.target.value)}
+                  className="bg-black/40 border border-hw-blue/20 px-2 py-1.5 text-[11px] font-mono text-hw-blue outline-none focus:border-hw-blue"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-[9px] font-bold text-hw-blue/50 uppercase tracking-widest">Select Folder</label>
+                <div className="flex flex-col border border-hw-blue/20 bg-black/40 max-h-40 overflow-y-auto custom-scrollbar">
+                  {vfsFolders.map(folder => (
+                    <button
+                      key={folder.id}
+                      onClick={() => setSelectedFolderId(folder.id)}
+                      className={cn(
+                        "flex items-center gap-2 px-3 py-2 text-[11px] text-left hover:bg-hw-blue/10 transition-colors",
+                        selectedFolderId === folder.id ? "bg-hw-blue/20 text-hw-blue" : "text-hw-blue/70"
+                      )}
+                    >
+                      <Folder className="w-3 h-3" />
+                      {folder.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 p-3 border-t border-hw-blue/20 bg-black/40">
+              <button
+                onClick={() => setShowVfsModal(false)}
+                className="px-4 py-1.5 text-[10px] uppercase font-bold text-hw-blue/50 hover:text-hw-blue transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmVfsSave}
+                disabled={!vfsFileName.trim()}
+                className="hw-button px-4 py-1.5 text-[10px] disabled:opacity-50"
+              >
+                SAVE BINARY
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
