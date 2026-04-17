@@ -7,6 +7,7 @@ import {
 import { cn } from '../../lib/utils';
 import { useSettings } from '../../contexts/SettingsContext';
 import { useSerial } from '../../contexts/SerialContext';
+import { SerialConnectionSelector } from '../common/SerialConnectionSelector';
 import html2pdf from 'html2pdf.js';
 
 interface Note {
@@ -43,7 +44,8 @@ const Editor = React.memo(({
   );
 }, () => true); // Never re-render, we manage DOM manually or remount via key
 
-export const NotesApp: React.FC<{ initialNoteId?: string }> = ({ initialNoteId }) => {
+export const NotesApp: React.FC<{ initialNoteId?: string, connectionId?: string }> = ({ initialNoteId, connectionId: initialConnId }) => {
+  const [selectedConnId, setSelectedConnId] = useState(initialConnId || 'shared');
   const [notes, setNotes] = useState<Note[]>([]);
   const [activeNoteId, setActiveNoteId] = useState<string | null>(initialNoteId || null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,7 +53,7 @@ export const NotesApp: React.FC<{ initialNoteId?: string }> = ({ initialNoteId }
   const editorRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   
-  const { subscribe } = useSerial();
+  const { subscribe } = useSerial(selectedConnId);
   const { updateTheme, theme } = useSettings();
 
   // Load notes on mount and listen for cross-instance updates
@@ -598,6 +600,7 @@ export const NotesApp: React.FC<{ initialNoteId?: string }> = ({ initialNoteId }
               </div>
 
               <div className="flex items-center gap-2 ml-auto">
+                <SerialConnectionSelector selectedConnId={selectedConnId} onSelect={setSelectedConnId} />
                 <button 
                   onMouseDown={e => e.preventDefault()}
                   onClick={insertSerialBlock}

@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef } from "react";
 import { Database, Radio, Edit3 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { useSerial } from "../../contexts/SerialContext";
+import { SerialConnectionSelector } from "../common/SerialConnectionSelector";
 
-export const RfidApp: React.FC = () => {
-  const { connected, port, writeToSerial } = useSerial();
+export const RfidApp: React.FC<{ connectionId?: string }> = ({ connectionId: initialConnId }) => {
+  const [selectedConnId, setSelectedConnId] = useState(initialConnId || 'shared');
+  const { connected, port, writeToSerial, allConnections } = useSerial(selectedConnId);
 
   const [rfidSector, setRfidSector] = useState("0");
   const [rfidWriteBlock, setRfidWriteBlock] = useState("0");
@@ -21,9 +23,10 @@ export const RfidApp: React.FC = () => {
 
   useEffect(() => {
     const handleSerialLine = (e: Event) => {
-      const customEvent = e as CustomEvent<string>;
-      const text = customEvent.detail;
+      const customEvent = e as CustomEvent<{ text: string, connectionId: string }>;
+      const { text, connectionId } = customEvent.detail;
 
+      if (connectionId !== selectedConnId) return;
       if (!isScanningRef.current) return;
 
       if (text.includes("SCAN_CARD_NOW")) {
@@ -81,7 +84,7 @@ export const RfidApp: React.FC = () => {
 
     window.addEventListener('hw_serial_line', handleSerialLine);
     return () => window.removeEventListener('hw_serial_line', handleSerialLine);
-  }, []);
+  }, [selectedConnId]);
 
   const handleRfidDump = () => {
     if (!connected || !port || !port.writable) return;
@@ -90,7 +93,7 @@ export const RfidApp: React.FC = () => {
     setRfidStatus("Initiating dump...");
     setIsRfidScanning(true);
     isScanningRef.current = true;
-    writeToSerial("RFID DUMP\n");
+    writeToSerial("RFID DUMP\r\n");
     
     // Auto timeout to release lock
     setTimeout(() => {
@@ -113,7 +116,7 @@ export const RfidApp: React.FC = () => {
     setRfidStatus(`Initiating read for sector ${rfidSector}...`);
     setIsRfidScanning(true);
     isScanningRef.current = true;
-    writeToSerial(`RFID READ ${rfidSector}\n`);
+    writeToSerial(`RFID READ ${rfidSector}\r\n`);
     
     setTimeout(() => {
       if (isScanningRef.current) {
@@ -173,7 +176,7 @@ export const RfidApp: React.FC = () => {
     setRfidStatus(`Initiating write to block ${blockNum}...`);
     setIsRfidScanning(true);
     isScanningRef.current = true;
-    writeToSerial(`RFID WRITE ${blockNum} ${finalHexData}\n`);
+    writeToSerial(`RFID WRITE ${blockNum} ${finalHexData}\r\n`);
     
     setTimeout(() => {
       if (isScanningRef.current) {
@@ -264,6 +267,8 @@ export const RfidApp: React.FC = () => {
     <div className="flex flex-col h-full bg-black/60">
       <div className="hw-panel-header shrink-0 flex justify-between items-center border-b border-hw-blue/20">
         <div className="flex items-center gap-4">
+          <SerialConnectionSelector selectedConnId={selectedConnId} onSelect={setSelectedConnId} />
+          <div className="h-4 w-px bg-hw-blue/20" />
           <span>RFID_MEMORY_MAP</span>
           <div className="flex items-center gap-2 border-l border-hw-blue/20 pl-4">
             <button

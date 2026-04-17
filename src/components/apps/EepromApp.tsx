@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Database, ArrowDownToLine, ArrowUpToLine } from "lucide-react";
+import { Database, ArrowDownToLine, ArrowUpToLine, Download, HardDrive } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { useSerial } from "../../contexts/SerialContext";
+import { SerialConnectionSelector } from "../common/SerialConnectionSelector";
 
-export const EepromApp: React.FC = () => {
-  const { connected, port, writeToSerial } = useSerial();
+export const EepromApp: React.FC<{ connectionId?: string }> = ({ connectionId: initialConnId }) => {
+  const [selectedConnId, setSelectedConnId] = useState(initialConnId || 'shared');
+  const { connected, port, writeToSerial, allConnections } = useSerial(selectedConnId);
 
   const [i2cAddress, setI2cAddress] = useState("0x50");
   const [writeMemAddr, setWriteMemAddr] = useState("0x0000");
@@ -21,15 +23,16 @@ export const EepromApp: React.FC = () => {
 
   useEffect(() => {
     const handleSerialLine = (e: Event) => {
-      const customEvent = e as CustomEvent<string>;
-      const text = customEvent.detail;
+      const customEvent = e as CustomEvent<{ text: string, connectionId: string }>;
+      const { text, connectionId } = customEvent.detail;
 
+      if (connectionId !== selectedConnId) return;
       if (!isDumpingRef.current) return;
 
       if (text.includes("--- EEPROM DUMP")) {
         setIsDumping(true);
-        memoryBufferRef.current = [];
-        setMemoryData(new Uint8Array());
+        memoryBufferRef.current = new Array(4096).fill(0xFF);
+        setMemoryData(new Uint8Array(memoryBufferRef.current));
       } else if (text.includes("ERR: Connection lost")) {
         isDumpingRef.current = false;
         setIsDumping(false);
@@ -44,12 +47,10 @@ export const EepromApp: React.FC = () => {
             .map((h) => parseInt(h, 16))
             .filter((n) => !isNaN(n));
           
-          while (memoryBufferRef.current.length < addr + bytes.length) {
-            memoryBufferRef.current.push(0xFF);
-          }
-          
           for (let i = 0; i < bytes.length; i++) {
-            memoryBufferRef.current[addr + i] = bytes[i];
+            if (addr + i < memoryBufferRef.current.length) {
+              memoryBufferRef.current[addr + i] = bytes[i];
+            }
           }
           
           setMemoryData(new Uint8Array(memoryBufferRef.current));
@@ -66,15 +67,16 @@ export const EepromApp: React.FC = () => {
 
     window.addEventListener('hw_serial_line', handleSerialLine);
     return () => window.removeEventListener('hw_serial_line', handleSerialLine);
-  }, []);
+  }, [selectedConnId]);
 
   const fetchDump = () => {
     if (!connected || !port || !port.writable) return;
     
     isDumpingRef.current = true;
     setIsDumping(true);
-    memoryBufferRef.current = [];
-    setMemoryData(new Uint8Array());
+    // Initialize a full 4096-byte buffer with 0xFF
+    memoryBufferRef.current = new Array(4096).fill(0xFF);
+    setMemoryData(new Uint8Array(memoryBufferRef.current));
     
     if (dumpTimeoutRef.current) clearTimeout(dumpTimeoutRef.current);
     dumpTimeoutRef.current = setTimeout(() => {
@@ -84,19 +86,61 @@ export const EepromApp: React.FC = () => {
       }
     }, 15000);
 
-    writeToSerial(`EEPROM DUMP ${i2cAddress}\n`);
+    writeToSerial(`EEPROM DUMP ${i2cAddress}\r\n`);
   };
 
   const handleEEPROMWrite = (e: React.FormEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (!connected || !port || !port.writable || !writeData.trim()) return;
-    writeToSerial(`EEPROM WRITE ${i2cAddress} ${writeMemAddr} ${writeData}\n`);
+    writeToSerial(`EEPROM WRITE ${i2cAddress} ${writeMemAddr} ${writeData}\r\n`);
     setWriteData("");
   };
 
   const clearData = () => {
     setMemoryData(new Uint8Array());
+  };
+
+  const exportToPC = () => {
+    if (memoryData.length === 0) return;
+    const blob = new Blob([memoryData], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `eeprom_dump_0x${i2cAddress.replace('0x', '')}_${Date.now()}.bin`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportToVirtualFiles = () => {
+    if (memoryData.length === 0) return;
+    const blob = new Blob([memoryData], { type: 'application/octet-stream' });
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      const fileName = `eeprom_dump_0x${i2cAddress.replace('0x', '')}_${Date.now()}.bin`;
+      
+      const savedItemsStr = localStorage.getItem('hw_os_files');
+      let savedItems = [];
+      try { savedItems = savedItemsStr ? JSON.parse(savedItemsStr) : []; } catch (err) { }
+      
+      const newItem = {
+        id: crypto.randomUUID(),
+        name: fileName,
+        type: 'file',
+        extension: 'bin',
+        content: dataUrl,
+        parentId: 'downloads', 
+        createdAt: Date.now(),
+        size: memoryData.length,
+        category: 'text' // Fallback category that Files app accepts
+      };
+      
+      localStorage.setItem('hw_os_files', JSON.stringify([...savedItems, newItem]));
+      window.dispatchEvent(new StorageEvent('storage', { key: 'hw_os_files' }));
+      alert(`Dump saved to Virtual Files 'Downloads' as ${fileName}`);
+    };
+    reader.readAsDataURL(blob);
   };
 
   const getEntropyColor = (b: number) => {
@@ -171,6 +215,8 @@ export const EepromApp: React.FC = () => {
     <div className="flex flex-col h-full bg-black/60">
       <div className="hw-panel-header shrink-0 flex justify-between items-center border-b border-hw-blue/20">
         <div className="flex items-center gap-4">
+          <SerialConnectionSelector selectedConnId={selectedConnId} onSelect={setSelectedConnId} />
+          <div className="h-4 w-px bg-hw-blue/20" />
           <span>EEPROM_MEMORY_MAP</span>
           <div className="flex items-center gap-2 border-l border-hw-blue/20 pl-4">
             <button
@@ -198,6 +244,26 @@ export const EepromApp: React.FC = () => {
           </div>
         </div>
         <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 border-r border-hw-blue/20 pr-4">
+            <button
+              onClick={exportToPC}
+              disabled={memoryData.length === 0}
+              className="hw-button px-3 py-1 text-[9px] flex items-center gap-2 disabled:opacity-50"
+              title="Download .bin to physical PC"
+            >
+              <Download className="w-3 h-3" />
+              PC
+            </button>
+            <button
+              onClick={exportToVirtualFiles}
+              disabled={memoryData.length === 0}
+              className="hw-button px-3 py-1 text-[9px] flex items-center gap-2 disabled:opacity-50"
+              title="Save .bin to OS Virtual Files"
+            >
+              <HardDrive className="w-3 h-3" />
+              VFS
+            </button>
+          </div>
           <div className="flex items-center gap-2">
             <span className="text-[9px] text-hw-blue/40 uppercase">I2C Addr:</span>
             <input

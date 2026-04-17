@@ -3,6 +3,7 @@ import { Bluetooth, Search, BluetoothConnected, BluetoothOff, ChevronDown, Chevr
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../../lib/utils";
 import { useSerial } from "../../contexts/SerialContext";
+import { SerialConnectionSelector } from "../common/SerialConnectionSelector";
 
 interface BleDevice {
   address: string;
@@ -39,8 +40,9 @@ interface TerminalLog {
   data: string;
 }
 
-export const BluetoothApp: React.FC = () => {
-  const { connected, port, writeToSerial } = useSerial();
+export const BluetoothApp: React.FC<{ connectionId?: string }> = ({ connectionId: initialConnId }) => {
+  const [selectedConnId, setSelectedConnId] = useState(initialConnId || 'shared');
+  const { connected, port, writeToSerial } = useSerial(selectedConnId);
   const [mode, setMode] = useState<'esp32' | 'system'>('esp32');
   const [devices, setDevices] = useState<BleDevice[]>([]);
   const [isScanning, setIsScanning] = useState(false);
@@ -161,8 +163,10 @@ export const BluetoothApp: React.FC = () => {
 
   useEffect(() => {
     const handleSerialLine = (e: Event) => {
-      const customEvent = e as CustomEvent<string>;
-      const text = customEvent.detail;
+      const customEvent = e as CustomEvent<{ text: string, connectionId: string }>;
+      const { text, connectionId } = customEvent.detail;
+
+      if (connectionId !== selectedConnId) return; // We use the selected connection
 
       if (text.includes("[BLE]") || text.includes("[BLE-NOTIFY]") || text.includes("Service: ") || text.includes("- Char: ") || text.includes("[BLE-READ]")) {
         if (text.includes("Starting 5s scan")) {
@@ -317,7 +321,7 @@ export const BluetoothApp: React.FC = () => {
 
     window.addEventListener('hw_serial_line', handleSerialLine);
     return () => window.removeEventListener('hw_serial_line', handleSerialLine);
-  }, [devices, addLog]);
+  }, [devices, addLog, selectedConnId]);
 
   const startScan = () => {
     if (!connected) return;
@@ -483,6 +487,8 @@ export const BluetoothApp: React.FC = () => {
       {/* Header */}
       <div className="hw-panel-header shrink-0 flex justify-between items-center border-b border-hw-blue/20 px-4 py-2">
         <div className="flex items-center gap-4">
+          <SerialConnectionSelector selectedConnId={selectedConnId} onSelect={setSelectedConnId} />
+          <div className="h-4 w-px bg-hw-blue/20" />
           <Bluetooth className={cn("w-5 h-5", connectedDevice ? "text-hw-blue animate-pulse" : "text-hw-blue/40")} />
           <span className="text-xs font-bold tracking-widest uppercase">BLE_COMMANDER_V1.0</span>
           {connectedDevice && (

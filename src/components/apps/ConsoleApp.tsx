@@ -2,8 +2,10 @@ import React, { useState, useRef, useEffect } from "react";
 import { Terminal, Play, Square, Trash2, ArrowDownToLine, ArrowUpToLine, Send, SplitSquareHorizontal, Power, Settings } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { useSerial } from "../../contexts/SerialContext";
+import { SerialConnectionSelector } from "../common/SerialConnectionSelector";
 
-export const ConsoleApp: React.FC = () => {
+export const ConsoleApp: React.FC<{ connectionId?: string }> = ({ connectionId: initialConnId }) => {
+  const [selectedConnId, setSelectedConnId] = useState(initialConnId || 'shared');
   const {
     port,
     connected,
@@ -13,8 +15,9 @@ export const ConsoleApp: React.FC = () => {
     disconnect,
     writeToSerial,
     logs,
-    clearLogs
-  } = useSerial();
+    clearLogs,
+    allConnections
+  } = useSerial(selectedConnId);
 
   const [autoScroll, setAutoScroll] = useState(true);
   const [showTimestamp, setShowTimestamp] = useState(false);
@@ -23,7 +26,8 @@ export const ConsoleApp: React.FC = () => {
   const [showBridge, setShowBridge] = useState(false);
   const [bridgeActive, setBridgeActive] = useState(false);
   const [bridgeBaud, setBridgeBaud] = useState(115200);
-  
+  const [lineEnding, setLineEnding] = useState("CRLF");
+
   const logEndRef = useRef<HTMLDivElement>(null);
   const bridgeLogEndRef = useRef<HTMLDivElement>(null);
 
@@ -44,11 +48,20 @@ export const ConsoleApp: React.FC = () => {
     }
   }, [logs, autoScroll]);
 
+  const getEndingToken = () => {
+    switch (lineEnding) {
+      case "CRLF": return "\r\n";
+      case "LF": return "\n";
+      case "CR": return "\r";
+      default: return "";
+    }
+  };
+
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (consoleInput.trim()) {
-      writeToSerial(consoleInput + "\n");
+      writeToSerial(consoleInput + getEndingToken());
       setConsoleInput("");
     }
   };
@@ -57,7 +70,7 @@ export const ConsoleApp: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     if (bridgeInput.trim()) {
-      writeToSerial(`BRIDGE WRITE ${bridgeInput}\n`);
+      writeToSerial(`BRIDGE WRITE ${bridgeInput}${getEndingToken()}`);
       setBridgeInput("");
     }
   };
@@ -66,7 +79,7 @@ export const ConsoleApp: React.FC = () => {
     const newState = !bridgeActive;
     setBridgeActive(newState);
     if (connected) {
-      writeToSerial(`BRIDGE ${newState ? 'ON' : 'OFF'}\n`);
+      writeToSerial(`BRIDGE ${newState ? 'ON' : 'OFF'}${getEndingToken()}`);
     }
   };
 
@@ -74,16 +87,24 @@ export const ConsoleApp: React.FC = () => {
     const newBaud = Number(e.target.value);
     setBridgeBaud(newBaud);
     if (connected) {
-      writeToSerial(`BRIDGE BAUD ${newBaud}\n`);
+      writeToSerial(`BRIDGE BAUD ${newBaud}${getEndingToken()}`);
     }
   };
 
-  const mainLogs = logs.filter(log => !log.text.startsWith("[UART]"));
-  const bridgeLogs = logs.filter(log => log.text.startsWith("[UART]"));
+  const isBridgeLog = (text: string) => text.includes("[UART]") || text.includes("[UART1_RX]") || text.includes("[UART1_TX]") || text.includes("[BRIDGE]");
+  const isBridgeWriteLocal = (text: string) => text.includes("> BRIDGE WRITE");
+
+  const mainLogs = logs;
+  const bridgeLogs = logs.filter(log => isBridgeLog(log.text) || isBridgeWriteLocal(log.text));
 
   return (
     <div className="flex flex-col h-full" style={{ backgroundColor: 'var(--theme-panel-bg)' }}>
       <div className="hw-panel p-4 shrink-0 flex flex-wrap items-center gap-4 border-b border-hw-blue/20" style={{ borderColor: 'var(--theme-border-color)' }}>
+        {/* Connection Selector */}
+        <SerialConnectionSelector selectedConnId={selectedConnId} onSelect={setSelectedConnId} />
+
+        <div className="h-4 w-px bg-hw-blue/20" />
+
         <div className="flex items-center gap-2">
           <div
             className={cn(
@@ -199,16 +220,24 @@ export const ConsoleApp: React.FC = () => {
                 No bridged data received...
               </div>
             ) : (
-              bridgeLogs.map((log, i) => (
-                <div key={i} className="hover:bg-hw-blue/10 px-2 py-0.5 break-all text-green-400/90">
-                  {showTimestamp && (
-                    <span className="opacity-40 mr-4 select-none text-hw-blue/40">
-                      [{new Date(log.time).toISOString().substring(11, 23)}]
+              bridgeLogs.map((log, i) => {
+                const isTx = log.text.includes("[UART1_TX]") || log.text.includes("[UART_TX]") || isBridgeWriteLocal(log.text);
+                const cleanText = log.text.replace(/^>\s*BRIDGE WRITE\s*/, "");
+                
+                return (
+                  <div key={i} className={cn("hover:bg-hw-blue/10 px-2 py-0.5 break-all flex", isTx ? "text-cyan-400" : "text-green-400")}>
+                    {showTimestamp && (
+                      <span className="opacity-40 mr-4 select-none text-hw-blue/40 shrink-0">
+                        [{new Date(log.time).toISOString().substring(11, 23)}]
+                      </span>
+                    )}
+                    <span className="opacity-50 mr-2 font-bold select-none shrink-0">
+                      {isTx ? ">>" : "<<"}
                     </span>
-                  )}
-                  <span>{log.text.replace("[UART] ", "")}</span>
-                </div>
-              ))
+                    <span className="opacity-90">{cleanText}</span>
+                  </div>
+                );
+              })
             )}
             <div ref={bridgeLogEndRef} />
           </div>
@@ -236,6 +265,18 @@ export const ConsoleApp: React.FC = () => {
               />
               TIMESTAMPS
             </label>
+            <div className="flex items-center gap-2 ml-4 border-l border-hw-blue/20 pl-4">
+              <select
+                value={lineEnding}
+                onChange={(e) => setLineEnding(e.target.value)}
+                className="bg-transparent border border-hw-blue/20 text-hw-blue/60 text-[10px] uppercase font-mono px-2 py-1 outline-none focus:border-hw-blue"
+              >
+                <option value="CRLF" className="bg-hw-black">CRLF (\r\n)</option>
+                <option value="LF" className="bg-hw-black">LF (\n)</option>
+                <option value="CR" className="bg-hw-black">CR (\r)</option>
+                <option value="none" className="bg-hw-black">None</option>
+              </select>
+            </div>
             <div className="flex items-center gap-2 ml-4 border-l border-hw-blue/20 pl-4">
               <button
                 type="button"

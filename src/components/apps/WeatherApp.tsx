@@ -221,8 +221,12 @@ export const WeatherApp: React.FC = () => {
                   </div>
                 </div>
                 <button 
-                  onClick={toggleFavorite}
-                  className="p-2 hover:bg-hw-blue/10 rounded-full transition-colors"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleFavorite();
+                  }}
+                  className="p-2 hover:bg-hw-blue/10 rounded-full transition-colors relative z-10"
                   title={favorites.includes(weather.location.split(',')[0]) ? "Remove from favorites" : "Add to favorites"}
                 >
                   {favorites.includes(weather.location.split(',')[0]) ? (

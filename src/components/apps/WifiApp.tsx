@@ -3,6 +3,7 @@ import { Wifi, Search, WifiOff, Activity, Terminal, Send, Trash2, RefreshCw, Inf
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../../lib/utils";
 import { useSerial } from "../../contexts/SerialContext";
+import { SerialConnectionSelector } from "../common/SerialConnectionSelector";
 
 interface WifiNetwork {
   ssid: string;
@@ -19,8 +20,9 @@ interface LogEntry {
   message: string;
 }
 
-export const WifiApp: React.FC = () => {
-  const { connected, port, writeToSerial } = useSerial();
+export const WifiApp: React.FC<{ connectionId?: string }> = ({ connectionId: initialConnId }) => {
+  const [selectedConnId, setSelectedConnId] = useState(initialConnId || 'shared');
+  const { connected, port, writeToSerial } = useSerial(selectedConnId);
   const [networks, setNetworks] = useState<WifiNetwork[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -67,8 +69,10 @@ export const WifiApp: React.FC = () => {
 
   useEffect(() => {
     const handleSerialLine = (e: Event) => {
-      const customEvent = e as CustomEvent<string>;
-      const text = customEvent.detail;
+      const customEvent = e as CustomEvent<{ text: string, connectionId: string }>;
+      const { text, connectionId } = customEvent.detail;
+
+      if (connectionId !== selectedConnId) return;
 
       if (text.includes("[WIFI]") || text.includes("[PING]") || text.match(/^\s*\d+:\s+(.+?)\s+\((-?\d+)\s+dBm\)\s+\[CH:\s+(\d+)\]\s+\[(.+?)\]/)) {
         if (text.includes("Scanning networks")) {
@@ -128,7 +132,7 @@ export const WifiApp: React.FC = () => {
 
     window.addEventListener('hw_serial_line', handleSerialLine);
     return () => window.removeEventListener('hw_serial_line', handleSerialLine);
-  }, [addLog]);
+  }, [addLog, selectedConnId]);
 
   const startScan = () => {
     if (!connected) return;
@@ -190,11 +194,15 @@ export const WifiApp: React.FC = () => {
     <div className="w-full h-full flex flex-col bg-hw-black text-hw-blue font-mono overflow-hidden">
       {/* Header */}
       <div className="flex-none p-4 border-b border-hw-blue/20 bg-hw-blue/5 flex justify-between items-center">
-        <div className="flex items-center gap-3">
-          <Wifi className="w-6 h-6" />
-          <div>
-            <h1 className="text-lg font-bold uppercase tracking-widest leading-none">WIFI_COMMANDER</h1>
-            <span className="text-xs opacity-60">ESP32 Network Controller</span>
+        <div className="flex items-center gap-4">
+          <SerialConnectionSelector selectedConnId={selectedConnId} onSelect={setSelectedConnId} />
+          <div className="h-4 w-px bg-hw-blue/20" />
+          <div className="flex items-center gap-3">
+            <Wifi className="w-6 h-6" />
+            <div>
+              <h1 className="text-lg font-bold uppercase tracking-widest leading-none">WIFI_COMMANDER</h1>
+              <span className="text-xs opacity-60">ESP32 Network Controller</span>
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-4">

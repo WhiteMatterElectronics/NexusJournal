@@ -15,7 +15,8 @@ interface EspStatus {
 }
 
 export const EspStatusWidget: React.FC<any> = ({ mainColor }) => {
-  const { connected, writeToSerial } = useSerial();
+  const [selectedConnId] = useState('shared'); // Widgets default to shared connection
+  const { connected, writeToSerial } = useSerial(selectedConnId);
   const [status, setStatus] = useState<EspStatus>({
     chipModel: 'N/A',
     cores: 'N/A',
@@ -39,8 +40,10 @@ export const EspStatusWidget: React.FC<any> = ({ mainColor }) => {
 
   useEffect(() => {
     const handleSerialLine = (e: Event) => {
-      const customEvent = e as CustomEvent<string>;
-      const text = customEvent.detail;
+      const customEvent = e as CustomEvent<{ text: string, connectionId: string }>;
+      const { text, connectionId } = customEvent.detail;
+
+      if (connectionId !== selectedConnId) return;
 
       if (text.match(/Chip Model:/i)) {
         setStatus(s => ({ ...s, chipModel: text.split(/Chip Model:/i)[1].trim() }));
@@ -77,7 +80,7 @@ export const EspStatusWidget: React.FC<any> = ({ mainColor }) => {
       window.removeEventListener('hw_serial_line', handleSerialLine);
       clearInterval(interval);
     };
-  }, [connected]);
+  }, [connected, selectedConnId]);
 
   if (!connected) {
     return (

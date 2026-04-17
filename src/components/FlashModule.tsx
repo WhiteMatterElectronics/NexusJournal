@@ -12,7 +12,7 @@ interface FlashModuleProps {
 }
 
 export const FlashModule: React.FC<FlashModuleProps> = ({ autoFlashFirmwareId, onFlashComplete }) => {
-  const { port, connected, connect, disconnect } = useSerial();
+  const { port, connected, connect, disconnect } = useSerial('flasher');
   const [status, setStatus] = useState<'idle' | 'connecting' | 'flashing' | 'success' | 'error'>('idle');
   const [progress, setProgress] = useState(0);
   const [log, setLog] = useState<string[]>([]);

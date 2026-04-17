@@ -7,6 +7,7 @@ import { cn } from '../../lib/utils';
 import Markdown from 'react-markdown';
 import { BlockRenderer } from '../shared/BlockRenderer';
 import { TutorialBlock } from '../../types';
+import { SerialConnectionSelector } from '../common/SerialConnectionSelector';
 
 const CollapsibleSection: React.FC<{ title: string; defaultOpen?: boolean; children: React.ReactNode }> = ({ title, defaultOpen = false, children }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
@@ -32,8 +33,9 @@ export const CtfChallengeApp: React.FC<{
   challengeId: string;
   onStartApp?: (appId: string, props?: any) => void;
 }> = ({ challengeId, onStartApp }) => {
+  const [selectedConnId, setSelectedConnId] = useState('shared');
   const { challenges, updateChallenge } = useCtf();
-  const { connected, writeToSerial, logs } = useSerial();
+  const { connected, writeToSerial, logs, allConnections } = useSerial(selectedConnId);
   const { items: inventoryItems } = useInventory();
   
   const challenge = challenges.find(c => c.id === challengeId);
@@ -43,6 +45,7 @@ export const CtfChallengeApp: React.FC<{
   const [availableTutorials, setAvailableTutorials] = useState<any[]>([]);
   const [availableNotes, setAvailableNotes] = useState<any[]>([]);
   const [flagInputs, setFlagInputs] = useState<Record<string, string>>(challenge?.flagJournal || {});
+  const [showScanner, setShowScanner] = useState(false);
   
   const renderDescription = (description: string) => {
     try {
@@ -58,6 +61,15 @@ export const CtfChallengeApp: React.FC<{
   
   const terminalScrollRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Trigger Scanner Effect when finding flags
+  useEffect(() => {
+    const lastLog = logs[logs.length - 1];
+    if (lastLog?.text.includes('CTF{')) {
+      setShowScanner(true);
+      setTimeout(() => setShowScanner(false), 2000);
+    }
+  }, [logs]);
 
   useEffect(() => {
     // Fetch tutorials from API
@@ -110,7 +122,7 @@ export const CtfChallengeApp: React.FC<{
       if (e.data.type === 'COMPLETE_CHALLENGE') {
         updateChallenge(challengeId, { status: 'solved' });
       } else if (e.data.type === 'SEND_SERIAL') {
-        writeToSerial(e.data.data + '\n');
+        writeToSerial(e.data.data + '\r\n');
       }
     };
     window.addEventListener('message', handleMessage);
@@ -136,15 +148,12 @@ export const CtfChallengeApp: React.FC<{
 
     challenge.serialTriggers.forEach(trigger => {
       try {
-        const regex = new RegExp(trigger.matchRegex);
+        const regex = new RegExp(trigger.matchRegex, 'i');
         if (regex.test(lastLog.text)) {
-          console.log(`Trigger matched: ${trigger.matchRegex}`);
           if (trigger.action === 'complete') {
             updateChallenge(challenge.id, { status: 'solved' });
           } else if (trigger.action === 'send_serial' && trigger.payload) {
-            writeToSerial(trigger.payload + '\n');
-          } else if (trigger.action === 'unlock_hint') {
-            // Hint unlocking logic can be handled by custom UI now
+            writeToSerial(trigger.payload + '\r\n');
           }
         }
       } catch (e) {
@@ -164,7 +173,7 @@ export const CtfChallengeApp: React.FC<{
   const handleSendTerminal = (e: React.FormEvent) => {
     e.preventDefault();
     if (terminalInput.trim() && connected) {
-      writeToSerial(terminalInput + '\n');
+      writeToSerial(terminalInput + '\r\n');
       setTerminalInput('');
     }
   };
@@ -222,37 +231,66 @@ export const CtfChallengeApp: React.FC<{
   `;
 
   return (
-    <div className="flex flex-col h-full bg-black/80 font-mono text-hw-blue">
-      {/* Header */}
-      <div className="hw-panel-header shrink-0 flex justify-between items-center border-b border-hw-blue/20 px-4 py-2">
-        <div className="flex items-center gap-3">
-          <Flag className={cn("w-4 h-4", challenge.status === 'solved' ? "text-green-500" : "text-hw-blue")} />
-          <span className="text-xs font-bold tracking-widest uppercase">{challenge.title}</span>
-          <span className={cn(
-            "text-[9px] px-1.5 py-0.5 rounded uppercase font-bold ml-2",
-            challenge.status === 'solved' ? "bg-green-500/20 text-green-400" : "bg-hw-blue/20 text-hw-blue"
-          )}>
-            {challenge.status}
-          </span>
+    <div className="flex flex-col h-full bg-black/90 font-mono text-hw-blue relative overflow-hidden">
+      {/* Glitch Overlay for when finding flags */}
+      {showScanner && (
+        <div className="absolute inset-0 z-[100] pointer-events-none bg-hw-blue/5 animate-pulse">
+          <div className="absolute top-0 left-0 w-full h-0.5 bg-hw-blue/50 animate-[scan_1s_ease-in-out_infinite]" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-2xl font-black italic tracking-[0.5em] text-hw-blue hw-glow-blue bg-black/80 px-10 py-4 border-2 border-hw-blue animate-bounce">
+              FLAG_DETECTED_IN_STREAM
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+      )}
+
+      {/* Header */}
+      <div className="hw-panel-header shrink-0 flex justify-between items-center border-b border-hw-blue/20 px-4 py-2 bg-black/40 backdrop-blur-md">
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2">
+            <Flag className={cn("w-4 h-4", challenge.status === 'solved' ? "text-green-500 hw-glow-green" : "text-hw-blue hw-glow-blue")} />
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold tracking-widest uppercase">{challenge.title}</span>
+              <div className="flex gap-2 items-center">
+                <span className={cn(
+                  "text-[8px] px-1 rounded-sm uppercase font-bold",
+                  challenge.status === 'solved' ? "bg-green-500/20 text-green-400" : "bg-hw-blue/20 text-hw-blue"
+                )}>
+                  {challenge.status}
+                </span>
+                <span className="text-[8px] opacity-40 uppercase">#{challenge.id}</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="h-6 w-px bg-hw-blue/10" />
+
+          {/* Port Selector */}
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] text-hw-blue/40 uppercase font-black">Target_Port:</span>
+            <SerialConnectionSelector selectedConnId={selectedConnId} onSelect={setSelectedConnId} />
+            <div className={cn("w-1.5 h-1.5 rounded-full", connected ? "bg-green-500 hw-glow-green" : "bg-red-500")} />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1 bg-hw-blue/5 p-1 rounded-lg border border-hw-blue/10">
           <button 
             onClick={() => setActiveTab('briefing')}
-            className={cn("px-3 py-1 text-[10px] uppercase tracking-widest transition-all", activeTab === 'briefing' ? "bg-hw-blue text-black font-bold" : "text-hw-blue/60 hover:text-hw-blue")}
+            className={cn("px-4 py-1 text-[9px] uppercase tracking-tighter transition-all rounded-md flex items-center gap-2", activeTab === 'briefing' ? "bg-hw-blue text-black font-black" : "text-hw-blue/40 hover:text-hw-blue hover:bg-hw-blue/10")}
           >
-            Briefing
+            <Lock className="w-3 h-3" /> Briefing
           </button>
           <button 
             onClick={() => setActiveTab('terminal')}
-            className={cn("px-3 py-1 text-[10px] uppercase tracking-widest transition-all", activeTab === 'terminal' ? "bg-hw-blue text-black font-bold" : "text-hw-blue/60 hover:text-hw-blue")}
+            className={cn("px-4 py-1 text-[9px] uppercase tracking-tighter transition-all rounded-md flex items-center gap-2", activeTab === 'terminal' ? "bg-hw-blue text-black font-black" : "text-hw-blue/40 hover:text-hw-blue hover:bg-hw-blue/10")}
           >
-            Terminal
+            <Terminal className="w-3 h-3" /> Decryptor
           </button>
           <button 
             onClick={() => setActiveTab('custom_ui')}
-            className={cn("px-3 py-1 text-[10px] uppercase tracking-widest transition-all", activeTab === 'custom_ui' ? "bg-hw-blue text-black font-bold" : "text-hw-blue/60 hover:text-hw-blue")}
+            className={cn("px-4 py-1 text-[9px] uppercase tracking-tighter transition-all rounded-md flex items-center gap-2", activeTab === 'custom_ui' ? "bg-hw-blue text-black font-black" : "text-hw-blue/40 hover:text-hw-blue hover:bg-hw-blue/10")}
           >
-            Custom UI
+            <Play className="w-3 h-3" /> Op_Interface
           </button>
         </div>
       </div>

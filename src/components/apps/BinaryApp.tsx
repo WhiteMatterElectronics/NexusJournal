@@ -2,8 +2,11 @@ import React, { useRef, useState, useEffect } from "react";
 import { BinaryAnalysis } from "../BinaryAnalysis";
 import { useSerial } from "../../contexts/SerialContext";
 import { cn } from "../../lib/utils";
+import { SerialConnectionSelector } from "../common/SerialConnectionSelector";
 
-export const BinaryApp: React.FC = () => {
+export const BinaryApp: React.FC<{ connectionId?: string }> = ({ connectionId: initialConnId }) => {
+  const [selectedConnId, setSelectedConnId] = useState(initialConnId || 'shared');
+  const { allConnections } = useSerial(selectedConnId);
   const scrollRef = useRef<HTMLDivElement>(null);
   
   // Local State for this specific instance
@@ -15,8 +18,10 @@ export const BinaryApp: React.FC = () => {
 
   useEffect(() => {
     const handleSerialLine = (e: Event) => {
-      const customEvent = e as CustomEvent<string>;
-      const text = customEvent.detail;
+      const customEvent = e as CustomEvent<{ text: string, connectionId: string }>;
+      const { text, connectionId } = customEvent.detail;
+
+      if (connectionId !== selectedConnId) return;
 
       if (text.includes("--- EEPROM DUMP") && isCapturing) {
         isDumpingRef.current = true;
@@ -55,12 +60,14 @@ export const BinaryApp: React.FC = () => {
 
     window.addEventListener('hw_serial_line', handleSerialLine);
     return () => window.removeEventListener('hw_serial_line', handleSerialLine);
-  }, []);
+  }, [selectedConnId]);
 
   return (
     <div className="flex flex-col h-full bg-black/60">
       <div className="hw-panel-header shrink-0 flex justify-between items-center border-b border-hw-blue/20">
         <div className="flex items-center gap-4">
+          <SerialConnectionSelector selectedConnId={selectedConnId} onSelect={setSelectedConnId} />
+          <div className="h-4 w-px bg-hw-blue/20" />
           <span>BINARY_ANALYSIS_TOOL</span>
           <div className="flex items-center gap-2 border-l border-hw-blue/20 pl-4">
             <button

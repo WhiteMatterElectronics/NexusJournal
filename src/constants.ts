@@ -25,6 +25,7 @@ export const APPS: AppDefinition[] = [
   { id: 'bluetooth', icon: Bluetooth, label: 'BLE_COMMANDER' },
   { id: 'wifi', icon: Wifi, label: 'WIFI_COMMANDER' },
   { id: 'ctf_manager', icon: Flag, label: 'CTF_MANAGER' },
+  { id: 'ctf_challenge', icon: Flag, label: 'CTF_OP_RUNNER' },
   { id: 'inventory', icon: Package, label: 'INVENTORY' },
   { id: 'properties', icon: Info, label: 'PROPERTIES' },
   { id: 'text_editor', icon: FileText, label: 'TEXT_EDITOR' },

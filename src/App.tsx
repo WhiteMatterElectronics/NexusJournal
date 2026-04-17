@@ -678,13 +678,24 @@ export default function App() {
 
     setWindows(prev => {
       const existing = prev.filter(w => w.appId === id);
+      const nextZIndex = highestZIndex + 1;
+      setHighestZIndex(nextZIndex);
       
       // Singletons
-      if (id === 'console' || id === 'settings' || id === 'admin' || id === 'flasher') {
-        if (existing.length > 0) {
-          setHighestZIndex(z => z + 1);
-          setActiveWindowId(existing[0].instanceId);
-          return prev.map(w => w.appId === id ? { ...w, isOpen: true, isMinimized: false, zIndex: highestZIndex + 1, initialProps: initialProps || w.initialProps } : w);
+      if (id === 'settings' || id === 'admin' || id === 'flasher' || id === 'ctf_challenge') {
+        const found = id === 'ctf_challenge' 
+          ? existing.find(w => w.initialProps?.challengeId === initialProps?.challengeId)
+          : (existing.length > 0 ? existing[0] : null);
+
+        if (found) {
+          setActiveWindowId(found.instanceId);
+          return prev.map(w => w.instanceId === found.instanceId ? { 
+            ...w, 
+            isOpen: true, 
+            isMinimized: false, 
+            zIndex: nextZIndex, 
+            initialProps: initialProps || w.initialProps 
+          } : w);
         }
       }
 
@@ -699,7 +710,7 @@ export default function App() {
       }
 
       const instanceId = `${id}-${Date.now()}`;
-      setHighestZIndex(z => z + 1);
+      setHighestZIndex(nextZIndex);
       setActiveWindowId(instanceId);
       setShowDash(false);
       
@@ -709,7 +720,7 @@ export default function App() {
         isOpen: true, 
         isMinimized: false, 
         isMaximized: false, 
-        zIndex: highestZIndex + 1,
+        zIndex: nextZIndex,
         instanceNumber,
         morphFromId,
         initialProps
@@ -789,11 +800,11 @@ export default function App() {
   const renderAppContent = (id: AppView, instanceId: string, initialProps?: any) => {
     switch (id) {
       case 'console':
-        return <ConsoleApp />;
+        return <ConsoleApp connectionId={initialProps?.connectionId || 'shared'} />;
       case 'eeprom':
-        return <EepromApp />;
+        return <EepromApp connectionId={initialProps?.connectionId} />;
       case 'rfid':
-        return <RfidApp />;
+        return <RfidApp connectionId={initialProps?.connectionId} />;
       case 'binary':
         return <BinaryApp />;
       case 'cyphonator':
@@ -1357,7 +1368,7 @@ export default function App() {
             const appInfo = APPS.find(a => a.id === win.appId);
             if (!appInfo) return null;
             
-            const isSingleton = win.appId === 'console' || win.appId === 'settings' || win.appId === 'admin' || win.appId === 'flasher';
+            const isSingleton = win.appId === 'settings' || win.appId === 'admin' || win.appId === 'flasher';
             const title = isSingleton ? appInfo.label : `${appInfo.label} - ${win.instanceNumber}`;
 
             return (

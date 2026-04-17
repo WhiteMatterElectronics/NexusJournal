@@ -14,14 +14,39 @@ const InventoryContext = createContext<InventoryContextType | undefined>(undefin
 export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [items, setItems] = useState<InventoryItem[]>(() => {
     const saved = localStorage.getItem('hw_inventory_items');
+    let loadedItems: InventoryItem[] = [];
     if (saved) {
       try {
-        return JSON.parse(saved);
+        loadedItems = JSON.parse(saved);
       } catch (e) {
         console.error("Failed to parse inventory items", e);
       }
     }
-    return [];
+
+    // Default Inventory Templates
+    const defaultItems: InventoryItem[] = [
+      {
+        id: 'hs-01',
+        name: 'HomeSec v2 Development Board',
+        description: 'Advanced silicon research board with ATmega328P core. Integrates MFRC522 protocol stack, 64Kb I2C EEPROM, and a parasitic ATtiny44 sub-processor. Designed for high-stakes decryption challenges.',
+        images: ['https://picsum.photos/seed/homesec_board/400/400'],
+        stock: 5,
+        category: 'challenge',
+        type: 'hardware'
+      },
+      {
+        id: 'esp-asst',
+        name: 'ESP32 Research Assistant',
+        description: 'The "Swiss Army Knife" of bus hacking. Used to bridge the HomeSec Vault to the central workstation. Enables protocol sniffing and manual buffer injection.',
+        images: ['https://picsum.photos/seed/esp32_hacking/400/400'],
+        stock: 10,
+        category: 'tool',
+        type: 'hardware'
+      }
+    ];
+
+    const otherItems = loadedItems.filter(li => !defaultItems.find(di => di.id === li.id));
+    return [...defaultItems, ...otherItems];
   });
 
   useEffect(() => {
