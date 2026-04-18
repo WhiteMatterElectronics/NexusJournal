@@ -1,6 +1,6 @@
 # Electron Assistant (formerly NexusJournal)
 
-The Electron Assistant is a comprehensive hardware and software platform designed to streamline your embedded development and hardware hacking workflow. At its core, it consists of a custom PCB powered by the ESP32-C3 microcontroller, seamlessly integrated with a powerful web-based interactive console.
+The Electron Assistant is a comprehensive hardware and software platform designed to streamline your embedded development and hardware hacking workflow. At its core, it consists of a custom PCB powered by the ESP32-C3 microcontroller, seamlessly integrated with a powerful web-based interactive console. This is alpha version, expect some bugs, or some inconsistencies in the ui/flow.
 
 ## ⚠️ Licensing & Usage Restrictions
 
