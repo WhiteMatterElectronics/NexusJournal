@@ -10,7 +10,7 @@ import { TutorialDetail } from './components/TutorialDetail';
 import { FlashModule } from './components/FlashModule';
 import { SystemConfig } from './components/SystemConfig';
 import { AppView, Tutorial } from './types';
-import { Settings, BookOpen, Zap, Terminal, Database, Radio, FileCode, Lock, Unlock, Activity, Cloud, ChevronRight, Layout, Plus, Monitor, RotateCcw, Power, Trash2, Info, Folder, FileText, FileDown, Image as ImageIcon, Video, File, Share2 } from 'lucide-react';
+import { Settings, BookOpen, Zap, Terminal, Database, Radio, FileCode, Lock, Unlock, Activity, Cloud, ChevronRight, Layout, Plus, Monitor, RotateCcw, Power, Trash2, Info, Folder, FileText, FileDown, Image as ImageIcon, Video, File, Share2, X } from 'lucide-react';
 import { Window } from './components/os/Window';
 import { Taskbar } from './components/os/Taskbar';
 import { ConsoleApp } from './components/apps/ConsoleApp';
@@ -58,6 +58,53 @@ const REFERENCE_ROWS = 7;
 const MIN_CELL_WIDTH = 100;
 const MIN_CELL_HEIGHT = 100;
 
+function AppIcon({ 
+  Icon, 
+  theme, 
+  size = 24, 
+  className = "", 
+  appId = "" 
+}: { 
+  Icon: any, 
+  theme: any, 
+  size?: number, 
+  className?: string,
+  appId?: string
+}) {
+  const iconStyle = theme.iconStyle || 'classic';
+  
+  const styleMap: any = {
+    glassy: "rounded-xl bg-white/10 backdrop-blur-md border border-white/20 shadow-lg",
+    retro: "rounded-lg bg-hw-blue/10 border border-hw-blue/20",
+    minimal: "rounded-lg bg-transparent border-none",
+    isometric: "icon-isometric rounded-lg bg-hw-blue/10 border border-hw-blue/20",
+    'flat-outline': "icon-flat-outline rounded-lg border-2 border-hw-blue",
+    neon: "icon-neon rounded-lg",
+    sketch: "icon-sketch rounded-lg",
+    hologram: "icon-hologram rounded-lg",
+    pixel: "icon-pixel",
+    brutalist: "icon-brutalist",
+    clay: "icon-clay",
+    gradient: "icon-gradient rounded-xl",
+    monochrome: "icon-monochrome rounded-lg",
+    skeuo: "icon-skeuo",
+    glassmorphic: "icon-glassmorphic",
+    liquid: "icon-liquid",
+    retrotv: "icon-retrotv",
+    glitch: "icon-glitch rounded-lg"
+  };
+
+  return (
+    <div className={cn(
+      "flex items-center justify-center transition-all duration-300 overflow-hidden",
+      styleMap[iconStyle] || styleMap.retro,
+      className
+    )}>
+       <Icon size={size} className="transition-colors drop-shadow-sm" />
+    </div>
+  );
+}
+
 function DesktopIcon({ 
   app, 
   gridPos, 
@@ -96,7 +143,7 @@ function DesktopIcon({
   const Icon = isShortcut ? getShortcutIcon(app.category, app.type) : app.icon;
 
   const desktopRect = desktopRef.current?.getBoundingClientRect();
-  
+
   const style: React.CSSProperties = isDragging ? {
     position: 'absolute',
     left: currentMousePos.x - dragOffset.x - (desktopRect?.left || 0),
@@ -112,79 +159,6 @@ function DesktopIcon({
     width: `${100 / gridSize.cols}%`,
     height: `${100 / gridSize.rows}%`,
   };
-
-  const appIconTheme = theme.iconThemes?.[app.id] || theme.iconTheme || 'classic';
-
-  const getThemeStyles = () => {
-    switch (appIconTheme) {
-      case 'neon':
-        return {
-          container: cn(
-            "bg-transparent border-2 rounded-lg",
-            isDragging ? "border-white" : "border-hw-blue/40"
-          ),
-          inner: {
-            boxShadow: `0 0 15px ${mainColor}44, inset 0 0 10px ${mainColor}22`,
-            borderColor: mainColor
-          },
-          icon: {
-            filter: `drop-shadow(0 0 5px ${mainColor})`
-          }
-        };
-      case 'minimal':
-        return {
-          container: "bg-transparent border-none",
-          inner: {
-            boxShadow: 'none',
-            backdropFilter: 'none'
-          },
-          icon: {
-            filter: `drop-shadow(0 2px 4px rgba(0,0,0,0.5))`
-          }
-        };
-      case 'glass':
-        return {
-          container: "bg-white/10 backdrop-blur-xl border border-white/30 rounded-3xl",
-          inner: {
-            boxShadow: `0 8px 32px 0 rgba(31, 38, 135, 0.37)`,
-          },
-          icon: {
-            filter: `drop-shadow(0 0 8px ${mainColor}66)`
-          }
-        };
-      case 'pixel':
-        return {
-          container: "bg-hw-blue border-2 border-white rounded-none",
-          inner: {
-            boxShadow: '4px 4px 0px rgba(0,0,0,0.5)',
-            borderRadius: '0'
-          },
-          icon: {
-            filter: 'none',
-            color: '#ffffff'
-          }
-        };
-      case 'classic':
-      default:
-        return {
-          container: cn(
-            isGlassy 
-              ? "bg-white/10 border border-white/20 rounded-2xl" 
-              : "bg-black/40 border-2 border-hw-blue/40 rounded-none shadow-[4px_4px_0px_rgba(0,0,0,0.5)]"
-          ),
-          inner: {
-            backdropFilter: isGlassy ? 'blur(10px)' : 'none',
-            boxShadow: isDragging ? `0 0 30px ${mainColor}66` : isGlassy ? `0 0 15px ${mainColor}22` : 'none',
-            borderColor: isGlassy ? undefined : isDragging ? mainColor : `${mainColor}66`
-          },
-          icon: {
-            filter: isGlassy ? `drop-shadow(0 0 8px ${mainColor}44)` : 'none'
-          }
-        };
-    }
-  };
-
-  const themeStyles = getThemeStyles();
 
   return (
     <motion.div
@@ -209,7 +183,6 @@ function DesktopIcon({
       <div 
         className={cn(
           "relative flex items-center justify-center p-2.5 transition-all duration-300 shrink-0",
-          themeStyles.container,
           isDragging && (isGlassy ? "bg-white/30" : "bg-black/80 border-hw-blue")
         )}
         style={{ 
@@ -217,7 +190,6 @@ function DesktopIcon({
           height: `calc(${theme.desktopGridSize * 0.6}px * var(--desktop-icon-scale))`,
           maxWidth: '95%',
           maxHeight: '95%',
-          ...themeStyles.inner
         }}
       >
         <motion.div
@@ -233,12 +205,12 @@ function DesktopIcon({
           }}
           className="w-full h-full flex items-center justify-center"
         >
-          <Icon 
-            className={cn("w-1/2 h-1/2 transition-colors", !isGlassy && "drop-shadow-none")} 
-            style={{ 
-              color: appIconTheme === 'pixel' ? '#ffffff' : isGlassy ? (isDark ? mainColor : adjustColor(mainColor, -40)) : mainColor,
-              ...themeStyles.icon
-            }}
+          <AppIcon 
+            Icon={Icon} 
+            theme={theme} 
+            size={24} 
+            appId={app.id}
+            className="w-full h-full drop-shadow-sm" 
           />
         </motion.div>
 
@@ -1337,56 +1309,74 @@ export default function App() {
 
       {/* Dash Panel (Ubuntu-style overflow) */}
       {showDash && (
-        <div className="absolute inset-0 z-[100] flex items-center justify-center p-6">
+        <div className="absolute inset-0 z-[1000] flex items-center justify-center p-6">
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm" 
+            className="absolute inset-0 bg-black/60 backdrop-blur-md" 
             onClick={() => setShowDash(false)} 
           />
           <motion.div 
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             className={cn(
-              "relative w-full max-w-3xl max-h-[80vh] overflow-y-auto p-10 border shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col items-center custom-scrollbar",
-              theme.globalTheme === 'glassy' ? "rounded-[2.5rem] bg-hw-black/70 border-white/10" : "rounded-sm bg-hw-black border-hw-blue/20"
+              "relative w-full max-w-4xl max-h-[85vh] overflow-hidden p-8 border shadow-[0_0_50px_rgba(0,0,0,0.8)] flex flex-col items-center",
+              theme.globalTheme === 'glassy' ? "rounded-[3rem] bg-hw-black/80 border-white/20" : "rounded-sm bg-hw-black border-hw-blue/30"
             )}
             style={{ backdropFilter: 'var(--theme-backdrop-filter)' }}
           >
             <button 
               onClick={() => setShowDash(false)}
-              className="absolute top-8 right-8 text-hw-blue/30 hover:text-hw-blue transition-colors"
+              className="absolute top-6 right-6 p-2 rounded-full hover:bg-white/10 text-hw-blue/50 hover:text-hw-blue transition-all z-10"
             >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              <X size={24} />
             </button>
             
-            <div className="text-hw-blue text-2xl font-bold mb-12 tracking-[0.3em] uppercase opacity-60">Applications</div>
+            <div className="text-hw-blue text-3xl font-black mb-10 tracking-[0.4em] uppercase opacity-40 select-none text-center px-10 truncate max-w-full">
+              {profile.dashName}
+            </div>
             
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-x-8 gap-y-12 w-full h-full overflow-y-auto custom-scrollbar pr-4">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-x-6 gap-y-10 w-full overflow-y-auto custom-scrollbar px-6 pb-6">
               {[...APPS.filter(app => app.id !== 'properties'), ...(theme.shortcuts || [])].map((app, index) => {
                 const isShortcut = !('icon' in app);
                 const Icon = isShortcut ? (app.type === 'folder' ? Folder : (app.category === 'note' ? FileText : (app.category === 'tutorial' ? FileCode : (app.category === 'pdf' ? FileDown : (app.category === 'image' ? ImageIcon : (app.category === 'video' ? Video : File)))))) : app.icon;
+                
+                // Dash icon is 20% bigger than desktop icon dynamically
+                const dashIconSize = theme.desktopGridSize * 0.72;
+                
                 return (
                   <motion.div
                     key={`dash-${'icon' in app ? app.id : `shortcut-${app.id}`}-${index}`}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
                     transition={{ 
-                      duration: 0.15,
-                      ease: "easeOut"
+                      delay: index * 0.02,
+                      duration: 0.2
                     }}
-                    onClick={() => handleStartApp('icon' in app ? (app.id as AppView) : app.id as AppView)}
-                    className="flex flex-col items-center gap-4 cursor-pointer group"
-                    whileHover={{ scale: 1.1 }}
+                    onClick={() => {
+                       handleStartApp('icon' in app ? (app.id as AppView) : (app as any).targetId || app.id as AppView);
+                       setShowDash(false);
+                    }}
+                    className="flex flex-col items-center gap-3 cursor-pointer group"
+                    whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                   >
-                    <div className={cn(
-                      "w-20 h-20 flex items-center justify-center transition-all duration-300 shadow-lg group-hover:shadow-[0_0_30px_rgba(0,242,255,0.1)] group-hover:scale-110",
-                      theme.iconStyle === 'glassy' ? "rounded-2xl bg-white/10 border border-white/20 backdrop-blur-md" : 
-                      theme.iconStyle === 'minimal' ? "rounded-lg bg-transparent border-none" :
-                      "rounded-3xl bg-hw-blue/5 border border-hw-blue/10"
-                    )}>
-                      <Icon size={32} className="text-hw-blue/70 group-hover:text-hw-blue transition-colors" />
+                    <div 
+                      className="relative transition-all duration-300"
+                      style={{
+                        width: `calc(${dashIconSize}px * var(--desktop-icon-scale))`,
+                        height: `calc(${dashIconSize}px * var(--desktop-icon-scale))`,
+                      }}
+                    >
+                      <AppIcon 
+                        Icon={Icon} 
+                        theme={theme} 
+                        size={dashIconSize * 0.4} 
+                        appId={'icon' in app ? app.id : app.id}
+                        className="w-full h-full shadow-2xl group-hover:shadow-[0_0_30px_var(--theme-main)]"
+                      />
                     </div>
-                    <span className="text-[10px] font-bold text-center text-hw-blue/70 group-hover:text-hw-blue uppercase tracking-widest drop-shadow-md truncate w-full px-2 mt-2">
+                    <span className="text-[10px] font-bold text-center text-hw-blue/60 group-hover:text-hw-blue uppercase tracking-widest truncate w-full px-1">
                       {app.label.replace('_', ' ')}
                     </span>
                   </motion.div>

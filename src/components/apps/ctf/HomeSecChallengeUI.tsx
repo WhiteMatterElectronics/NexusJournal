@@ -68,7 +68,7 @@ export const HomeSecChallengeUI: React.FC<HomeSecChallengeUIProps> = ({ challeng
     if (termRef.current && !termInstance.current) {
       const term = new Terminal({
         cursorBlink: true,
-        theme: { background: 'transparent', foreground: '#00f2ff', cursor: '#00f2ff', selection: '#004455' },
+        theme: { background: 'transparent', foreground: '#00f2ff', cursor: '#00f2ff' },
         fontSize: 11,
         fontFamily: '"JetBrains Mono", monospace',
         convertEol: true,

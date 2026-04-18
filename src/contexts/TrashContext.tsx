@@ -11,18 +11,32 @@ interface TrashContextType {
 const TrashContext = createContext<TrashContextType | undefined>(undefined);
 
 export const TrashProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [trashedItems, setTrashedItems] = useState<FileSystemItem[]>([]);
+  const [trashedItems, setTrashedItems] = useState<FileSystemItem[]>(() => {
+    const saved = localStorage.getItem('hw_os_trash');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const saveTrash = (items: FileSystemItem[]) => {
+    setTrashedItems(items);
+    localStorage.setItem('hw_os_trash', JSON.stringify(items));
+    window.dispatchEvent(new CustomEvent('hw_os_trash_updated', { detail: items }));
+  };
 
   const trashFile = (item: FileSystemItem) => {
-    setTrashedItems(prev => [...prev, { ...item, parentId: 'trash' }]);
+    const newItem = { ...item, originalParentId: item.parentId, trashedAt: Date.now() };
+    saveTrash([...trashedItems, newItem]);
   };
 
   const restoreFile = (itemId: string) => {
-    setTrashedItems(prev => prev.filter(item => item.id !== itemId));
+    const item = trashedItems.find(i => i.id === itemId);
+    if (item) {
+      window.dispatchEvent(new CustomEvent('hw_os_restore_file', { detail: item }));
+      saveTrash(trashedItems.filter(i => i.id !== itemId));
+    }
   };
 
   const clearTrash = () => {
-    setTrashedItems([]);
+    saveTrash([]);
   };
 
   return (

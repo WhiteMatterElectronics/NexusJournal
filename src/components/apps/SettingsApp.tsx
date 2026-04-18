@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, Monitor, Save, Layout, Palette, RotateCcw, Box, Shield, Moon, Sun, EyeOff, Camera, Trash2, Layers, Plus, Clock, Globe, Cpu, Zap } from 'lucide-react';
-import { useSettings, defaultGranular, ThemeMode, GranularColors } from '../../contexts/SettingsContext';
+import { useSettings, defaultGranular, ThemeMode, ThemeBase, GranularColors } from '../../contexts/SettingsContext';
 import { cn, adjustColor } from '../../lib/utils';
 import { WIDGET_REGISTRY } from '../../widgets/registry';
 import { ThemeConfig } from '../../contexts/SettingsContext';
@@ -24,6 +24,8 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile'
 
   // Profile State
   const [name, setName] = useState(profile.name);
+  const [osName, setOsName] = useState(profile.osName);
+  const [dashName, setDashName] = useState(profile.dashName);
   const [oldPassword, setOldPassword] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -61,7 +63,7 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile'
     } else if (oldPassword && !password) {
       hash = '';
     }
-    updateProfile({ name, passwordHash: hash });
+    updateProfile({ name, osName, dashName, passwordHash: hash });
     setProfileMsg('Profile saved successfully.');
     setOldPassword('');
     setPassword('');
@@ -113,6 +115,41 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile'
       });
       
       finalUpdates.granularSettings = newGranular;
+    }
+
+    // If changing selectedMode, toggle appropriate architecture settings
+    if (updates.selectedMode) {
+      finalUpdates.useGranular = true;
+      const base = updates.selectedMode as ThemeBase;
+      const isDark = (updates.isDarkMode !== undefined) ? updates.isDarkMode : localTheme.isDarkMode;
+      const modeKey = `${base}_${isDark ? 'dark' : 'light'}` as ThemeMode;
+      
+      const granular = localTheme.granularSettings[modeKey] || defaultGranular[modeKey];
+      if (granular) {
+        finalUpdates.mainColor = granular.accentColor;
+        finalUpdates.terminalColor = granular.accentColor;
+      }
+      
+      if (base === 'retro') {
+        finalUpdates.globalTheme = 'retro';
+      } else if (base === 'glassy') {
+        finalUpdates.globalTheme = 'glassy';
+      } else if (base === 'pastel') {
+        finalUpdates.globalTheme = 'glassy';
+      } else {
+        finalUpdates.globalTheme = 'retro';
+      }
+    }
+
+    // When changing dark mode, if on a preset, we need to ensure mainColor/terminalColor update to the new mode's accent
+    if (updates.isDarkMode !== undefined && localTheme.selectedMode) {
+       const isDark = updates.isDarkMode;
+       const modeKey = `${localTheme.selectedMode}_${isDark ? 'dark' : 'light'}` as ThemeMode;
+       const granular = localTheme.granularSettings[modeKey] || defaultGranular[modeKey];
+       if (granular) {
+         finalUpdates.mainColor = granular.accentColor;
+         finalUpdates.terminalColor = granular.accentColor;
+       }
     }
 
     const newTheme = { ...localTheme, ...finalUpdates };
@@ -186,6 +223,26 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile'
                   type="text"
                   value={name}
                   onChange={e => setName(e.target.value)}
+                  className="w-full bg-hw-blue/5 border border-hw-blue/20 p-2 text-xs outline-none focus:border-hw-blue mb-4"
+                  style={{ color: 'var(--theme-text)', borderColor: 'var(--theme-border-color)' }}
+                />
+
+                <label className="block text-[10px] font-bold uppercase tracking-widest mb-1 opacity-60">OS Branding Name</label>
+                <input
+                  type="text"
+                  value={osName}
+                  onChange={e => setOsName(e.target.value)}
+                  placeholder="e.g. NEXUS_JOURNAL"
+                  className="w-full bg-hw-blue/5 border border-hw-blue/20 p-2 text-xs outline-none focus:border-hw-blue mb-4"
+                  style={{ color: 'var(--theme-text)', borderColor: 'var(--theme-border-color)' }}
+                />
+
+                <label className="block text-[10px] font-bold uppercase tracking-widest mb-1 opacity-60">Dash Title</label>
+                <input
+                  type="text"
+                  value={dashName}
+                  onChange={e => setDashName(e.target.value)}
+                  placeholder="e.g. Nexus Dash"
                   className="w-full bg-hw-blue/5 border border-hw-blue/20 p-2 text-xs outline-none focus:border-hw-blue"
                   style={{ color: 'var(--theme-text)', borderColor: 'var(--theme-border-color)' }}
                 />
@@ -380,9 +437,24 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile'
                       className="bg-hw-black border border-hw-blue/30 text-[10px] font-bold uppercase tracking-widest p-2 outline-none focus:border-hw-blue transition-colors min-w-[120px]"
                       style={{ color: 'var(--theme-text)' }}
                     >
-                      <option value="retro" className="bg-hw-black">Retro</option>
+                      <option value="retro" className="bg-hw-black">Classic Retro</option>
                       <option value="glassy" className="bg-hw-black">Glassy</option>
                       <option value="minimal" className="bg-hw-black">Minimalist</option>
+                      <option value="isometric" className="bg-hw-black">Isometric 3D</option>
+                      <option value="flat-outline" className="bg-hw-black">Flat Outline</option>
+                      <option value="neon" className="bg-hw-black">Neon Glow</option>
+                      <option value="sketch" className="bg-hw-black">Hand Drawn</option>
+                      <option value="hologram" className="bg-hw-black">Holographic</option>
+                      <option value="pixel" className="bg-hw-black">Pixel Art</option>
+                      <option value="brutalist" className="bg-hw-black">Brutalist</option>
+                      <option value="clay" className="bg-hw-black">Claymorphism</option>
+                      <option value="gradient" className="bg-hw-black">Modern Gradient</option>
+                      <option value="monochrome" className="bg-hw-black">Monochrome</option>
+                      <option value="skeuo" className="bg-hw-black">Realistic Skeuomorphic</option>
+                      <option value="glassmorphic" className="bg-hw-black">Ultra Glassmorphism</option>
+                      <option value="liquid" className="bg-hw-black">Animated Liquid</option>
+                      <option value="retrotv" className="bg-hw-black">CRT Retro TV</option>
+                      <option value="glitch" className="bg-hw-black">Cyber Glitch</option>
                     </select>
                   </div>
 
@@ -492,35 +564,60 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile'
             </h2>
             
             <div className="space-y-8">
-              {/* Global Theme & Mode */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4 p-4 bg-hw-blue/5 border border-hw-blue/10 rounded-lg" style={{ borderColor: 'var(--theme-border-color)' }}>
-                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-hw-blue mb-2">Global Style</h3>
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer group">
-                      <input
-                        type="radio"
-                        name="globalTheme"
-                        value="retro"
-                        checked={localTheme.globalTheme === 'retro'}
-                        onChange={() => handleUpdateLocalTheme({ globalTheme: 'retro' })}
-                        className="accent-hw-blue"
-                      />
-                      <span className="text-[10px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100">Retro Terminal</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer group">
-                      <input
-                        type="radio"
-                        name="globalTheme"
-                        value="glassy"
-                        checked={localTheme.globalTheme === 'glassy'}
-                        onChange={() => handleUpdateLocalTheme({ globalTheme: 'glassy' })}
-                        className="accent-hw-blue"
-                      />
-                      <span className="text-[10px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100">Modern Glassy</span>
-                    </label>
+              {/* Master Theme Profile */}
+              <div className="space-y-4 p-4 bg-hw-blue/5 border border-hw-blue/10 rounded-lg" style={{ borderColor: 'var(--theme-border-color)' }}>
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-hw-blue mb-4">Master Theme Profile</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-2">
+                     <span className="text-[9px] uppercase tracking-widest opacity-40">Preset Library</span>
+                     <select 
+                       value={localTheme.selectedMode}
+                       onChange={(e) => {
+                         const base = e.target.value as ThemeBase;
+                         handleUpdateLocalTheme({ selectedMode: base });
+                       }}
+                       className="bg-hw-black border border-hw-blue/30 text-[10px] font-bold uppercase tracking-widest p-2 outline-none focus:border-hw-blue transition-colors"
+                       style={{ color: 'var(--theme-text)' }}
+                     >
+                       <option value="retro">Standard Retro</option>
+                       <option value="glassy">Modern Glassy</option>
+                       <option value="synthwave">Synthwave Neon</option>
+                       <option value="nord">Nord Arctic</option>
+                       <option value="luxury">Luxury Gold</option>
+                       <option value="matrix">Matrix Digital</option>
+                       <option value="pastel">Pastel Organic</option>
+                     </select>
+                  </div>
+                  
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[9px] uppercase tracking-widest opacity-40">Architecture</span>
+                    <div className="flex items-center gap-4 h-full">
+                      <label className="flex items-center gap-2 cursor-pointer group">
+                        <input
+                          type="radio"
+                          name="globalTheme"
+                          value="retro"
+                          checked={localTheme.globalTheme === 'retro'}
+                          onChange={() => handleUpdateLocalTheme({ globalTheme: 'retro' })}
+                          className="accent-hw-blue"
+                        />
+                        <span className="text-[10px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100">Retro</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer group">
+                        <input
+                          type="radio"
+                          name="globalTheme"
+                          value="glassy"
+                          checked={localTheme.globalTheme === 'glassy'}
+                          onChange={() => handleUpdateLocalTheme({ globalTheme: 'glassy' })}
+                          className="accent-hw-blue"
+                        />
+                        <span className="text-[10px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100">Glassy</span>
+                      </label>
+                    </div>
                   </div>
                 </div>
+              </div>
 
                 <div className="space-y-4 p-4 bg-hw-blue/5 border border-hw-blue/10 rounded-lg" style={{ borderColor: 'var(--theme-border-color)' }}>
                   <h3 className="text-[10px] font-bold uppercase tracking-widest text-hw-blue mb-2">Color Mode</h3>
@@ -557,31 +654,28 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile'
                     </label>
                   </div>
                 </div>
-              </div>
 
-              {/* Base Theme Color */}
-              {!localTheme.useGranular && (
-                <div className="space-y-4 p-4 bg-hw-blue/5 border border-hw-blue/10 rounded-lg" style={{ borderColor: 'var(--theme-border-color)' }}>
-                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-hw-blue mb-4">Base Theme Color</h3>
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-3 p-2 bg-hw-blue/10 rounded-lg border border-hw-blue/20">
-                      <input
-                        type="color"
-                        value={localTheme.mainColor}
-                        onChange={e => handleUpdateLocalTheme({ mainColor: e.target.value, terminalColor: e.target.value })}
-                        className="w-10 h-10 bg-transparent border-none cursor-pointer"
-                      />
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-mono uppercase">{localTheme.mainColor}</span>
-                        <span className="text-[8px] opacity-40 uppercase tracking-widest">Primary Accent</span>
-                      </div>
-                    </div>
-                    <div className="flex-1 text-[9px] opacity-40 uppercase tracking-widest leading-relaxed">
-                      This color will be applied to borders, text, and primary UI elements across the entire system.
+              {/* Base Theme Color - Always Visible */}
+              <div className="space-y-4 p-4 bg-hw-blue/5 border border-hw-blue/10 rounded-lg" style={{ borderColor: 'var(--theme-border-color)' }}>
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-hw-blue mb-4">Base Theme Accent Color</h3>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3 p-2 bg-hw-blue/10 rounded-lg border border-hw-blue/20">
+                    <input
+                      type="color"
+                      value={localTheme.mainColor}
+                      onChange={e => handleUpdateLocalTheme({ mainColor: e.target.value, terminalColor: e.target.value })}
+                      className="w-10 h-10 bg-transparent border-none cursor-pointer"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-mono uppercase">{localTheme.mainColor}</span>
+                      <span className="text-[8px] opacity-40 uppercase tracking-widest">Main Accent</span>
                     </div>
                   </div>
+                  <div className="flex-1 text-[9px] opacity-40 uppercase tracking-widest leading-relaxed">
+                    Set a custom accent color for the entire system. This color will be applied to borders, text, and primary UI elements across the entire system.
+                  </div>
                 </div>
-              )}
+              </div>
 
               {/* Glassy Settings */}
               {localTheme.globalTheme === 'glassy' && (
@@ -626,7 +720,10 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile'
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {(['retro_dark', 'retro_light', 'glassy_dark', 'glassy_light'] as ThemeMode[]).map(mode => (
+                  {([
+                    `${localTheme.selectedMode || 'retro'}_dark`, 
+                    `${localTheme.selectedMode || 'retro'}_light`
+                  ] as ThemeMode[]).map(mode => (
                     <div key={mode} className={cn(
                       "space-y-4 p-4 bg-hw-blue/5 border rounded-lg transition-opacity",
                       !localTheme.useGranular && "opacity-40 grayscale pointer-events-none"

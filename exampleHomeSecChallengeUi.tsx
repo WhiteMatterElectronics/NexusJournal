@@ -61,7 +61,7 @@ const useSerial = (id) => {
 const useInventory = () => ({ items: [] });
 
 export default function App() {
-  return <CtfChallengeApp challengeId="ctf-homesec-01" />;
+  return <CtfChallengeApp challengeId="ctf-homesec-01" onStartApp={() => {}} />;
 }
 
 export const CtfChallengeApp = ({ challengeId, onStartApp }) => {

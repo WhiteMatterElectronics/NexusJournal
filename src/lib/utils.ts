@@ -17,9 +17,23 @@ export function getLuminance(hex: string) {
   return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
 }
 
-export function getContrastColor(hex: string) {
-  if (!hex || hex.length < 7) return '#ffffff';
-  const luminance = getLuminance(hex);
+export function getContrastColor(color: string) {
+  if (!color) return '#ffffff';
+  
+  if (color.startsWith('rgba') || color.startsWith('rgb')) {
+    const values = color.match(/\d+/g);
+    if (values && values.length >= 3) {
+      const r = parseInt(values[0]);
+      const g = parseInt(values[1]);
+      const b = parseInt(values[2]);
+      const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      return luminance > 0.5 ? '#000000' : '#ffffff';
+    }
+    return '#ffffff';
+  }
+
+  if (color.length < 7) return '#ffffff';
+  const luminance = getLuminance(color);
   return luminance > 0.5 ? '#000000' : '#ffffff';
 }
 

@@ -192,6 +192,22 @@ export const MyFilesApp: React.FC = () => {
     return () => window.removeEventListener('hw_os_update_file', handleUpdateFile);
   }, []);
 
+  // Listen for file restorations from Trash
+  useEffect(() => {
+    const handleRestoreFile = (e: any) => {
+      const item = e.detail;
+      setItems(prev => {
+        // Only add if it doesn't already exist
+        if (prev.find(i => i.id === item.id)) return prev;
+        const next = [...prev, { ...item, parentId: item.originalParentId || 'root' }];
+        localStorage.setItem('hw_os_fs', JSON.stringify(next));
+        return next;
+      });
+    };
+    window.addEventListener('hw_os_restore_file', handleRestoreFile);
+    return () => window.removeEventListener('hw_os_restore_file', handleRestoreFile);
+  }, []);
+
   // Host Machine Connection
   const connectHost = async () => {
     if (!('showDirectoryPicker' in window)) {
@@ -435,7 +451,7 @@ export const MyFilesApp: React.FC = () => {
     if (!forceAppId && !item.defaultApp) {
       if (item.extension === 'note' || item.category === 'note') appId = 'notes';
       else if (item.extension === 'tutorial' || item.category === 'tutorial') appId = 'tutorials';
-      else if (item.category === 'image') appId = 'browser';
+      else if (item.category === 'image') appId = 'text_editor';
     }
 
     window.dispatchEvent(new CustomEvent('hw_os_open_app', { 

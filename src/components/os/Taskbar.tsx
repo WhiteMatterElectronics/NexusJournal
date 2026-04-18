@@ -46,6 +46,7 @@ export const Taskbar: React.FC<TaskbarProps> = ({
   onContextMenu,
   timeConfig = { source: 'auto', manualOffset: 0, showSeconds: true, is24Hour: true }
 }) => {
+  const { profile } = useSettings();
   const [isStartOpen, setIsStartOpen] = useState(false);
   const [time, setTime] = useState(new Date());
   const [hoveredAppId, setHoveredAppId] = useState<string | null>(null);
@@ -143,7 +144,7 @@ export const Taskbar: React.FC<TaskbarProps> = ({
                   <Cpu className="w-5 h-5 text-hw-blue" />
                 </div>
                 <div>
-                  <h1 className="font-black text-sm tracking-tighter leading-none text-hw-blue">NEXUS_JOURNAL</h1>
+                  <h1 className="font-black text-sm tracking-tighter leading-none text-hw-blue truncate max-w-[150px]">{profile.osName}</h1>
                   <span className="text-[8px] text-hw-blue/40 uppercase tracking-widest">v1.0.0-arch</span>
                 </div>
               </div>
