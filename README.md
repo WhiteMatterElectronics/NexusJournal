@@ -81,7 +81,48 @@ npm run dev
 
 The terminal will provide a local URL (typically `http://localhost:3000`). Open this URL in your Chromium-based browser. The SQLite database (`nexus_journal.db`) will be automatically created and populated with default hardware tutorials on the first run.
 
+---
+
+## 🚀 First Tutorial: Flashing Your Firmware
+
+To use the hardware functionalities, you must first upload the compiled firmware (`.bin` file) to your ESP32-C3 device. You can do this through our built-in Web Interface or manually using `esptool`.
+
+### Method 1: Using the Built-In Web Interface (Recommended)
+
+1. **Upload Firmware to the Database:**
+   - Open the web platform (e.g., `http://localhost:3000`).
+   - Launch the **System Config** app from the desktop.
+   - Navigate to the **Web Firmware Loader** tab.
+   - Fill in the firmware name, version, and target (e.g., ESP32-C3).
+   - Select your `.bin` firmware file and click **UPLOAD FIRMWARE**.
+   - *(Note: Your firmware is now securely saved in the local SQLite database and protected from development reloads).*
+
+2. **Deploy to Device:**
+   - Launch the **Flash Module** application from the dashboard.
+   - In the **Firmware Selection** panel, select the firmware you just uploaded.
+   - In the **Serial Configuration** panel, set your Baud Rate (default: `115200`), click **SELECT PORT**, and grant Chrome permission to connect to your ESP32's USB/COM port.
+   - Put your device into Bootloader mode (Hold `BOOT`, press `RESET`, release `BOOT`).
+   - Click **EXECUTE FLASH** and wait for the successful deployment message.
+
+### Method 2: Manual Upload (esptool)
+
+If you prefer the command line, you can flash the provided `.bin` file directly using `esptool`.
+
+1. **Install esptool:**
+   Ensure you have Python installed, then run:
+   ```bash
+   pip install esptool
+   ```
+2. **Flash the Binary:**
+   Connect your ESP32-C3 device via USB, put it in bootloader mode, and run the following command (replace `<PORT>` with your actual port, e.g., `COM3` or `/dev/ttyUSB0`, and `<firmware_file>` with your actual `.bin` filename):
+   ```bash
+   esptool.py -p <PORT> -b 115200 --before default_reset --after hard_reset write_flash --flash_mode dio --flash_size detect --flash_freq 40m 0x0 <firmware_file>.bin
+   ```
+
+---
+
 ## Building for Production
+
 
 To compile an optimized build of the application:
 ```bash
