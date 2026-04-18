@@ -52,8 +52,8 @@ You **MUST** use a Chromium-based browser (Google Chrome, Microsoft Edge, Opera,
 Open your terminal or Git bash and run the following commands to download the code:
 
 ```bash
-git clone https://github.com/your-username/electron-assistant.git
-cd electron-assistant
+git clone https://github.com/WhiteMatterElectronics/NexusJournal.git
+cd nexus-journal
 ```
 *(Note: Replace the URL with your actual repository URL)*
 
