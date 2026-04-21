@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, useDragControls, useMotionValue } from 'motion/react';
-import { X, Minus, Square, Minimize2 } from 'lucide-react';
+import { X, Minus, Square, Minimize2, Info } from 'lucide-react';
 import { cn, getContrastColor } from '../../lib/utils';
+import { InfoCard } from './InfoCard';
 
 interface WindowProps {
   id: string;
+  appId?: string;
   title: string;
   icon: React.ElementType;
   isOpen: boolean;
@@ -33,6 +35,7 @@ interface WindowProps {
 
 export const Window: React.FC<WindowProps> = ({
   id,
+  appId,
   title,
   icon: Icon,
   isOpen,
@@ -59,6 +62,7 @@ export const Window: React.FC<WindowProps> = ({
   morphFromId
 }) => {
   const dragControls = useDragControls();
+  const [showInfo, setShowInfo] = useState(false);
   const [bounds, setBounds] = useState({ 
     width: defaultSize.width, 
     height: defaultSize.height,
@@ -264,6 +268,16 @@ export const Window: React.FC<WindowProps> = ({
           className="flex items-center gap-1"
           onPointerDown={(e) => e.stopPropagation()}
         >
+          {appId && (
+            <button 
+              onClick={(e) => { e.stopPropagation(); setShowInfo(!showInfo); }} 
+              className={cn("p-1.5 transition-colors", globalTheme === 'glassy' && "hover:bg-white/10 rounded-lg", showInfo && "bg-hw-blue/20 text-hw-blue")}
+              style={{ color: 'var(--theme-text)' }}
+              title="App Information"
+            >
+              <Info className="w-3 h-3" />
+            </button>
+          )}
           <button 
             onClick={(e) => { e.stopPropagation(); onMinimize(); }} 
             className={cn("p-1.5 transition-colors", globalTheme === 'glassy' && "hover:bg-white/10 rounded-lg")}
@@ -301,6 +315,9 @@ export const Window: React.FC<WindowProps> = ({
       {/* Window Content */}
       <div className="flex-1 overflow-hidden relative" style={{ backgroundColor: 'var(--theme-content-bg)', color: 'var(--theme-content-text)' }}>
         {children}
+        {showInfo && appId && (
+          <InfoCard appId={appId} onClose={() => setShowInfo(false)} />
+        )}
       </div>
 
       {/* Resize Handle */}

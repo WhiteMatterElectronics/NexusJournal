@@ -657,17 +657,27 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile'
 
               {/* Base Theme Color - Always Visible */}
               <div className="space-y-4 p-4 bg-hw-blue/5 border border-hw-blue/10 rounded-lg" style={{ borderColor: 'var(--theme-border-color)' }}>
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-hw-blue mb-4">Base Theme Accent Color</h3>
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-hw-blue mb-4 flex items-center justify-between">
+                  Base Theme Accent Color
+                  {localTheme.mainColorBypass && (
+                    <button
+                      onClick={() => handleUpdateLocalTheme({ mainColorBypass: null })}
+                      className="flex items-center gap-1 text-[8px] font-bold uppercase tracking-widest text-hw-blue opacity-60 hover:opacity-100 transition-opacity"
+                    >
+                      <RotateCcw className="w-3 h-3" /> Reset to Default Theme Color
+                    </button>
+                  )}
+                </h3>
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-3 p-2 bg-hw-blue/10 rounded-lg border border-hw-blue/20">
                     <input
                       type="color"
-                      value={localTheme.mainColor}
-                      onChange={e => handleUpdateLocalTheme({ mainColor: e.target.value, terminalColor: e.target.value })}
+                      value={localTheme.mainColorBypass || localTheme.mainColor}
+                      onChange={e => handleUpdateLocalTheme({ mainColorBypass: e.target.value })}
                       className="w-10 h-10 bg-transparent border-none cursor-pointer"
                     />
                     <div className="flex flex-col">
-                      <span className="text-[10px] font-mono uppercase">{localTheme.mainColor}</span>
+                      <span className="text-[10px] font-mono uppercase">{localTheme.mainColorBypass || localTheme.mainColor}</span>
                       <span className="text-[8px] opacity-40 uppercase tracking-widest">Main Accent</span>
                     </div>
                   </div>
@@ -1121,6 +1131,19 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ initialTab = 'profile'
                                 <Layers className="w-3 h-3 opacity-60" />
                                 <span className="text-[9px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100">Float over windows</span>
                               </div>
+                            </label>
+                            <label className="flex items-center gap-2">
+                              <span className="text-[9px] uppercase tracking-widest opacity-60">Color Override</span>
+                              <input 
+                                type="color" 
+                                value={widget.config?.textColor || localTheme.mainColor}
+                                onChange={(e) => {
+                                  updateTheme(prev => ({
+                                    widgets: prev.widgets.map(w => w.instanceId === widget.instanceId ? { ...w, config: { ...w.config, textColor: e.target.value } } : w)
+                                  }));
+                                }}
+                                className="w-4 h-4 border-none cursor-pointer bg-transparent rounded"
+                              />
                             </label>
                             <div className="text-[8px] opacity-40 uppercase tracking-widest">
                               Size: {widget.w}x{widget.h}

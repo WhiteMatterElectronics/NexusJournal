@@ -57,12 +57,33 @@ export const XTermConsole: React.FC<XTermConsoleProps> = ({
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
 
-    terminal.open(terminalRef.current);
-    
-    // Fitting delay
-    const timer = setTimeout(() => {
-        fitAddon.fit();
-    }, 100);
+    let isOpened = false;
+    let isDisposed = false;
+
+    const safeFit = () => {
+      if (isDisposed) return;
+      try {
+        if (!terminalRef.current || terminalRef.current.clientWidth === 0 || terminalRef.current.clientHeight === 0) {
+           return;
+        }
+        
+        if (!isOpened) {
+           terminal.open(terminalRef.current);
+           isOpened = true;
+        }
+
+        if (fitAddonRef.current) {
+          fitAddonRef.current.fit();
+        }
+      } catch (e) {
+        console.warn("xterm fit error:", e);
+      }
+    };
+
+    // Fitting delay to avoid StrictMode double-mount crashing xterm via pending innerRefresh
+    const initTimer = setTimeout(() => {
+        safeFit();
+    }, 50);
 
     xtermRef.current = terminal;
     fitAddonRef.current = fitAddon;
@@ -70,34 +91,34 @@ export const XTermConsole: React.FC<XTermConsoleProps> = ({
     // Handle user input
     if (onData) {
       terminal.onData((data) => {
-        onData(data);
+        if (!isDisposed) onData(data);
       });
     }
 
     // Resize observer
     const resizeObserver = new ResizeObserver(() => {
-      if (fitAddonRef.current) {
-        fitAddonRef.current.fit();
-      }
+        safeFit();
     });
 
     resizeObserver.observe(terminalRef.current);
 
     const handleWrite = (e: any) => {
-       if (e.detail) terminal.write(e.detail);
+       if (e.detail && !isDisposed) terminal.write(e.detail);
     };
 
     const handleClear = () => {
-       terminal.clear();
-       terminal.reset();
+       if (!isDisposed) {
+         terminal.clear();
+         terminal.reset();
+       }
     };
 
     const handleScrollTop = () => {
-      if (xtermRef.current) xtermRef.current.scrollToTop();
+      if (xtermRef.current && !isDisposed) xtermRef.current.scrollToTop();
     };
 
     const handleScrollBottom = () => {
-      if (xtermRef.current) xtermRef.current.scrollToBottom();
+      if (xtermRef.current && !isDisposed) xtermRef.current.scrollToBottom();
     };
 
     const writeEvent = 'terminal-write-' + (id || 'default');
@@ -111,9 +132,10 @@ export const XTermConsole: React.FC<XTermConsoleProps> = ({
     window.addEventListener(scrollBottomEvent, handleScrollBottom);
 
     return () => {
-      clearTimeout(timer);
+      isDisposed = true;
+      clearTimeout(initTimer);
       resizeObserver.disconnect();
-      terminal.dispose();
+      try { terminal.dispose(); } catch(e) {}
       window.removeEventListener(writeEvent, handleWrite);
       window.removeEventListener(clearEvent, handleClear);
       window.removeEventListener(scrollTopEvent, handleScrollTop);

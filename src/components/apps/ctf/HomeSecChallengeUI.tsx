@@ -75,30 +75,67 @@ export const HomeSecChallengeUI: React.FC<HomeSecChallengeUIProps> = ({ challeng
         allowProposedApi: true,
         scrollback: 10000
       });
+      let isOpened = false;
+      let isDisposed = false;
+
+      const safeFit = () => {
+          if (isDisposed) return;
+          try {
+              if (!termRef.current || termRef.current.clientWidth === 0 || termRef.current.clientHeight === 0) {
+                 return;
+              }
+
+              if (!isOpened) {
+                 term.open(termRef.current);
+                 isOpened = true;
+              }
+
+              if (fitAddon) {
+                  fitAddon.fit();
+              }
+          } catch (e) {
+              // ignore
+          }
+      };
+
       fitAddon = new FitAddon();
       term.loadAddon(fitAddon);
-      term.open(termRef.current);
-      fitAddon.fit();
+      
+      const initTimer = setTimeout(() => {
+          safeFit();
+      }, 50);
+
       termInstance.current = term;
 
       const resizeObserver = new ResizeObserver(() => {
-          if (fitAddon) fitAddon.fit();
+          safeFit();
       });
       resizeObserver.observe(termRef.current);
 
       if (!initializedRef.current) {
         logs.forEach(log => {
-          term.write(log.text.replace(/\n/g, '\r\n'));
+          if (!isDisposed) term.write(log.text.replace(/\n/g, '\r\n'));
         });
         initializedRef.current = true;
       }
+      
+      // We must mock the cleanup process to clean up on unmount
+      (termRef.current as any)._cleanup = () => {
+          isDisposed = true;
+          clearTimeout(initTimer);
+          resizeObserver.disconnect();
+          try { term.dispose(); } catch (e) {}
+      };
     }
 
     let buffer = '';
     const unsub = subscribe((data) => {
-      if (termInstance.current) {
+      if (termInstance.current && !(termRef.current && (termRef.current as any)._cleanup && (termRef.current as any)._isDisposed)) {
         termInstance.current.write(data);
       }
+      // ... (rest of code)
+      
+      buffer += data;
 
       buffer += data;
       let lineEndIndex;
@@ -142,7 +179,12 @@ export const HomeSecChallengeUI: React.FC<HomeSecChallengeUIProps> = ({ challeng
       }
     });
 
-    return () => unsub();
+    return () => {
+       unsub();
+       if (termRef.current && (termRef.current as any)._cleanup) {
+           (termRef.current as any)._cleanup();
+       }
+    };
   }, [connectionId, subscribe]);
 
   const runCmd = (cmd: string) => {

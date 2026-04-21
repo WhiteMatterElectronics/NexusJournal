@@ -28,14 +28,14 @@ export const ClockWidget: React.FC<WidgetProps> = ({ instanceId, mainColor, isDa
         <span className="opacity-40 ml-1" style={{ fontSize: 'max(10px, 10cqmin)' }}>{seconds}</span>
       </div>
       
-      <div className="mt-2 font-bold uppercase tracking-[0.3em] text-hw-blue opacity-60" style={{ fontSize: 'max(8px, 6cqmin)' }}>
+      <div className="mt-2 font-bold uppercase tracking-[0.3em]  opacity-60" style={{ color: 'var(--theme-main)', fontSize: 'max(8px, 6cqmin)' }}>
         {date}
       </div>
 
       {/* Analog style decoration */}
       <div className="absolute inset-0 pointer-events-none opacity-5">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border border-hw-blue rounded-full" style={{ width: '80cqmin', height: '80cqmin' }} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border border-hw-blue/50 rounded-full" style={{ width: '60cqmin', height: '60cqmin' }} />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border border-[var(--theme-main)] rounded-full" style={{ width: '80cqmin', height: '80cqmin' }} />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border border-[var(--theme-main)]/50 rounded-full" style={{ width: '60cqmin', height: '60cqmin' }} />
       </div>
     </div>
   );

@@ -22,7 +22,7 @@ export const StatsWidget: React.FC<WidgetProps> = ({ mainColor, isDarkMode, glob
     <div className="w-full space-y-1">
       <div className="flex justify-between items-center uppercase tracking-widest opacity-60" style={{ fontSize: 'max(6px, 5cqmin)' }}>
         <div className="flex items-center gap-1">
-          <Icon style={{ color: mainColor, width: 'max(6px, 5cqmin)', height: 'max(6px, 5cqmin)' }} />
+          <Icon style={{ color: 'var(--theme-main)', width: 'max(6px, 5cqmin)', height: 'max(6px, 5cqmin)' }} />
           <span>{label}</span>
         </div>
         <span className="font-mono">{value}%</span>
@@ -45,14 +45,14 @@ export const StatsWidget: React.FC<WidgetProps> = ({ mainColor, isDarkMode, glob
     <div 
       className={cn(
         "w-full h-full flex flex-col justify-center group",
-        isGlassy ? "bg-white/5 backdrop-blur-md" : "bg-hw-blue/5"
+        isGlassy ? "bg-white/5 backdrop-blur-md" : "bg-theme-main-5"
       )}
       style={{ padding: 'max(8px, 5cqmin)', gap: 'max(4px, 3cqmin)' }}
     >
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-1">
-          <Activity className="text-hw-blue animate-pulse" style={{ width: 'max(8px, 6cqmin)', height: 'max(8px, 6cqmin)' }} />
-          <span className="font-bold uppercase tracking-[0.2em] text-hw-blue" style={{ fontSize: 'max(6px, 6cqmin)' }}>Sys_Pulse</span>
+          <Activity className=" animate-pulse" style={{ color: 'var(--theme-main)', width: 'max(8px, 6cqmin)', height: 'max(8px, 6cqmin)' }} />
+          <span className="font-bold uppercase tracking-[0.2em] " style={{ color: 'var(--theme-main)', fontSize: 'max(6px, 6cqmin)' }}>Sys_Pulse</span>
         </div>
         <div className="opacity-30 font-mono" style={{ fontSize: 'max(5px, 4cqmin)' }}>RT_MONITOR</div>
       </div>

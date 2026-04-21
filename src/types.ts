@@ -27,4 +27,11 @@ export interface Firmware {
   uploadedAt: string;
 }
 
-export type AppView = 'tutorials' | 'flasher' | 'admin' | 'console' | 'eeprom' | 'rfid' | 'binary' | 'debugger' | 'cyphonator' | 'settings' | 'notes' | 'sys_monitor' | 'weather' | 'clock' | 'bluetooth' | 'wifi' | 'inventory' | 'properties' | 'my_files' | 'text_editor' | 'trash' | 'gamehub' | 'nexus_disk';
+export interface AppInfo {
+  appId: string;
+  title: string;
+  description: string;
+  content: string; // JSON stringified TutorialBlock[]
+}
+
+export type AppView = 'tutorials' | 'flasher' | 'console' | 'eeprom' | 'rfid' | 'binary' | 'debugger' | 'cyphonator' | 'settings' | 'notes' | 'sys_monitor' | 'weather' | 'clock' | 'bluetooth' | 'wifi' | 'inventory' | 'properties' | 'my_files' | 'text_editor' | 'trash' | 'gamehub' | 'nexus_disk' | 'shell' | 'browser' | 'pdf_viewer';

@@ -40,8 +40,8 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({
   if (!definition) return null;
 
   const isGlassy = theme.globalTheme === 'glassy';
-  const mainColor = theme.mainColor;
   const isDark = theme.isDarkMode;
+  const widgetColor = widget.config?.textColor || theme.mainColor;
 
   const colWidth = 100 / gridSize.cols;
   const rowHeight = 100 / gridSize.rows;
@@ -129,18 +129,18 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({
         "w-full h-full relative overflow-hidden border-2 transition-all duration-300",
         isGlassy 
           ? "bg-white/5 backdrop-blur-md border-white/10" 
-          : "bg-black/40 border-hw-blue/20",
-        isHovered && !isDraggingAny ? "border-hw-blue/60 shadow-lg" : ""
+          : "bg-black/40 border-theme-main-20",
+        isHovered && !isDraggingAny ? "border-theme-main-60 shadow-lg" : ""
       )}
       style={{ 
-        borderColor: isHovered && !isDraggingAny ? mainColor : undefined,
+        borderColor: isHovered && !isDraggingAny ? 'var(--theme-main)' : undefined,
         borderRadius: isGlassy ? '1rem' : '0'
       }}>
         {/* Widget Content */}
-        <div className="w-full h-full relative z-0" style={{ containerType: 'size' }}>
+        <div className="w-full h-full relative z-0" style={{ containerType: 'size', '--theme-main': widgetColor } as React.CSSProperties}>
           <definition.component 
             instanceId={widget.instanceId}
-            mainColor={mainColor}
+            mainColor={widgetColor}
             isDarkMode={isDark}
             globalTheme={theme.globalTheme}
             config={widget.config}
@@ -167,7 +167,7 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({
             onMouseDown(mouseEvent as any, { id: widget.instanceId, pos: { x: widget.x, y: widget.y } });
           }}
         >
-          <Move className="w-3 h-3 opacity-50" style={{ color: mainColor }} />
+          <Move className="w-3 h-3 opacity-50" style={{ color: 'var(--theme-main)' }} />
         </div>
 
         {/* Controls Overlay (Top Layer) */}
@@ -188,7 +188,7 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({
               className="p-1.5 hover:bg-white/10 rounded-md transition-colors pointer-events-auto"
               title="Expand to Window"
             >
-              <Maximize2 className="w-3.5 h-3.5" style={{ color: mainColor }} />
+              <Maximize2 className="w-3.5 h-3.5" style={{ color: 'var(--theme-main)' }} />
             </button>
           )}
           <button 
@@ -201,7 +201,7 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({
             className="p-1.5 hover:bg-white/10 rounded-md transition-colors pointer-events-auto"
             title={widget.isFloating ? "Pin to Desktop" : "Float over Windows"}
           >
-            <Layers className="w-3.5 h-3.5" style={{ color: mainColor }} />
+            <Layers className="w-3.5 h-3.5" style={{ color: 'var(--theme-main)' }} />
           </button>
           <button 
             onMouseDown={(e) => e.stopPropagation()}
@@ -225,7 +225,7 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({
           )}
           onMouseDown={handleResizeStart}
         >
-          <div className="w-1.5 h-1.5 border-r-2 border-b-2 opacity-50" style={{ borderColor: mainColor }} />
+          <div className="w-1.5 h-1.5 border-r-2 border-b-2 opacity-50" style={{ borderColor: 'var(--theme-main)' }} />
         </div>
       </div>
     </motion.div>

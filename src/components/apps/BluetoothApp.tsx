@@ -58,6 +58,7 @@ export const BluetoothApp: React.FC<{ connectionId?: string }> = ({ connectionId
   const [terminalLogs, setTerminalLogs] = useState<TerminalLog[]>([]);
   const [terminalInput, setTerminalInput] = useState('');
   const [autoScroll, setAutoScroll] = useState(true);
+  const [showTimestamps, setShowTimestamps] = useState(true);
   const [terminalFormat, setTerminalFormat] = useState<'hex' | 'ascii'>('hex');
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -157,7 +158,11 @@ export const BluetoothApp: React.FC<{ connectionId?: string }> = ({ connectionId
 
   useEffect(() => {
     if (autoScroll && terminalScrollRef.current) {
-      terminalScrollRef.current.scrollTop = terminalScrollRef.current.scrollHeight;
+      setTimeout(() => {
+        if (terminalScrollRef.current) {
+          terminalScrollRef.current.scrollTop = terminalScrollRef.current.scrollHeight;
+        }
+      }, 50);
     }
   }, [terminalLogs, autoScroll]);
 
@@ -808,6 +813,15 @@ export const BluetoothApp: React.FC<{ connectionId?: string }> = ({ connectionId
                           {autoScroll ? "Auto-Scroll: ON" : "Auto-Scroll: OFF"}
                         </button>
                         <button 
+                          onClick={() => setShowTimestamps(!showTimestamps)}
+                          className={cn(
+                            "text-[8px] font-bold uppercase tracking-widest px-2 py-0.5 rounded transition-all",
+                            showTimestamps ? "bg-hw-blue/20 text-hw-blue" : "bg-hw-blue/5 text-hw-blue/40 hover:text-hw-blue/60"
+                          )}
+                        >
+                          {showTimestamps ? "Timestamps: ON" : "Timestamps: OFF"}
+                        </button>
+                        <button 
                           onClick={() => setTerminalLogs([])}
                           className="p-1 hover:bg-red-500/20 rounded transition-colors"
                           title="Clear Terminal"
@@ -824,7 +838,10 @@ export const BluetoothApp: React.FC<{ connectionId?: string }> = ({ connectionId
                       )}
                       {terminalLogs.map(log => (
                         <div key={log.id} className={cn("flex flex-col max-w-[80%]", log.type === 'tx' ? "ml-auto items-end" : "mr-auto items-start")}>
-                          <span className="text-[9px] opacity-40 mb-1">{log.type === 'tx' ? 'TX' : 'RX'} - {new Date(log.timestamp).toLocaleTimeString()}</span>
+                          <span className="text-[9px] opacity-40 mb-1">
+                            {log.type === 'tx' ? 'TX' : 'RX'}
+                            {showTimestamps && ` - ${new Date(log.timestamp).toLocaleTimeString()}`}
+                          </span>
                           <div className={cn("px-3 py-2 rounded-lg text-xs font-mono break-all", log.type === 'tx' ? "bg-hw-blue/20 text-hw-blue" : "bg-green-500/20 text-green-400")}>
                             {terminalFormat === 'hex' ? log.data : (
                               // Simple hex to ascii conversion

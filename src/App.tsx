@@ -8,7 +8,7 @@ import { motion, useAnimation, AnimatePresence } from 'motion/react';
 import { ConceptExplorer } from './components/ConceptExplorer';
 import { TutorialDetail } from './components/TutorialDetail';
 import { FlashModule } from './components/FlashModule';
-import { SystemConfig } from './components/SystemConfig';
+import { KnowledgeBaseApp } from './components/apps/KnowledgeBaseApp';
 import { AppView, Tutorial } from './types';
 import { Settings, BookOpen, Zap, Terminal, Database, Radio, FileCode, Lock, Unlock, Activity, Cloud, ChevronRight, Layout, Plus, Monitor, RotateCcw, Power, Trash2, Info, Folder, FileText, FileDown, Image as ImageIcon, Video, File, Share2, X } from 'lucide-react';
 import { Window } from './components/os/Window';
@@ -30,11 +30,15 @@ import { WifiApp } from './components/apps/WifiApp';
 import { InventoryApp } from './components/apps/InventoryApp';
 import { MyFilesApp } from './components/apps/MyFilesApp';
 import { TextEditorApp } from './components/apps/TextEditorApp';
+import { PdfViewerApp } from './components/apps/PdfViewerApp';
 import { TrashCanApp } from './components/apps/TrashCanApp';
 import { GameHubApp } from './components/apps/GameHubApp';
+import { ShellApp } from './components/apps/ShellApp';
+import { BrowserApp } from './components/apps/BrowserApp';
 import { InternalFilePicker } from './components/apps/InternalFilePicker';
 import { WidgetContainer } from './components/os/WidgetContainer';
 import { SaveFileDialog } from './components/os/SaveFileDialog';
+import { SerialPicker } from './components/common/SerialPicker';
 import { useSettings } from './contexts/SettingsContext';
 import { cn, getContrastColor, adjustColor } from './lib/utils';
 import { APPS } from './constants';
@@ -173,7 +177,7 @@ function DesktopIcon({
         });
         onMouseDown(mouseEvent as any, { id: isShortcut ? `shortcut-${app.id}` : app.id, pos: gridPos });
       }}
-      onDoubleClick={() => isShortcut ? window.dispatchEvent(new CustomEvent('hw_os_open_shortcut', { detail: { shortcut: app } })) : handleStartApp(app.id as AppView, `desktop-${app.id}`)}
+      onDoubleClick={() => isShortcut ? window.dispatchEvent(new CustomEvent('hw_os_open_shortcut', { detail: { shortcut: app } })) : handleStartApp(app.id as AppView)}
       style={style}
       className={cn(
         "flex flex-col items-center justify-center group cursor-grab",
@@ -676,7 +680,7 @@ export default function App() {
       setHighestZIndex(nextZIndex);
       
       // Singletons
-      if (id === 'settings' || id === 'admin' || id === 'flasher') {
+      if (id === 'settings' || id === 'flasher' || id === 'pdf_viewer') {
         const found = existing.length > 0 ? existing[0] : null;
 
         if (found) {
@@ -787,6 +791,9 @@ export default function App() {
   const handleShutdown = () => {
     window.dispatchEvent(new CustomEvent('nexus-journal-shutdown'));
     setWindows(prev => prev.map(w => ({ ...w, isOpen: false })));
+    if ((window as any).electron) {
+      (window as any).electron.closeApp();
+    }
   };
 
   const renderAppContent = (id: AppView, instanceId: string, initialProps?: any) => {
@@ -807,41 +814,16 @@ export default function App() {
         return <NotesApp initialNoteId={initialProps?.initialNoteId} />;
       case 'tutorials':
         return (
-          <div className="h-full overflow-y-auto p-6 custom-scrollbar">
-            {loading ? (
-              <div className="flex items-center justify-center h-full">
-                <span className="text-[10px] uppercase tracking-widest text-hw-blue/40">Loading_Database...</span>
-              </div>
-            ) : selectedTutorial ? (
-              <TutorialDetail 
-                tutorial={selectedTutorial} 
-                onBack={() => setSelectedTutorial(null)} 
-                onFlashFirmware={handleFlashFirmware}
-                onUpdate={handleUpdateTutorial}
-                onStartApp={handleStartApp}
-              />
-            ) : (
-              <ConceptExplorer 
-                tutorials={tutorials} 
-                onSelect={setSelectedTutorial} 
-              />
-            )}
-          </div>
+          <KnowledgeBaseApp 
+            initialTutorialId={initialProps?.initialTutorialId}
+            onFlashFirmware={handleFlashFirmware}
+            onStartApp={handleStartApp}
+          />
         );
       case 'flasher':
         return (
           <div className="h-full overflow-y-auto p-6 custom-scrollbar">
             <FlashModule autoFlashFirmwareId={autoFlashFirmwareId} onFlashComplete={() => handleStartApp('console')} />
-          </div>
-        );
-      case 'admin':
-        return (
-          <div className="h-full overflow-y-auto p-6 custom-scrollbar">
-            <SystemConfig 
-              tutorials={tutorials} 
-              refreshTutorials={refreshTutorials} 
-              loading={loading} 
-            />
           </div>
         );
       case 'settings':
@@ -859,9 +841,11 @@ export default function App() {
       case 'inventory':
         return <InventoryApp />;
       case 'my_files':
-        return <MyFilesApp />;
+        return <MyFilesApp onFileSelect={initialProps?.onFileSelect} />;
       case 'text_editor':
         return <TextEditorApp file={initialProps?.file} onClose={() => handleWindowAction(instanceId, 'close')} />;
+      case 'pdf_viewer':
+        return <PdfViewerApp file={initialProps?.file} onClose={() => handleWindowAction(instanceId, 'close')} />;
       case 'trash':
         return <TrashCanApp onClose={() => handleWindowAction(instanceId, 'close')} />;
       case 'gamehub':
@@ -895,6 +879,10 @@ export default function App() {
             onOpenSettings={(tab) => handleStartApp('settings', undefined, { initialTab: tab })}
           />
         );
+      case 'shell':
+        return <ShellApp instanceId={instanceId} />;
+      case 'browser':
+        return <BrowserApp />;
       default:
         return null;
     }
@@ -1025,6 +1013,8 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+
+      <SerialPicker />
 
       {/* Custom Context Menu */}
       <AnimatePresence>
@@ -1300,7 +1290,7 @@ export default function App() {
               isDragging={draggingId === widget.instanceId}
               currentMousePos={currentMousePos}
               dragOffset={dragOffset}
-              desktopRef={desktopRef}
+              desktopRef={desktopRef as any}
               isDraggingAny={!!draggingId}
             />
           );
@@ -1332,9 +1322,20 @@ export default function App() {
               <X size={24} />
             </button>
             
-            <div className="text-hw-blue text-3xl font-black mb-10 tracking-[0.4em] uppercase opacity-40 select-none text-center px-10 truncate max-w-full">
+            <div className="text-hw-blue text-3xl font-black mb-6 tracking-[0.4em] uppercase opacity-40 select-none text-center px-10 truncate max-w-full">
               {profile.dashName}
             </div>
+
+            <button
+              onClick={() => {
+                handleShutdown();
+                setShowDash(false);
+              }}
+              className="mb-10 flex items-center gap-3 px-6 py-3 rounded-full bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 hover:border-red-500 transition-all group"
+            >
+              <Power className="w-5 h-5 text-red-500/60 group-hover:text-red-500 transition-colors" />
+              <span className="text-xs font-black text-red-500/80 group-hover:text-red-500 uppercase tracking-[0.3em]">Shutdown System</span>
+            </button>
             
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-x-6 gap-y-10 w-full overflow-y-auto custom-scrollbar px-6 pb-6">
               {[...APPS.filter(app => app.id !== 'properties'), ...(theme.shortcuts || [])].map((app, index) => {
@@ -1398,13 +1399,14 @@ export default function App() {
             const appInfo = APPS.find(a => a.id === win.appId);
             if (!appInfo) return null;
             
-            const isSingleton = win.appId === 'settings' || win.appId === 'admin' || win.appId === 'flasher';
+            const isSingleton = win.appId === 'settings' || win.appId === 'flasher';
             const title = isSingleton ? appInfo.label : `${appInfo.label} - ${win.instanceNumber}`;
 
             return (
               <div key={win.instanceId} className="pointer-events-auto">
                 <Window
                   id={win.instanceId}
+                  appId={win.appId}
                   title={title}
                   icon={appInfo.icon}
                   isOpen={win.isOpen}

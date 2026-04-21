@@ -1,15 +1,11 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import path from "path";
-import { fileURLToPath } from "url";
 import Database from "better-sqlite3";
 import cors from "cors";
 import multer from "multer";
 import fs from "fs";
 import { ENHANCED_TUTORIALS } from "./src/data/tutorials.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { DEFAULT_APP_INFO } from "./src/data/appInfo.js";
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -29,7 +25,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } }); // 50MB limit
 
-async function startServer() {
+export function startServer() {
   const app = express();
   const PORT = 3000;
 
@@ -99,6 +95,13 @@ async function startServer() {
       parentId TEXT, -- For nested folders
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS app_info (
+      appId TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      content TEXT NOT NULL
     );
   `);
 
@@ -190,8 +193,8 @@ async function startServer() {
   if (fileCount.count === 0) {
     const seedFiles = [
       { id: 'f1', name: 'projects', type: 'folder', extension: null, parentId: null, content: null },
-      { id: 'f2', name: 'main.c', type: 'file', extension: 'c', parentId: 'f1', content: '#include <stdio.h>\n\nint main() {\n    printf("Hello Nexus!\\n");\n    return 0;\n}' },
-      { id: 'f3', name: 'boot.asm', type: 'file', extension: 'asm', parentId: 'f1', content: '; X86 Boot Stub\nmov eax, 1\nint 0x80' },
+      { id: 'f2', name: 'main.c', type: 'file', extension: 'c', parentId: 'f1', content: '#include <stdio.h>\\n\\nint main() {\\n    printf("Hello Nexus!\\\\n");\\n    return 0;\\n}' },
+      { id: 'f3', name: 'boot.asm', type: 'file', extension: 'asm', parentId: 'f1', content: '; X86 Boot Stub\\nmov eax, 1\\nint 0x80' },
     ];
     const insertFile = db.prepare("INSERT INTO files (id, name, content, type, extension, parentId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
     const now = new Date().toISOString();
@@ -230,6 +233,20 @@ async function startServer() {
     });
   }
 
+  // Seed App Info
+  const appInfoInsert = db.prepare(`
+    INSERT INTO app_info (appId, title, description, content) 
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(appId) DO UPDATE SET
+      title=excluded.title,
+      description=excluded.description,
+      content=excluded.content
+  `);
+
+  DEFAULT_APP_INFO.forEach(info => {
+    appInfoInsert.run(info.appId, info.title, info.description, info.content);
+  });
+
   // API Routes
   app.get("/api/tutorials", (req, res) => {
     const tutorials = db.prepare("SELECT * FROM tutorials").all();
@@ -264,7 +281,39 @@ async function startServer() {
     res.json({ success: true });
   });
 
-  app.post("/api/upload", upload.single('file'), (req: any, res) => {
+  // App Info Endpoints
+  app.get("/api/app-info/:appId", (req, res) => {
+    try {
+      const info = db.prepare("SELECT * FROM app_info WHERE appId = ?").get(req.params.appId);
+      if (info) {
+        res.json(info);
+      } else {
+        res.status(404).json({ error: "App info not found" });
+      }
+    } catch (error) {
+      res.status(500).json({ error: String(error) });
+    }
+  });
+
+  app.post("/api/app-info", (req, res) => {
+    try {
+      const { appId, title, description, content } = req.body;
+      const insert = db.prepare(`
+        INSERT INTO app_info (appId, title, description, content) 
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(appId) DO UPDATE SET
+          title=excluded.title,
+          description=excluded.description,
+          content=excluded.content
+      `);
+      insert.run(appId, title, description, content);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: String(error) });
+    }
+  });
+
+  app.post("/api/upload", upload.single('file'), (req, res) => {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
@@ -338,20 +387,14 @@ async function startServer() {
     res.status(500).json({ error: err.message || 'Internal Server Error' });
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
+  if (process.env.NODE_ENV === "production") {
+    const distPath = path.join(process.cwd(), 'dist/renderer');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
+
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);

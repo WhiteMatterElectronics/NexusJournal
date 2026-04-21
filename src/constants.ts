@@ -19,7 +19,6 @@ export const APPS: AppDefinition[] = [
   { id: 'notes', icon: FileCode, label: 'DATA_SLABS' },
   { id: 'my_files', icon: Folder, label: 'MY_FILES' },
   { id: 'sys_monitor', icon: Activity, label: 'SYS_MONITOR' },
-  { id: 'admin', icon: Settings, label: 'SYS_CONFIG' },
   { id: 'settings', icon: Settings, label: 'SETTINGS' },
   { id: 'weather', icon: Cloud, label: 'WEATHER' },
   { id: 'clock', icon: Clock, label: 'CLOCK' },
@@ -31,4 +30,7 @@ export const APPS: AppDefinition[] = [
   { id: 'trash', icon: Trash2, label: 'TRASH' },
   { id: 'gamehub', icon: Gamepad2, label: 'GAME_HUB' },
   { id: 'nexus_disk', icon: HardDrive, label: 'NEXUS_DISK_MGMT' },
+  { id: 'shell', icon: Terminal, label: 'SYSTEM_SHELL' },
+  { id: 'browser', icon: Globe, label: 'WEB_BROWSER' },
+  { id: 'pdf_viewer', icon: BookOpen, label: 'PDF_VIEWER' },
 ];

@@ -344,3 +344,14 @@
   0% { clip: rect(65px, 9999px, 100px, 0); transform: skew(0.15deg); }
   100% { clip: rect(10px, 9999px, 20px, 0); transform: skew(0.15deg); }
 }
+
+@layer utilities {
+  .text-theme-main { color: var(--theme-main) !important; }
+  .bg-theme-main { background-color: var(--theme-main) !important; }
+  .border-theme-main { border-color: var(--theme-main) !important; }
+  .border-theme-main-20 { border-color: color-mix(in srgb, var(--theme-main) 20%, transparent) !important; }
+  .border-theme-main-60 { border-color: color-mix(in srgb, var(--theme-main) 60%, transparent) !important; }
+  .bg-theme-main-10 { background-color: color-mix(in srgb, var(--theme-main) 10%, transparent) !important; }
+  .bg-theme-main-5 { background-color: color-mix(in srgb, var(--theme-main) 5%, transparent) !important; }
+  .text-theme-main-40 { color: color-mix(in srgb, var(--theme-main) 40%, transparent) !important; }
+}
