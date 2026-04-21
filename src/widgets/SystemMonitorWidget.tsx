@@ -24,8 +24,8 @@ export const SystemMonitorWidget: React.FC<WidgetProps> = ({ instanceId, mainCol
     )} style={{ padding: 'max(8px, 5cqmin)' }}>
       <div className="flex justify-between items-center mb-2">
         <div className="flex items-center gap-1">
-          <Activity className="text-hw-blue" style={{ width: 'max(10px, 8cqmin)', height: 'max(10px, 8cqmin)' }} />
-          <span className="font-bold uppercase tracking-widest text-hw-blue" style={{ fontSize: 'max(6px, 6cqmin)' }}>System Monitor</span>
+          <Activity className="" style={{ color: 'var(--theme-main)', width: 'max(10px, 8cqmin)', height: 'max(10px, 8cqmin)' }} />
+          <span className="font-bold uppercase tracking-widest " style={{ color: 'var(--theme-main)', fontSize: 'max(6px, 6cqmin)' }}>System Monitor</span>
         </div>
       </div>
 
@@ -36,8 +36,8 @@ export const SystemMonitorWidget: React.FC<WidgetProps> = ({ instanceId, mainCol
             <div className="flex items-center gap-1"><Cpu style={{ width: 'max(6px, 5cqmin)', height: 'max(6px, 5cqmin)' }} /> CPU</div>
             <span>{stats.cpu}%</span>
           </div>
-          <div className="bg-hw-blue/10 rounded-full overflow-hidden" style={{ height: 'max(2px, 1.5cqmin)' }}>
-            <div className="h-full bg-hw-blue transition-all duration-500" style={{ width: `${stats.cpu}%` }} />
+          <div className="bg-theme-main-10 rounded-full overflow-hidden" style={{ height: 'max(2px, 1.5cqmin)' }}>
+            <div className="h-full bg-theme-main transition-all duration-500" style={{ width: `${stats.cpu}%` }} />
           </div>
         </div>
 
@@ -47,8 +47,8 @@ export const SystemMonitorWidget: React.FC<WidgetProps> = ({ instanceId, mainCol
             <div className="flex items-center gap-1"><Database style={{ width: 'max(6px, 5cqmin)', height: 'max(6px, 5cqmin)' }} /> RAM</div>
             <span>{stats.ram}%</span>
           </div>
-          <div className="bg-hw-blue/10 rounded-full overflow-hidden" style={{ height: 'max(2px, 1.5cqmin)' }}>
-            <div className="h-full bg-hw-blue transition-all duration-500" style={{ width: `${stats.ram}%` }} />
+          <div className="bg-theme-main-10 rounded-full overflow-hidden" style={{ height: 'max(2px, 1.5cqmin)' }}>
+            <div className="h-full bg-theme-main transition-all duration-500" style={{ width: `${stats.ram}%` }} />
           </div>
         </div>
 
@@ -58,8 +58,8 @@ export const SystemMonitorWidget: React.FC<WidgetProps> = ({ instanceId, mainCol
             <div className="flex items-center gap-1"><Network style={{ width: 'max(6px, 5cqmin)', height: 'max(6px, 5cqmin)' }} /> NET</div>
             <span>{stats.net} MB/S</span>
           </div>
-          <div className="bg-hw-blue/10 rounded-full overflow-hidden" style={{ height: 'max(2px, 1.5cqmin)' }}>
-            <div className="h-full bg-hw-blue transition-all duration-500" style={{ width: `${(stats.net / 10) * 100}%` }} />
+          <div className="bg-theme-main-10 rounded-full overflow-hidden" style={{ height: 'max(2px, 1.5cqmin)' }}>
+            <div className="h-full bg-theme-main transition-all duration-500" style={{ width: `${(stats.net / 10) * 100}%` }} />
           </div>
         </div>
       </div>

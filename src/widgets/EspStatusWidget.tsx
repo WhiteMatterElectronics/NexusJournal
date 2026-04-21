@@ -85,7 +85,7 @@ export const EspStatusWidget: React.FC<any> = ({ mainColor }) => {
   if (!connected) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-2 p-4 text-center">
-        <Cpu style={{ color: mainColor, width: 'max(16px, 15cqmin)', height: 'max(16px, 15cqmin)' }} className="opacity-20" />
+        <Cpu style={{ color: 'var(--theme-main)', width: 'max(16px, 15cqmin)', height: 'max(16px, 15cqmin)' }} className="opacity-20" />
         <span className="font-bold uppercase tracking-widest opacity-40" style={{ fontSize: 'max(8px, 6cqmin)' }}>ESP32 Offline</span>
       </div>
     );
@@ -95,7 +95,7 @@ export const EspStatusWidget: React.FC<any> = ({ mainColor }) => {
     <div className="flex flex-col h-full gap-2" style={{ padding: 'max(8px, 5cqmin)' }}>
       <div className="flex items-center justify-between border-b border-white/5 pb-2">
         <div className="flex items-center gap-2">
-          <Cpu style={{ color: mainColor, width: 'max(10px, 8cqmin)', height: 'max(10px, 8cqmin)' }} />
+          <Cpu style={{ color: 'var(--theme-main)', width: 'max(10px, 8cqmin)', height: 'max(10px, 8cqmin)' }} />
           <span className="font-bold uppercase tracking-widest opacity-80" style={{ fontSize: 'max(6px, 6cqmin)' }}>ESP32_STATUS</span>
         </div>
         <button 
@@ -106,7 +106,7 @@ export const EspStatusWidget: React.FC<any> = ({ mainColor }) => {
             isRefreshing && "animate-spin"
           )}
         >
-          <RefreshCw style={{ color: mainColor, width: 'max(8px, 6cqmin)', height: 'max(8px, 6cqmin)' }} />
+          <RefreshCw style={{ color: 'var(--theme-main)', width: 'max(8px, 6cqmin)', height: 'max(8px, 6cqmin)' }} />
         </button>
       </div>
 

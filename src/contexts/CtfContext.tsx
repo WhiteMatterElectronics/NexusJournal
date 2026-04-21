@@ -248,13 +248,25 @@ export const CtfProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 });
                 
                 const fit = new FitAddonConstructor();
+                let isOpened = false;
+                const safeFit = () => {
+                  try {
+                    if (!termBox || termBox.clientWidth === 0 || termBox.clientHeight === 0) return;
+                    if (!isOpened) {
+                      term.open(termBox);
+                      isOpened = true;
+                    }
+                    fit.fit();
+                  } catch(e) {}
+                };
+
                 term.loadAddon(fit);
-                term.open(termBox);
+                safeFit();
                 window.termInstance = term; // Assign to global for the bridge
                 term.write('DEBUG: TERMINAL & API INITIALIZED\r\n');
                 
                 // Initial fit
-                setTimeout(() => fit.fit(), 200);
+                setTimeout(() => safeFit(), 200);
 
                 // Signal parent and drain buffered logs
                 window.hwBridgeReady = true;
@@ -265,7 +277,7 @@ export const CtfProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 }
                 
                 // Robust Resize Handling
-                const ro = new ResizeObserver(() => fit.fit());
+                const ro = new ResizeObserver(() => { try { fit.fit(); } catch(e) {} });
                 ro.observe(termBox);
 
                 // Serial Sync
@@ -329,7 +341,7 @@ export const CtfProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   }
                 });
 
-                window.addEventListener('resize', () => fit.fit());
+                window.addEventListener('resize', () => { try { fit.fit(); } catch(e) {} });
               }
 
               window.addEventListener('load', () => { setTimeout(initTerminal, 500); });
@@ -439,8 +451,8 @@ export const CtfProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 tCtx.stroke();
               }
 
-              window.addEventListener('resize', () => fit.fit());
-              setInterval(() => fit.fit(), 5000);
+              window.addEventListener('resize', () => { try { fit.fit(); } catch(e) {} });
+              setInterval(() => { try { fit.fit(); } catch(e) {} }, 5000);
             </script>
           </div>
         `

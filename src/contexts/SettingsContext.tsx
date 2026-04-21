@@ -77,6 +77,7 @@ export interface ThemeConfig {
   labelScale: number;
   shortcuts: Shortcut[];
   selectedMode?: ThemeBase;
+  mainColorBypass?: string | null;
 }
 
 export interface Shortcut {
@@ -289,18 +290,18 @@ export const defaultGranular: Record<ThemeMode, GranularColors> = {
 const defaultTheme: ThemeConfig = {
   mainColor: '#3b82f6',
   terminalColor: '#3b82f6',
-  globalTheme: 'retro',
-  isDarkMode: true,
+  globalTheme: 'glassy',
+  isDarkMode: false,
   glassyConfig: {
-    opacity: 0.4,
-    blur: 12,
+    opacity: 0.35,
+    blur: 10,
     borderOpacity: 0.1,
     saturation: 100
   },
   granularSettings: defaultGranular,
   useGranular: false,
-  backgroundType: 'base1',
-  customBackgroundUrl: null,
+  backgroundType: 'custom',
+  customBackgroundUrl: 'https://picsum.photos/1920/1080',
   desktopIcons: {
     'console': true,
     'eeprom': true,
@@ -339,7 +340,8 @@ const defaultTheme: ThemeConfig = {
   iconScale: 1,
   labelScale: 1,
   shortcuts: [],
-  selectedMode: 'retro'
+  selectedMode: 'retro',
+  mainColorBypass: null
 };
 
 const SettingsContext = createContext<SettingsContextType | null>(null);
@@ -424,77 +426,83 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
        return preferred || getContrastColor(bgColor);
     };
 
-    if (theme.useGranular) {
-      root.style.setProperty('--theme-main', g.accentColor);
-      root.style.setProperty('--theme-terminal', g.accentColor);
-      root.style.setProperty('--theme-panel-bg', g.windowFrame);
-      root.style.setProperty('--theme-header-bg', g.windowHeader);
+    // Helper to apply opacity to hex or rgba colors
+    const applyOpacity = (color: string, opacity: number) => {
+      if (!color) return `rgba(0, 0, 0, ${opacity})`;
+      if (color.startsWith('rgba') || color.startsWith('rgb')) {
+        const match = color.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*[\d.]+)?\s*\)/);
+        if (match) {
+          return `rgba(${match[1]}, ${match[2]}, ${match[3]}, ${opacity})`;
+        }
+        return color;
+      }
+      if (color.startsWith('#')) {
+        let hex = color.replace('#', '');
+        if (hex.length === 3) {
+          hex = hex.split('').map(c => c + c).join('');
+        }
+        if (hex.length >= 8) {
+          hex = hex.substring(0, 6);
+        }
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        // Handle invalid hex parsing
+        if (isNaN(r) || isNaN(g) || isNaN(b)) return color;
+        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+      }
+      return color;
+    };
+
+      if (theme.useGranular) {
+      const { opacity, blur, borderOpacity, saturation } = theme.glassyConfig || defaultTheme.glassyConfig;
+      
+      const activeAccentColor = theme.mainColorBypass || g.accentColor;
+      
+      root.style.setProperty('--theme-main', activeAccentColor);
+      root.style.setProperty('--theme-terminal', activeAccentColor);
+      root.style.setProperty('--theme-panel-bg', applyOpacity(g.windowFrame, opacity));
+      root.style.setProperty('--theme-header-bg', applyOpacity(g.windowHeader, Math.min(1, opacity + 0.1)));
       root.style.setProperty('--theme-text', safeContrast(g.windowHeader, g.windowTitle));
       root.style.setProperty('--theme-border-color', g.windowBorder);
-      root.style.setProperty('--theme-content-bg', g.contentBg);
+      root.style.setProperty('--theme-content-bg', applyOpacity(g.contentBg, opacity));
       root.style.setProperty('--theme-content-text', safeContrast(g.contentBg, g.contentText));
       root.style.setProperty('--theme-string', g.stringColor);
       root.style.setProperty('--theme-keyword', g.keywordColor);
       root.style.setProperty('--theme-number', g.numberColor);
       root.style.setProperty('--theme-comment', g.commentColor);
       
-      // Architecture still applies structural properties like blur even in granular mode
-      if (theme.globalTheme === 'glassy') {
-        const { blur, saturation } = theme.glassyConfig || defaultTheme.glassyConfig;
-        root.style.setProperty('--theme-backdrop-filter', `blur(${blur}px) saturate(${saturation}%)`);
-        root.style.setProperty('--theme-border-opacity', '0.2');
-      } else {
-        root.style.setProperty('--theme-backdrop-filter', 'none');
-        root.style.setProperty('--theme-border-opacity', '1');
-      }
+      // Architecture applies structural properties like blur even in granular mode
+      root.style.setProperty('--theme-backdrop-filter', `blur(${blur}px) saturate(${saturation}%)`);
+      root.style.setProperty('--theme-border-opacity', borderOpacity.toString());
     } else {
-      root.style.setProperty('--theme-main', theme.mainColor);
-      root.style.setProperty('--theme-terminal', theme.terminalColor);
+      const activeAccentColor = theme.mainColorBypass || theme.mainColor;
+      root.style.setProperty('--theme-main', activeAccentColor);
+      root.style.setProperty('--theme-terminal', theme.terminalColor === theme.mainColor && theme.mainColorBypass ? theme.mainColorBypass : theme.terminalColor);
       root.style.setProperty('--theme-string', theme.isDarkMode ? '#00ff9d' : '#2e7d32');
       root.style.setProperty('--theme-keyword', theme.isDarkMode ? '#ff00ff' : '#c2185b');
       root.style.setProperty('--theme-number', theme.isDarkMode ? '#ffcc00' : '#f57c00');
       root.style.setProperty('--theme-comment', theme.isDarkMode ? '#666666' : '#78909c');
       
-      if (theme.globalTheme === 'glassy') {
-        const { opacity, blur, borderOpacity, saturation } = theme.glassyConfig || defaultTheme.glassyConfig;
-        root.style.setProperty('--theme-backdrop-filter', `blur(${blur}px) saturate(${saturation}%)`);
-        
-        if (theme.isDarkMode) {
-          root.style.setProperty('--theme-panel-bg', `rgba(5, 5, 5, ${opacity})`);
-          root.style.setProperty('--theme-header-bg', `rgba(20, 20, 20, ${opacity + 0.1})`);
-          root.style.setProperty('--theme-text', '#ffffff');
-          root.style.setProperty('--theme-border-opacity', borderOpacity.toString());
-          root.style.setProperty('--theme-border-color', `rgba(255, 255, 255, ${borderOpacity})`);
-          root.style.setProperty('--theme-content-bg', 'transparent');
-          root.style.setProperty('--theme-content-text', '#ffffff');
-        } else {
-          root.style.setProperty('--theme-panel-bg', `rgba(255, 255, 255, ${opacity})`);
-          root.style.setProperty('--theme-header-bg', `rgba(240, 240, 240, ${opacity + 0.1})`);
-          root.style.setProperty('--theme-text', '#1a1a1a');
-          root.style.setProperty('--theme-border-opacity', borderOpacity.toString());
-          root.style.setProperty('--theme-border-color', `rgba(0, 0, 0, ${borderOpacity})`);
-          root.style.setProperty('--theme-content-bg', 'transparent');
-          root.style.setProperty('--theme-content-text', '#1a1a1a');
-        }
+      const { opacity, blur, borderOpacity, saturation } = theme.glassyConfig || defaultTheme.glassyConfig;
+      root.style.setProperty('--theme-backdrop-filter', `blur(${blur}px) saturate(${saturation}%)`);
+      
+      if (theme.isDarkMode) {
+        root.style.setProperty('--theme-panel-bg', `rgba(5, 5, 5, ${opacity})`);
+        root.style.setProperty('--theme-header-bg', `rgba(20, 20, 20, ${opacity + 0.1})`);
+        root.style.setProperty('--theme-text', theme.globalTheme === 'glassy' ? '#ffffff' : activeAccentColor);
+        root.style.setProperty('--theme-border-opacity', borderOpacity.toString());
+        root.style.setProperty('--theme-border-color', theme.globalTheme === 'glassy' ? `rgba(255, 255, 255, ${borderOpacity})` : `${activeAccentColor}4D`);
+        root.style.setProperty('--theme-content-bg', 'transparent');
+        root.style.setProperty('--theme-content-text', theme.globalTheme === 'glassy' ? '#ffffff' : activeAccentColor);
       } else {
-        root.style.setProperty('--theme-backdrop-filter', 'none');
-        if (theme.isDarkMode) {
-          root.style.setProperty('--theme-panel-bg', '#050505');
-          root.style.setProperty('--theme-header-bg', '#0a0a0a');
-          root.style.setProperty('--theme-text', theme.mainColor);
-          root.style.setProperty('--theme-border-opacity', '0.3');
-          root.style.setProperty('--theme-border-color', `${theme.mainColor}4D`);
-          root.style.setProperty('--theme-content-bg', '#050505');
-          root.style.setProperty('--theme-content-text', theme.mainColor);
-        } else {
-          root.style.setProperty('--theme-panel-bg', '#e0f7fa');
-          root.style.setProperty('--theme-header-bg', '#b2ebf2');
-          root.style.setProperty('--theme-text', '#006064');
-          root.style.setProperty('--theme-border-opacity', '0.4');
-          root.style.setProperty('--theme-border-color', 'rgba(0, 96, 100, 0.4)');
-          root.style.setProperty('--theme-content-bg', '#e0f7fa');
-          root.style.setProperty('--theme-content-text', '#006064');
-        }
+        root.style.setProperty('--theme-panel-bg', `rgba(255, 255, 255, ${opacity})`);
+        root.style.setProperty('--theme-header-bg', `rgba(240, 240, 240, ${opacity + 0.1})`);
+        root.style.setProperty('--theme-text', theme.globalTheme === 'glassy' ? '#1a1a1a' : '#006064');
+        root.style.setProperty('--theme-border-opacity', borderOpacity.toString());
+        root.style.setProperty('--theme-border-color', theme.globalTheme === 'glassy' ? `rgba(0, 0, 0, ${borderOpacity})` : 'rgba(0, 96, 100, 0.4)');
+        root.style.setProperty('--theme-content-bg', 'transparent');
+        root.style.setProperty('--theme-content-text', theme.globalTheme === 'glassy' ? '#1a1a1a' : '#006064');
       }
     }
 
@@ -509,7 +517,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
       root.style.setProperty('--theme-bg-size', '30px 30px');
       root.style.setProperty('--theme-bg-color', theme.isDarkMode ? '#020202' : '#f5f7f8');
     } else if (theme.backgroundType === 'custom' && theme.customBackgroundUrl) {
-      root.style.setProperty('--theme-bg-image', `url(${theme.customBackgroundUrl})`);
+      root.style.setProperty('--theme-bg-image', `url("${theme.customBackgroundUrl}")`);
       root.style.setProperty('--theme-bg-size', 'cover');
       root.style.setProperty('--theme-bg-color', '#000000');
     } else {
@@ -558,7 +566,18 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
         return prev;
       }
       
-      return { ...prev, ...updates };
+      const updatedTheme = { ...prev, ...updates };
+
+      // Save to server
+      fetch('/api/settings/theme', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updatedTheme)
+      }).catch(err => console.error("Failed to save theme to server", err));
+
+      return updatedTheme;
     });
   }, []);
 

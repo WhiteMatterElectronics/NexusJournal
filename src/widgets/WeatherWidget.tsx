@@ -12,15 +12,15 @@ export const WeatherWidget: React.FC<WidgetProps> = ({ instanceId, mainColor, is
     )} style={{ padding: 'max(8px, 5cqmin)' }}>
       <div className="flex justify-between items-start mb-2">
         <div className="flex items-center gap-2">
-          <MapPin className="text-hw-blue opacity-60" style={{ width: 'max(10px, 8cqmin)', height: 'max(10px, 8cqmin)' }} />
-          <span className="font-bold uppercase tracking-widest text-hw-blue" style={{ fontSize: 'max(6px, 6cqmin)' }}>Bucharest</span>
+          <MapPin className=" opacity-60" style={{ color: 'var(--theme-main)', width: 'max(10px, 8cqmin)', height: 'max(10px, 8cqmin)' }} />
+          <span className="font-bold uppercase tracking-widest " style={{ color: 'var(--theme-main)', fontSize: 'max(6px, 6cqmin)' }}>Bucharest</span>
         </div>
       </div>
 
       <div className="flex-1 flex items-center gap-4">
         <div className="relative">
           <Sun className="text-yellow-400 animate-pulse" style={{ width: 'max(24px, 20cqmin)', height: 'max(24px, 20cqmin)' }} />
-          <Cloud className="text-hw-blue/40 absolute -bottom-1 -right-1" style={{ width: 'max(14px, 12cqmin)', height: 'max(14px, 12cqmin)' }} />
+          <Cloud className="/40 absolute -bottom-1 -right-1" style={{ color: 'var(--theme-main)', width: 'max(14px, 12cqmin)', height: 'max(14px, 12cqmin)' }} />
         </div>
         <div className="flex flex-col">
           <div className="font-bold tracking-tighter flex items-start" style={{ fontSize: 'max(16px, 20cqmin)' }}>
@@ -31,7 +31,7 @@ export const WeatherWidget: React.FC<WidgetProps> = ({ instanceId, mainColor, is
         </div>
       </div>
 
-      <div className="mt-2 grid grid-cols-3 gap-2 border-t border-hw-blue/10 pt-2">
+      <div className="mt-2 grid grid-cols-3 gap-2 border-t border-theme-main-10 pt-2">
         {['MON', 'TUE', 'WED'].map((day, i) => (
           <div key={day} className="flex flex-col items-center gap-1">
             <span className="opacity-40 font-bold" style={{ fontSize: 'max(4px, 4cqmin)' }}>{day}</span>
@@ -42,7 +42,7 @@ export const WeatherWidget: React.FC<WidgetProps> = ({ instanceId, mainColor, is
       </div>
 
       {/* Morphing Background Effect */}
-      <div className="absolute -bottom-10 -right-10 bg-hw-blue/5 rounded-full blur-3xl group-hover/widget:bg-hw-blue/10 transition-all duration-500" style={{ width: 'max(64px, 50cqmin)', height: 'max(64px, 50cqmin)' }} />
+      <div className="absolute -bottom-10 -right-10 bg-theme-main-5 rounded-full blur-3xl group-hover/widget:bg-theme-main-10 transition-all duration-500" style={{ width: 'max(64px, 50cqmin)', height: 'max(64px, 50cqmin)' }} />
     </div>
   );
 };

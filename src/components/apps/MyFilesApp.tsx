@@ -27,6 +27,7 @@ export interface FileSystemItem {
   isHost?: boolean;
   isStarred?: boolean;
   defaultApp?: AppView;
+  path?: string;
 }
 
 const DEFAULT_STRUCTURE: FileSystemItem[] = [
@@ -39,7 +40,11 @@ const DEFAULT_STRUCTURE: FileSystemItem[] = [
   { id: 'tutorials', name: 'Tutorials', type: 'folder', parentId: 'documents', createdAt: Date.now() },
 ];
 
-export const MyFilesApp: React.FC = () => {
+interface MyFilesAppProps {
+  onFileSelect?: (file: FileSystemItem) => void;
+}
+
+export const MyFilesApp: React.FC<MyFilesAppProps> = ({ onFileSelect }) => {
   const { theme, updateTheme } = useSettings();
   const { trashFile } = useTrash();
   const [items, setItems] = useState<FileSystemItem[]>([]);
@@ -67,7 +72,7 @@ export const MyFilesApp: React.FC = () => {
   } | null>(null);
 
   // Host Machine State
-  const [hostHandle, setHostHandle] = useState<FileSystemDirectoryHandle | null>(null);
+  const [hostPath, setHostPath] = useState<string>('/');
   const [hostItems, setHostItems] = useState<any[]>([]);
   const [isHostLoading, setIsHostLoading] = useState(false);
   const instanceId = useMemo(() => crypto.randomUUID(), []);
@@ -210,30 +215,41 @@ export const MyFilesApp: React.FC = () => {
 
   // Host Machine Connection
   const connectHost = async () => {
-    if (!('showDirectoryPicker' in window)) {
-      alert("FILE SYSTEM ACCESS DENIED: Your browser does not support the File System Access API or you are not in a secure context. Please use a Chromium-based browser (Chrome, Edge) and ensure the site is served over HTTPS.");
-      return;
-    }
     try {
-      const handle = await (window as any).showDirectoryPicker();
-      setHostHandle(handle);
       setCurrentFolderId('host-root');
-      loadHostItems(handle);
+      let startPath = '/';
+      if ((window as any).electron && (window as any).electron.fs && (window as any).electron.fs.getHomeDir) {
+        startPath = await (window as any).electron.fs.getHomeDir();
+      }
+      setHostPath(startPath);
+      loadHostItems(startPath);
     } catch (err: any) {
-      if (err.name === 'AbortError') return;
       console.error("Host connection failed", err);
       alert(`HOST_BRIDGE_ERROR: ${err.message}`);
     }
   };
 
-  const loadHostItems = async (handle: FileSystemDirectoryHandle) => {
+  const loadHostItems = async (path: string) => {
     setIsHostLoading(true);
     try {
-      const entries: any[] = [];
-      for await (const entry of (handle as any).values()) {
-        entries.push(entry);
+      if ((window as any).electron && (window as any).electron.fs) {
+        const entries = await (window as any).electron.fs.readdir(path);
+        
+        const itemsWithStats = entries.map((entryObj: any) => {
+          const entryPath = path === '/' ? `/${entryObj.name}` : `${path}/${entryObj.name}`;
+          return {
+            name: entryObj.name,
+            kind: entryObj.isDirectory ? 'directory' : 'file',
+            size: entryObj.size,
+            path: entryPath,
+            modifiedAt: entryObj.mtimeMs
+          };
+        });
+        
+        setHostItems(itemsWithStats);
+      } else {
+        setHostItems([]);
       }
-      setHostItems(entries);
     } catch (err) {
       console.error("Failed to load host items", err);
     } finally {
@@ -335,23 +351,51 @@ export const MyFilesApp: React.FC = () => {
   }, []);
 
   const currentFolder = useMemo(() => {
-    if (currentFolderId === 'host-root') return { name: hostHandle?.name || 'Host Root', id: 'host-root' };
+    if (currentFolderId === 'host-root') return { name: hostPath, id: 'host-root' };
     return items.find(i => i.id === currentFolderId);
-  }, [items, currentFolderId, hostHandle]);
+  }, [items, currentFolderId, hostPath]);
   
   const currentItems = useMemo(() => {
     let baseItems: FileSystemItem[] = [];
 
     if (currentFolderId === 'host-root') {
-      return hostItems.map(entry => ({
-        id: entry.name,
-        name: entry.name,
-        type: entry.kind === 'directory' ? 'folder' : 'file',
-        parentId: 'host-root',
-        createdAt: Date.now(),
-        isHost: true,
-        handle: entry
-      }));
+      // Add a ".." entry if not at root
+      const entries: FileSystemItem[] = hostItems.map(entry => {
+        const ext = entry.name.split('.').pop()?.toLowerCase() || '';
+        let category: FileSystemItem['category'] = 'text';
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) category = 'image';
+        else if (['mp4', 'webm', 'ogg'].includes(ext)) category = 'video';
+        else if (ext === 'pdf') category = 'pdf';
+        else if (ext === 'note') category = 'note';
+        else if (ext === 'tutorial') category = 'tutorial';
+
+        return {
+          id: `host-${entry.path}`,
+          name: entry.name,
+          type: entry.kind === 'directory' ? 'folder' : 'file',
+          extension: ext,
+          category: category,
+          parentId: 'host-root',
+          createdAt: entry.modifiedAt || Date.now(),
+          isHost: true,
+          path: entry.path,
+          size: entry.size
+        } as FileSystemItem;
+      });
+      
+      if (hostPath !== '/') {
+        entries.unshift({
+          id: `host-..`,
+          name: '..',
+          type: 'folder',
+          parentId: 'host-root',
+          createdAt: Date.now(),
+          isHost: true,
+          path: hostPath.substring(0, hostPath.lastIndexOf('/')) || '/',
+          size: 0
+        } as FileSystemItem);
+      }
+      return entries;
     }
 
     if (currentFolderId === 'recent') {
@@ -368,7 +412,7 @@ export const MyFilesApp: React.FC = () => {
 
     if (searchTerm) {
       baseItems = [...items, ...syncedNotes, ...syncedTutorials].filter(i => 
-        i.name.toLowerCase().includes(searchTerm.toLowerCase()) && i.type === 'file'
+        i.name.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -387,7 +431,7 @@ export const MyFilesApp: React.FC = () => {
   }, [items, currentFolderId, searchTerm, syncedNotes, syncedTutorials, hostItems, sortBy, sortOrder]);
 
   const breadcrumbs = useMemo(() => {
-    if (currentFolderId === 'host-root') return [{ id: 'host-root', name: hostHandle?.name || 'Host Machine' }];
+    if (currentFolderId === 'host-root') return [{ id: 'host-root', name: hostPath === '/' ? 'Host Machine' : hostPath }];
     if (currentFolderId === 'recent') return [{ id: 'recent', name: 'Recent' }];
     if (currentFolderId === 'starred') return [{ id: 'starred', name: 'Starred' }];
     
@@ -401,7 +445,7 @@ export const MyFilesApp: React.FC = () => {
       path.push({ id: 'root', name: 'Home', type: 'folder', parentId: null, createdAt: 0 });
     }
     return path;
-  }, [items, currentFolderId, hostHandle]);
+  }, [items, currentFolderId, hostPath]);
 
   const navigateTo = (folderId: string) => {
     if (folderId === currentFolderId) return;
@@ -441,8 +485,18 @@ export const MyFilesApp: React.FC = () => {
   };
 
   const openFile = (item: any, forceAppId?: AppView) => {
+    if (onFileSelect) {
+      onFileSelect(item);
+      return;
+    }
+
     if (item.type === 'folder') {
-      navigateTo(item.id);
+      if (item.isHost) {
+        setHostPath(item.path);
+        loadHostItems(item.path);
+      } else {
+        navigateTo(item.id);
+      }
       return;
     }
 
@@ -451,6 +505,9 @@ export const MyFilesApp: React.FC = () => {
     if (!forceAppId && !item.defaultApp) {
       if (item.extension === 'note' || item.category === 'note') appId = 'notes';
       else if (item.extension === 'tutorial' || item.category === 'tutorial') appId = 'tutorials';
+      else if (item.category === 'pdf' || item.extension === 'pdf') {
+        appId = 'pdf_viewer';
+      }
       else if (item.category === 'image') appId = 'text_editor';
     }
 
@@ -467,26 +524,42 @@ export const MyFilesApp: React.FC = () => {
   const importHostFile = async (item: any) => {
     if (!item.isHost || item.type === 'folder') return;
     try {
-      const file = await item.handle.getFile();
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const content = e.target?.result as string;
-        const extension = file.name.split('.').pop()?.toLowerCase();
+      if ((window as any).electron && (window as any).electron.fs) {
+        const extension = item.name.split('.').pop()?.toLowerCase();
+        const isBinary = ['png', 'jpg', 'jpeg', 'gif', 'pdf', 'zip', 'exe', 'bin'].includes(extension || '');
+        
+        let content: string;
+        if (isBinary) {
+          const base64 = await (window as any).electron.fs.readFile(item.path, 'base64');
+          let mime = 'application/octet-stream';
+          if (['png', 'jpg', 'jpeg', 'gif'].includes(extension || '')) mime = `image/${extension === 'jpg' ? 'jpeg' : extension}`;
+          else if (extension === 'pdf') mime = 'application/pdf';
+          content = `data:${mime};base64,${base64}`;
+        } else {
+          content = await (window as any).electron.fs.readFile(item.path);
+        }
+        
+        let category: FileSystemItem['category'] = 'text';
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension || '')) category = 'image';
+        else if (['mp4', 'webm', 'ogg'].includes(extension || '')) category = 'video';
+        else if (extension === 'pdf') category = 'pdf';
+        else if (extension === 'note') category = 'note';
+        else if (extension === 'tutorial') category = 'tutorial';
+
         const newItem: FileSystemItem = {
           id: crypto.randomUUID(),
-          name: file.name.split('.')[0],
+          name: item.name.split('.')[0],
           type: 'file',
           extension,
           content,
           parentId: 'downloads', // Default to downloads
           createdAt: Date.now(),
-          size: file.size,
-          category: extension === 'pdf' ? 'pdf' : 'text'
+          size: item.size,
+          category
         };
         saveFS(prev => [...prev, newItem]);
-        alert(`Imported ${file.name} to virtual database!`);
-      };
-      reader.readAsDataURL(file);
+        alert(`Imported ${item.name} to virtual database!`);
+      }
     } catch (err) {
       console.error("Import failed", err);
     }
@@ -498,7 +571,9 @@ export const MyFilesApp: React.FC = () => {
       label: item.name,
       type: item.type,
       targetId: item.id,
-      category: item.category
+      category: item.category,
+      isHost: item.isHost,
+      path: item.path
     };
     updateTheme(prev => ({
       ...prev,
@@ -571,10 +646,11 @@ export const MyFilesApp: React.FC = () => {
     });
   };
 
-  const renameItem = (id: string) => {
-    const item = items.find(i => i.id === id);
+  const renameItem = async (id: string) => {
+    const item = allFileSystemItems.find(i => i.id === id) || currentItems.find(i => i.id === id);
     if (!item) return;
-    if (DEFAULT_STRUCTURE.some(i => i.id === id)) {
+    
+    if (DEFAULT_STRUCTURE.some(ds => ds.id === id)) {
       alert("Cannot rename system folders.");
       return;
     }
@@ -582,13 +658,33 @@ export const MyFilesApp: React.FC = () => {
     const newName = prompt("Enter new name:", item.name);
     if (!newName || newName === item.name) return;
 
-    saveFS(prev => prev.map(i => i.id === id ? { ...i, name: newName } : i));
+    if (item.isHost && item.path) {
+      if ((window as any).electron?.fs) {
+        try {
+          const oldPath = item.path;
+          const lastSlash = oldPath.lastIndexOf('/');
+          const parentPath = lastSlash === -1 ? '' : oldPath.substring(0, lastSlash);
+          const extension = item.extension ? `.${item.extension}` : '';
+          const newPath = parentPath ? `${parentPath}/${newName}${extension}` : `${newName}${extension}`;
+          await (window as any).electron.fs.rename(oldPath, newPath);
+          loadHostItems(hostPath);
+        } catch (err) {
+          alert(`Rename failed: ${(err as any).message}`);
+        }
+      }
+    } else {
+      saveFS(prev => prev.map(i => i.id === id ? { ...i, name: newName } : i));
+    }
   };
 
-  const setAsWallpaper = (item: any) => {
-    if (item.category !== 'image' || !item.content) return;
-    updateTheme({ backgroundType: 'custom', customBackgroundUrl: item.content });
-    alert("Wallpaper updated!");
+  const setAsWallpaper = async (item: any) => {
+    let content = item.content;
+    if (item.isHost && !content) {
+      content = await readHostFile(item);
+    }
+    if (!content) return;
+    
+    updateTheme({ backgroundType: 'custom', customBackgroundUrl: content });
   };
 
   const deleteItem = (id: string) => {
@@ -657,39 +753,243 @@ export const MyFilesApp: React.FC = () => {
     setSelectedItems([]);
   };
 
-  const copySelected = () => {
-    const itemsToCopy = allFileSystemItems.filter(item => selectedItems.includes(item.id));
-    updateClipboard({ items: itemsToCopy, action: 'copy' });
-  };
-
-  const cutSelected = () => {
-    const itemsToCut = allFileSystemItems.filter(item => selectedItems.includes(item.id));
-    updateClipboard({ items: itemsToCut, action: 'cut' });
-  };
-
-  const pasteItem = () => {
-    if (!clipboard) return;
-
-    if (clipboard.action === 'copy') {
-      const newItems = clipboard.items.map(item => ({
-        ...item,
-        id: crypto.randomUUID(),
-        parentId: currentFolderId,
-        createdAt: Date.now()
-      }));
-      saveFS(prev => [...prev, ...newItems]);
-    } else if (clipboard.action === 'cut') {
-      // Move: update parentId of existing items
-      saveFS(prev => prev.map(item => {
-        if (clipboard.items.some(c => c.id === item.id)) {
-          return { ...item, parentId: currentFolderId };
-        }
-        return item;
-      }));
-      updateClipboard(null);
-    }
+  const copySelected = (specificItem?: FileSystemItem) => {
+    let itemsToCopy: FileSystemItem[] = [];
     
-    setSelectedItems([]);
+    const combined = [...allFileSystemItems, ...currentItems];
+    const uniqueItems = Array.from(new Map(combined.map(item => [item.id, item])).values());
+
+    if (specificItem && (selectedItems.length <= 1 || !selectedItems.includes(specificItem.id))) {
+      itemsToCopy = [specificItem];
+    } else {
+      itemsToCopy = uniqueItems.filter(item => selectedItems.includes(item.id));
+    }
+
+    if (itemsToCopy.length > 0) {
+      updateClipboard({ items: itemsToCopy, action: 'copy' });
+    }
+  };
+
+  const cutSelected = (specificItem?: FileSystemItem) => {
+    let itemsToCut: FileSystemItem[] = [];
+    
+    const combined = [...allFileSystemItems, ...currentItems];
+    const uniqueItems = Array.from(new Map(combined.map(item => [item.id, item])).values());
+
+    if (specificItem && (selectedItems.length <= 1 || !selectedItems.includes(specificItem.id))) {
+      itemsToCut = [specificItem];
+    } else {
+      itemsToCut = uniqueItems.filter(item => selectedItems.includes(item.id));
+    }
+
+    if (itemsToCut.length > 0) {
+      updateClipboard({ items: itemsToCut, action: 'cut' });
+    }
+  };
+
+  const pasteItem = async (customTargetId?: string) => {
+    if (!clipboard || clipboard.items.length === 0) {
+      console.warn("Paste called but clipboard is empty");
+      return;
+    }
+
+    setIsUploading(true); // Reuse uploading state as "processing"
+
+    // Determine the actual target folder
+    let targetFolderId = customTargetId || currentFolderId;
+    
+    // Map virtual views to root to prevent files disappearing into the void
+    if (['recent', 'starred'].includes(targetFolderId) && !customTargetId) {
+      targetFolderId = 'root';
+    }
+
+    console.log("Pasting items:", clipboard.items, "to folder:", targetFolderId);
+
+    try {
+      if (clipboard.action === 'copy') {
+        for (const item of clipboard.items) {
+          if (targetFolderId === 'host-root') {
+            await copyToHostRecursive(item, hostPath);
+          } else {
+            await copyToVirtualRecursive(item, targetFolderId);
+          }
+        }
+      } else if (clipboard.action === 'cut') {
+        for (const item of clipboard.items) {
+          if (targetFolderId === 'host-root') {
+            await moveToHostRecursive(item, hostPath);
+          } else {
+            await moveToVirtualRecursive(item, targetFolderId);
+          }
+        }
+        updateClipboard(null);
+      }
+    } catch (err) {
+      console.error("Paste operation failed", err);
+      alert(`Paste failed: ${(err as any).message}`);
+    } finally {
+      setIsUploading(false);
+      setSelectedItems([]);
+      if (targetFolderId === 'host-root') {
+        loadHostItems(hostPath);
+      }
+    }
+  };
+
+  const copyToVirtualRecursive = async (item: FileSystemItem, targetParentId: string) => {
+    if (item.isHost) {
+      if (item.type === 'file') {
+        const content = await readHostFile(item);
+        const newItem: FileSystemItem = {
+          ...item,
+          id: crypto.randomUUID(),
+          parentId: targetParentId,
+          createdAt: Date.now(),
+          content,
+          isHost: false,
+          path: undefined
+        };
+        saveFS(prev => [...prev, newItem]);
+      } else {
+        // Folder
+        const newFolderId = crypto.randomUUID();
+        const newFolder: FileSystemItem = {
+          id: newFolderId,
+          name: item.name,
+          type: 'folder',
+          parentId: targetParentId,
+          createdAt: Date.now()
+        };
+        saveFS(prev => [...prev, newFolder]);
+        
+        // Read children from host
+        if ((window as any).electron?.fs) {
+          const children = await (window as any).electron.fs.readdir(item.path);
+          for (const child of children) {
+            const childItem: FileSystemItem = {
+              id: `host-${item.path}/${child.name}`,
+              name: child.name,
+              type: child.isDirectory ? 'folder' : 'file',
+              parentId: item.id,
+              path: `${item.path}/${child.name}`,
+              isHost: true,
+              createdAt: child.mtimeMs,
+              size: child.size
+            };
+            await copyToVirtualRecursive(childItem, newFolderId);
+          }
+        }
+      }
+    } else {
+      // Virtual to Virtual
+      const newId = crypto.randomUUID();
+      const newItem: FileSystemItem = {
+        ...item,
+        id: newId,
+        parentId: targetParentId,
+        createdAt: Date.now(),
+        isStarred: false
+      };
+      saveFS(prev => [...prev, newItem]);
+      
+      if (item.type === 'folder') {
+        const children = items.filter(i => i.parentId === item.id);
+        for (const child of children) {
+          await copyToVirtualRecursive(child, newId);
+        }
+      }
+    }
+  };
+
+  const copyToHostRecursive = async (item: FileSystemItem, targetHostPath: string) => {
+    if (!(window as any).electron?.fs) return;
+    
+    const fullName = item.name + (item.extension && !item.name.endsWith('.' + item.extension) ? `.${item.extension}` : '');
+    let targetPath = targetHostPath === '/' ? `/${fullName}` : `${targetHostPath}/${fullName}`;
+    
+    // Simple collision avoidance
+    if (item.isHost && item.path === targetPath) {
+      targetPath += ' (Copy)';
+    }
+
+    if (item.type === 'file') {
+      let content = '';
+      let encoding = 'utf-8';
+      
+      if (item.isHost) {
+        const isBinary = isBinaryFile(item.name);
+        content = await (window as any).electron.fs.readFile(item.path, isBinary ? 'base64' : 'utf-8');
+        encoding = isBinary ? 'base64' : 'utf-8';
+      } else {
+        content = item.content || '';
+        if (content.startsWith('data:')) {
+          encoding = 'base64';
+        }
+      }
+      await (window as any).electron.fs.writeFile(targetPath, content, encoding);
+    } else {
+      // Folder
+      await (window as any).electron.fs.mkdir(targetPath);
+      if (item.isHost) {
+        const children = await (window as any).electron.fs.readdir(item.path);
+        for (const child of children) {
+          const childItem: FileSystemItem = {
+            id: `host-${item.path}/${child.name}`,
+            name: child.name,
+            type: child.isDirectory ? 'folder' : 'file',
+            parentId: item.id,
+            path: `${item.path}/${child.name}`,
+            isHost: true,
+            createdAt: child.mtimeMs,
+            size: child.size
+          };
+          await copyToHostRecursive(childItem, targetPath);
+        }
+      } else {
+        const children = items.filter(i => i.parentId === item.id);
+        for (const child of children) {
+          await copyToHostRecursive(child, targetPath);
+        }
+      }
+    }
+  };
+
+  const moveToVirtualRecursive = async (item: FileSystemItem, targetParentId: string) => {
+    if (item.isHost) {
+      await copyToVirtualRecursive(item, targetParentId);
+      // We don't delete from host on "cut" unless we really want to, 
+      // but usually "cut" from host to virtual is just copy + delete.
+      // For safety, let's just copy and not delete host files for now, 
+      // or implement delete later.
+    } else {
+      saveFS(prev => prev.map(i => i.id === item.id ? { ...i, parentId: targetParentId } : i));
+    }
+  };
+
+  const moveToHostRecursive = async (item: FileSystemItem, targetHostPath: string) => {
+    await copyToHostRecursive(item, targetHostPath);
+    if (!item.isHost) {
+      deleteItem(item.id);
+    }
+  };
+
+  const isBinaryFile = (name: string) => {
+    const ext = name.split('.').pop()?.toLowerCase();
+    return ['png', 'jpg', 'jpeg', 'gif', 'pdf', 'zip', 'exe', 'bin', 'tar', 'gz', 'rar'].includes(ext || '');
+  };
+
+  const readHostFile = async (item: FileSystemItem) => {
+    if (!(window as any).electron?.fs) return '';
+    const isBinary = isBinaryFile(item.name);
+    if (isBinary) {
+      const base64 = await (window as any).electron.fs.readFile(item.path, 'base64');
+      const ext = item.name.split('.').pop()?.toLowerCase();
+      let mime = 'application/octet-stream';
+      if (['png', 'jpg', 'jpeg', 'gif'].includes(ext || '')) mime = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+      else if (ext === 'pdf') mime = 'application/pdf';
+      return `data:${mime};base64,${base64}`;
+    }
+    return await (window as any).electron.fs.readFile(item.path);
   };
 
   const uploadFile = (file: File, targetParentId?: string) => {
@@ -875,6 +1175,7 @@ export const MyFilesApp: React.FC = () => {
   const getCompatibleApps = (item: FileSystemItem) => {
     const apps = [
       { id: 'text_editor', label: 'Text Editor', icon: FileText, color: 'text-hw-blue' },
+      { id: 'pdf_viewer', label: 'PDF Viewer', icon: BookOpen, color: 'text-red-400' },
       { id: 'notes', label: 'Notes App', icon: FileCode, color: 'text-purple-400' },
       { id: 'tutorials', label: 'Tutorials App', icon: BookOpen, color: 'text-green-400' },
       { id: 'browser', label: 'Web Browser', icon: Globe, color: 'text-orange-400' }
@@ -882,6 +1183,7 @@ export const MyFilesApp: React.FC = () => {
 
     return apps.filter(app => {
       if (app.id === 'text_editor') return true; // Text editor is universal
+      if (app.id === 'pdf_viewer') return item.category === 'pdf' || item.extension === 'pdf';
       if (app.id === 'notes') return item.category === 'note' || item.extension === 'txt' || item.extension === 'note';
       if (app.id === 'tutorials') return item.category === 'tutorial' || item.extension === 'tutorial';
       if (app.id === 'browser') return item.category === 'image' || item.category === 'pdf' || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf'].includes(item.extension || '');
@@ -915,7 +1217,7 @@ export const MyFilesApp: React.FC = () => {
       {/* Sidebar */}
       <div className="w-48 border-r border-hw-blue/10 flex flex-col bg-hw-black/20 backdrop-blur-sm" style={{ borderColor: 'var(--theme-border-color)' }}>
         <div className="p-4 space-y-1">
-          <div className="text-[9px] uppercase tracking-widest opacity-40 mb-2 px-2">Quick Access</div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-hw-blue mb-2 px-2 border-b border-hw-blue/20 pb-1">Virtual OS</div>
           {[
             { id: 'root', label: 'Home', icon: Home },
             { id: 'recent', label: 'Recent', icon: Clock },
@@ -940,17 +1242,17 @@ export const MyFilesApp: React.FC = () => {
             </button>
           ))}
 
-          <div className="pt-4">
-            <div className="text-[9px] uppercase tracking-widest opacity-40 mb-2 px-2">Host Machine</div>
+          <div className="pt-6">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-green-400 mb-2 px-2 border-b border-green-400/20 pb-1">Real PC</div>
             <button
               onClick={connectHost}
               className={cn(
                 "w-full flex items-center gap-3 px-3 py-2 rounded text-[10px] font-bold uppercase tracking-wider transition-colors",
-                currentFolderId === 'host-root' ? "bg-hw-blue/20 text-hw-blue" : "hover:bg-hw-blue/10 opacity-70 hover:opacity-100"
+                currentFolderId === 'host-root' ? "bg-green-500/20 text-green-400" : "hover:bg-green-500/10 text-green-400/70 hover:text-green-400"
               )}
             >
               <HardDrive size={14} />
-              {hostHandle ? hostHandle.name : 'Real PC'}
+              Local Storage
             </button>
           </div>
         </div>
@@ -1034,20 +1336,6 @@ export const MyFilesApp: React.FC = () => {
 
               {selectedItems.length > 0 && (
                 <div className="flex items-center gap-1 border-l border-hw-blue/10 pl-2">
-                  <button 
-                    onClick={copySelected}
-                    className="p-1.5 hover:bg-hw-blue/10 rounded transition-colors"
-                    title="Copy"
-                  >
-                    <Share2 size={14} className="rotate-180" />
-                  </button>
-                  <button 
-                    onClick={cutSelected}
-                    className="p-1.5 hover:bg-hw-blue/10 rounded transition-colors"
-                    title="Cut"
-                  >
-                    <ArrowRight size={14} className="rotate-45" />
-                  </button>
                   <button 
                     onClick={deleteSelected}
                     className="p-1.5 hover:bg-red-500/10 text-red-500 rounded transition-colors"
@@ -1392,8 +1680,14 @@ export const MyFilesApp: React.FC = () => {
                       {getCompatibleApps(contextMenu.item).map(app => (
                         <div key={app.id} className="flex items-center justify-between hover:bg-hw-blue/10 pr-2">
                           <button 
-                            onClick={() => { openFile(contextMenu.item, app.id as AppView); setContextMenu(null); }}
-                            className="flex-1 text-left px-3 py-2 text-[9px] font-bold uppercase tracking-widest flex items-center gap-2"
+                            onClick={(e) => { 
+                              e.preventDefault();
+                              e.stopPropagation();
+                              console.log("Opening with app:", app.id, contextMenu.item);
+                              openFile(contextMenu.item, app.id as AppView); 
+                              setContextMenu(null); 
+                            }}
+                            className="flex-1 text-left px-3 py-2 text-[9px] font-bold uppercase tracking-widest flex items-center gap-2 pointer-events-auto"
                           >
                             <app.icon size={10} className={app.color} />
                             {app.label}
@@ -1476,14 +1770,14 @@ export const MyFilesApp: React.FC = () => {
                 <div className="h-[1px] bg-hw-blue/10 my-1" />
 
                 <button 
-                  onClick={() => { copySelected(); setContextMenu(null); }}
+                  onClick={() => { copySelected(contextMenu.item); setContextMenu(null); }}
                   className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors"
                 >
                   <ArrowRight size={12} className="opacity-60" /> Copy
                 </button>
 
                 <button 
-                  onClick={() => { cutSelected(); setContextMenu(null); }}
+                  onClick={() => { cutSelected(contextMenu.item); setContextMenu(null); }}
                   className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors"
                 >
                   <ArrowRight size={12} className="opacity-60" /> Cut
@@ -1493,7 +1787,11 @@ export const MyFilesApp: React.FC = () => {
 
             <button 
               disabled={!clipboard}
-              onClick={() => { pasteItem(); setContextMenu(null); }}
+              onClick={() => { 
+                const target = contextMenu.item?.type === 'folder' ? contextMenu.item.id : undefined;
+                pasteItem(target); 
+                setContextMenu(null); 
+              }}
               className="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-hw-blue/10 flex items-center gap-2 uppercase tracking-widest transition-colors disabled:opacity-20"
             >
               <ArrowRight size={12} className="opacity-60" /> Paste

@@ -96,10 +96,10 @@ export const NotesWidget: React.FC<WidgetProps> = ({ instanceId, mainColor, isDa
       "w-full h-full flex flex-col overflow-hidden group/widget"
     )}>
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-hw-blue/10 bg-hw-blue/5" style={{ padding: 'max(4px, 2cqmin) max(8px, 4cqmin)' }}>
+      <div className="flex items-center justify-between border-b border-theme-main-10 bg-theme-main-5" style={{ padding: 'max(4px, 2cqmin) max(8px, 4cqmin)' }}>
         <div className="flex items-center gap-1">
-          <StickyNote className="text-hw-blue" style={{ width: 'max(8px, 6cqmin)', height: 'max(8px, 6cqmin)' }} />
-          <span className="font-bold uppercase tracking-widest text-hw-blue truncate max-w-[80px]" style={{ fontSize: 'max(6px, 5cqmin)' }}>
+          <StickyNote className="" style={{ color: 'var(--theme-main)', width: 'max(8px, 6cqmin)', height: 'max(8px, 6cqmin)' }} />
+          <span className="font-bold uppercase tracking-widest  truncate max-w-[80px]" style={{ color: 'var(--theme-main)', fontSize: 'max(6px, 5cqmin)' }}>
             {note.title}
           </span>
         </div>
@@ -127,13 +127,13 @@ export const NotesWidget: React.FC<WidgetProps> = ({ instanceId, mainColor, isDa
       </div>
 
       {/* Footer */}
-      <div className="flex justify-between items-center bg-black/20 border-t border-hw-blue/5" style={{ padding: 'max(2px, 1cqmin) max(8px, 4cqmin)' }}>
+      <div className="flex justify-between items-center bg-black/20 border-t border-[var(--theme-main)]/5" style={{ padding: 'max(2px, 1cqmin) max(8px, 4cqmin)' }}>
         <span className="opacity-30 uppercase font-mono" style={{ fontSize: 'max(5px, 4cqmin)' }}>
           Last Sync: {new Date(note.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </span>
         <div className="flex gap-1">
-           <div className="rounded-full bg-hw-blue/40" style={{ width: 'max(2px, 1cqmin)', height: 'max(2px, 1cqmin)' }} />
-           <div className="rounded-full bg-hw-blue/20" style={{ width: 'max(2px, 1cqmin)', height: 'max(2px, 1cqmin)' }} />
+           <div className="rounded-full bg-theme-main/40" style={{ width: 'max(2px, 1cqmin)', height: 'max(2px, 1cqmin)' }} />
+           <div className="rounded-full bg-theme-main/20" style={{ width: 'max(2px, 1cqmin)', height: 'max(2px, 1cqmin)' }} />
         </div>
       </div>
 

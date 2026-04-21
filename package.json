@@ -1,14 +1,22 @@
 {
-  "name": "react-example",
+  "name": "nexus-journal",
+  "description": "NexusJournal, a journal for electronics and IT enthusiasts.",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "author": "Nexus-Journal-Dev",
+  "main": "dist/main/electron.js",
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
-    "build": "vite build",
+    "dev": "concurrently \"npm:dev:vite\" \"npm:dev:server\" \"npm:dev:electron:watch\" \"npm:dev:electron\"",
+    "dev:vite": "vite",
+    "dev:server": "tsx server.ts",
+    "dev:electron": "wait-on tcp:5173 dist/main/electron.js && electron .",
+    "dev:electron:watch": "mkdir -p dist/main && echo '{\"type\": \"commonjs\"}' > dist/main/package.json && tsc --watch --project tsconfig.electron.json",
+    "build": "npm run build:vite && npm run build:electron",
+    "build:vite": "vite build",
+    "build:electron": "tsc --project tsconfig.electron.json && echo '{\"type\": \"commonjs\"}' > dist/main/package.json && electron-builder",
     "preview": "vite preview",
-    "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "clean": "rm -rf dist"
   },
   "dependencies": {
     "@binutils-wasm/binutils": "^0.2.0",
@@ -31,6 +39,7 @@
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "multer": "^2.1.1",
+    "node-pty": "^1.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
@@ -46,12 +55,32 @@
     "xterm-addon-fit": "^0.8.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^4.17.21",
+    "@types/multer": "^2.1.0",
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
+    "concurrently": "^9.2.1",
+    "electron": "^41.2.1",
+    "electron-builder": "^26.8.1",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "vite": "^6.2.0",
+    "wait-on": "^9.0.5"
+  },
+  "build": {
+    "appId": "com.nexus.journal",
+    "productName": "NexusJournal",
+    "files": [
+      "dist/"
+    ],
+    "directories": {
+      "buildResources": "assets",
+      "output": "release"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
   }
 }
